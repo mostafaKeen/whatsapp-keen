@@ -1,0 +1,14 @@
+{
+    "DOMAIN": "keenenter.bitrix24.com",
+    "PROTOCOL": "1",
+    "LANG": "en",
+    "APP_SID": "bae2275b9795e34a6d16e437d1b3e608",
+    "AUTH_ID": "a5d08e690080d03f006f2f9300000327f0f1071a023b195230cbb85dbe0b358d9494c7",
+    "AUTH_EXPIRES": "3600",
+    "REFRESH_ID": "954fb6690080d03f006f2f9300000327f0f107a5dee28680c13d52666ec58e010575a8",
+    "SERVER_ENDPOINT": "https:\/\/oauth.bitrix.info\/rest\/",
+    "member_id": "8a87fe1e4cfb7e2091189fe5615c3dbd",
+    "status": "L",
+    "PLACEMENT": "SETTING_CONNECTOR",
+    "PLACEMENT_OPTIONS": "{\"CONNECTOR\":\"wosolkeen\",\"LINE\":\"15\",\"STATUS\":false,\"ACTIVE_STATUS\":true,\"CONNECTION_STATUS\":false,\"REGISTER_STATUS\":false,\"ERROR_STATUS\":false}"
+}
