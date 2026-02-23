@@ -8,8 +8,23 @@ use Bitrix24\SDK\Core\CoreBuilder;
 use Bitrix24\SDK\Core\Credentials\Credentials;
 use Symfony\Component\HttpFoundation\Request;
 
-require_once __DIR__ . '/../../vendor/autoload.php';
-$whatsappConfig = require __DIR__ . '/../config.php';
+// Enable error output for debugging
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
+// Buffer output to prevent blank pages on errors
+ob_start();
+
+// Initialize variables that will be used in HTML section
+$b24Service = null;
+$errorMessage = null;
+$isRegistered = false;
+$connectorId = 'custom_whatsapp';
+
+try {
+    require_once __DIR__ . '/../../vendor/autoload.php';
+    $whatsappConfig = require __DIR__ . '/../config.php';
 
 $appProfile = ApplicationProfile::initFromArray([
     'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'],
@@ -73,9 +88,6 @@ if ($hasAuthData) {
     error_log('✗ No authorization data found in $_REQUEST');
 }
 
-$b24Service = null;
-$errorMessage = null;
-
 // Check if we have valid session data
 $hasValidSession = isset($_SESSION['B24_AUTH']) && !empty($_SESSION['B24_AUTH']['DOMAIN']) && !empty($_SESSION['B24_AUTH']['AUTH_ID']);
 
@@ -123,9 +135,6 @@ if ($hasValidSession) {
     $errorMessage = 'Session data not saved. Please try again by opening the app from Bitrix24 menu.';
 }
 
-$connectorId = 'custom_whatsapp';
-$isRegistered = false;
-
 if ($b24Service !== null) {
     // Check if connector is registered
     $connectors = $b24Service->getIMOpenLinesScope()->connector()->list()->getConnectors();
@@ -144,6 +153,12 @@ if ($b24Service !== null) {
         ]);
         $isRegistered = true;
     }
+}
+
+} catch (\Exception $e) {
+    error_log('✗ FATAL ERROR in index.php: ' . $e->getMessage());
+    error_log('Trace: ' . $e->getTraceAsString());
+    $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
 
 ?>
@@ -202,3 +217,7 @@ if ($b24Service !== null) {
     </div>
 </body>
 </html>
+<?php
+// Flush and end output buffering
+ob_end_flush();
+?>
