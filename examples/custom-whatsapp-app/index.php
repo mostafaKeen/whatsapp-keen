@@ -6,6 +6,7 @@ use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
 use Bitrix24\SDK\Core\Credentials\AuthToken;
 use Bitrix24\SDK\Core\CoreBuilder;
 use Bitrix24\SDK\Core\Credentials\Credentials;
+use Bitrix24\SDK\Core\Credentials\Endpoints;
 use Symfony\Component\HttpFoundation\Request;
 
 // Enable error output for debugging
@@ -109,10 +110,18 @@ if ($hasValidSession) {
             $domain = 'https://' . $domain;
         }
         
-        $credentials = new Credentials(
+        // For OAuth, we need Endpoints object instead of WebhookUrl
+        $endpoints = new Endpoints(
             $domain,
+            $_SESSION['B24_AUTH']['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/'
+        );
+        
+        // Credentials for OAuth: webhookUrl=null, authToken=set, endpoints=set
+        $credentials = new Credentials(
+            null,  // No webhook URL for OAuth
             $authToken,
-            $appProfile
+            $appProfile,
+            $endpoints
         );
         
         error_log('Creating service builder with domain: ' . $domain);
