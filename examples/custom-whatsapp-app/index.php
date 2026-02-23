@@ -23,36 +23,58 @@ $request = Request::createFromGlobals();
 // Debug: Log what we receive
 error_log('=== Bitrix24 WhatsApp Index.php Debug ===');
 error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
-error_log('Has POST AUTH_ID: ' . ($request->request->has('AUTH_ID') ? 'YES' : 'NO'));
+error_log('Has POST AUTH_ID (via Request): ' . ($request->request->has('AUTH_ID') ? 'YES' : 'NO'));
+error_log('Has POST AUTH_ID (via $_POST): ' . (isset($_POST['AUTH_ID']) ? 'YES' : 'NO'));
 error_log('Has SESSION B24_AUTH: ' . (isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO'));
 
-// Handle incoming tokens from Bitrix24 (Initial load) - Bitrix24 sends via POST
-if ($request->request->has('AUTH_ID')) {
-    error_log('Saving Bitrix24 credentials to session');
-    $_SESSION['B24_AUTH'] = [
-        'DOMAIN' => $request->request->get('DOMAIN'),
-        'PROTOCOL' => $request->request->get('PROTOCOL'),
-        'AUTH_ID' => $request->request->get('AUTH_ID'),
-        'REFRESH_ID' => $request->request->get('REFRESH_ID'),
-        'AUTH_EXPIRES' => $request->request->get('AUTH_EXPIRES'),
-        'SERVER_ENDPOINT' => $request->request->get('SERVER_ENDPOINT'),
-    ];
-    error_log('Saved DOMAIN to session: ' . $_SESSION['B24_AUTH']['DOMAIN']);
+// Handle incoming tokens from Bitrix24 (Initial load)
+// Try both Symfony Request and direct $_POST as fallback
+$hasAuthData = $request->request->has('AUTH_ID') || isset($_POST['AUTH_ID']);
+
+if ($hasAuthData) {
+    error_log('Received Bitrix24 authorization data via POST');
+    
+    // Use either Request object or $_POST (fallback)
+    $domain = $request->request->get('DOMAIN') ?? $_POST['DOMAIN'] ?? null;
+    $authId = $request->request->get('AUTH_ID') ?? $_POST['AUTH_ID'] ?? null;
+    $refreshId = $request->request->get('REFRESH_ID') ?? $_POST['REFRESH_ID'] ?? null;
+    $authExpires = $request->request->get('AUTH_EXPIRES') ?? $_POST['AUTH_EXPIRES'] ?? null;
+    $protocol = $request->request->get('PROTOCOL') ?? $_POST['PROTOCOL'] ?? null;
+    $serverEndpoint = $request->request->get('SERVER_ENDPOINT') ?? $_POST['SERVER_ENDPOINT'] ?? null;
+    
+    error_log('Extracted DOMAIN: ' . ($domain ? "[$domain]" : 'EMPTY'));
+    error_log('Extracted AUTH_ID: ' . ($authId ? '[set]' : 'EMPTY'));
+    error_log('Extracted REFRESH_ID: ' . ($refreshId ? '[set]' : 'EMPTY'));
+    
+    if (!empty($domain) && !empty($authId) && !empty($refreshId)) {
+        $_SESSION['B24_AUTH'] = [
+            'DOMAIN' => $domain,
+            'PROTOCOL' => $protocol,
+            'AUTH_ID' => $authId,
+            'REFRESH_ID' => $refreshId,
+            'AUTH_EXPIRES' => $authExpires,
+            'SERVER_ENDPOINT' => $serverEndpoint,
+        ];
+        error_log('Successfully saved credentials to session');
+        error_log('Session DOMAIN after save: ' . $_SESSION['B24_AUTH']['DOMAIN']);
+    } else {
+        error_log('ERROR: Some required fields are empty!');
+        error_log('DOMAIN empty: ' . (empty($domain) ? 'YES' : 'NO'));
+        error_log('AUTH_ID empty: ' . (empty($authId) ? 'YES' : 'NO'));
+        error_log('REFRESH_ID empty: ' . (empty($refreshId) ? 'YES' : 'NO'));
+    }
+} else {
+    error_log('No authorization data in POST');
 }
 
 $b24Service = null;
 $errorMessage = null;
 
-if (isset($_SESSION['B24_AUTH'])) {
+if (isset($_SESSION['B24_AUTH']) && !empty($_SESSION['B24_AUTH']['DOMAIN'])) {
     try {
-        error_log('Session B24_AUTH keys: ' . implode(', ', array_keys($_SESSION['B24_AUTH'])));
-        error_log('Session DOMAIN value: ' . ($_SESSION['B24_AUTH']['DOMAIN'] ?? 'EMPTY'));
+        error_log('Restoring from session - DOMAIN: ' . $_SESSION['B24_AUTH']['DOMAIN']);
         
-        if (empty($_SESSION['B24_AUTH']['DOMAIN'])) {
-            throw new \Exception('DOMAIN is empty in session');
-        }
-        
-        // Build credentials directly from session, bypassing ServiceBuilderFactory's URL parsing
+        // Build credentials directly from session
         $authToken = new AuthToken(
             $_SESSION['B24_AUTH']['AUTH_ID'],
             $_SESSION['B24_AUTH']['REFRESH_ID'],
@@ -71,18 +93,20 @@ if (isset($_SESSION['B24_AUTH'])) {
         );
         
         error_log('Creating service builder with domain: ' . $domain);
-        // Create builder and initialize with our credentials
         $coreBuilder = new CoreBuilder($credentials);
         $b24Service = new \Bitrix24\SDK\Services\ServiceBuilder($coreBuilder->build());
-        error_log('Service builder created successfully');
+        error_log('✓ Service builder created successfully');
     } catch (\Exception $e) {
-        error_log('Error creating service builder: ' . $e->getMessage());
+        error_log('✗ Error creating service builder: ' . $e->getMessage());
         error_log('Error trace: ' . $e->getTraceAsString());
-        $errorMessage = 'Session error: ' . $e->getMessage();
+        $errorMessage = 'Failed to initialize: ' . $e->getMessage();
     }
 } else {
-    error_log('No session B24_AUTH found');
-    $errorMessage = 'No authorization found. Please open this app from the Bitrix24 menu.';
+    error_log('Cannot create service: No valid session data or DOMAIN is empty');
+    if (isset($_SESSION['B24_AUTH'])) {
+        error_log('Session B24_AUTH exists but DOMAIN is: [' . ($_SESSION['B24_AUTH']['DOMAIN'] ?? 'NOT SET') . ']');
+    }
+    $errorMessage = 'No valid authorization found. Please close this window and open the app from Bitrix24 menu.';
 }
 
 $connectorId = 'custom_whatsapp';
@@ -138,7 +162,13 @@ if ($b24Service !== null) {
             <div class="mt-4 p-3 border rounded bg-light">
                 <small class="text-muted">Debug Info for Developer:</small><br>
                 <small>Request Method: <b><?= $_SERVER['REQUEST_METHOD'] ?></b></small><br>
-                <small>Data received:</small>
+                <small>Session ID: <b><?= session_id() ?></b></small><br>
+                <small>Session B24_AUTH exists: <b><?= isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO' ?></b></small>
+                <?php if (isset($_SESSION['B24_AUTH'])): ?>
+                    <small>Session DOMAIN: <b><?= $_SESSION['B24_AUTH']['DOMAIN'] ?? 'NOT SET' ?></b></small><br>
+                    <small>Session AUTH_ID: <b><?= substr($_SESSION['B24_AUTH']['AUTH_ID'] ?? '', 0, 20) . '...' ?></b></small><br>
+                <?php endif; ?>
+                <small>Data received in request:</small>
                 <pre style="font-size: 10px;"><?= print_r($_REQUEST, true) ?></pre>
             </div>
         <?php elseif (!$isRegistered): ?>
