@@ -2,12 +2,16 @@
 declare(strict_types=1);
 
 use Bitrix24\SDK\Services\ServiceBuilderFactory;
+use Bitrix24\SDK\Services\ServiceBuilder;
 use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
 use Bitrix24\SDK\Core\Credentials\AuthToken;
 use Bitrix24\SDK\Core\CoreBuilder;
 use Bitrix24\SDK\Core\Credentials\Credentials;
 use Bitrix24\SDK\Core\Credentials\Endpoints;
+use Bitrix24\SDK\Core\Batch;
+use Bitrix24\SDK\Core\BulkItemsReader\BulkItemsReaderBuilder;
 use Symfony\Component\HttpFoundation\Request;
+use Psr\Log\NullLogger;
 
 // Enable error output for debugging
 ini_set('display_errors', '1');
@@ -125,11 +129,28 @@ if ($hasValidSession) {
         );
         
         error_log('Creating service builder with domain: ' . $domain);
-        // Use fluent interface to set credentials before building
+        // Build core and required dependencies
+        $logger = new NullLogger();
         $core = (new CoreBuilder())
             ->withCredentials($credentials)
+            ->withLogger($logger)
             ->build();
-        $b24Service = new \Bitrix24\SDK\Services\ServiceBuilder($core);
+        
+        // Create batch and bulk items reader
+        $batch = new Batch($core, $logger);
+        $bulkItemsReader = (new BulkItemsReaderBuilder(
+            $core,
+            $batch,
+            $logger
+        ))->build();
+        
+        // Create service builder with all required parameters
+        $b24Service = new ServiceBuilder(
+            $core,
+            $batch,
+            $bulkItemsReader,
+            $logger
+        );
         error_log('✓ Service builder created successfully');
     } catch (\Exception $e) {
         error_log('✗ Error creating service builder: ' . $e->getMessage());
