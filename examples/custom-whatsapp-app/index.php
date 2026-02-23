@@ -191,7 +191,11 @@ if ($b24Service !== null) {
             </div>
         <?php elseif (!$isRegistered): ?>
             <div class="alert alert-warning">
-                Connector <b>WhatsApp Direct</b> is not registered yet.
+                Connector <b>WhatsApp Direct</b> is not registered yet.<br>
+                <b>Debug:</b> Registration may have failed or Bitrix24 did not return the connector.<br>
+                <b>Connector ID:</b> <?= htmlspecialchars($connectorId) ?><br>
+                <b>Session ID:</b> <?= htmlspecialchars($sessionManager->getSessionId()) ?><br>
+                <b>Connectors returned:</b> <?= htmlspecialchars(implode(', ', array_map(function($c){return $c->id;}, $allConnectors))) ?><br>
             </div>
             <form method="post">
                 <input type="hidden" name="action" value="register">
@@ -201,6 +205,10 @@ if ($b24Service !== null) {
             <div class="alert alert-success">
                 <h4>✓ WhatsApp Direct Connector is Active!</h4>
                 <p>Search for <b>"WhatsApp Direct"</b> in your Bitrix24 Contact Center.</p>
+                <b>Debug:</b> Connector found in Bitrix24 connector list.<br>
+                <b>Connector ID:</b> <?= htmlspecialchars($connectorId) ?><br>
+                <b>Session ID:</b> <?= htmlspecialchars($sessionManager->getSessionId()) ?><br>
+                <b>Connectors returned:</b> <?= htmlspecialchars(implode(', ', array_map(function($c){return $c->id;}, $allConnectors))) ?><br>
             </div>
             <div class="card bg-light mb-4">
                 <div class="card-body">
