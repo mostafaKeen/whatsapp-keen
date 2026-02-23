@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 use Bitrix24\SDK\Services\ServiceBuilderFactory;
 use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
+use Bitrix24\SDK\Core\Credentials\AuthToken;
+use Bitrix24\SDK\Core\CoreBuilder;
+use Bitrix24\SDK\Core\Credentials\Credentials;
 use Symfony\Component\HttpFoundation\Request;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -17,16 +20,24 @@ $appProfile = ApplicationProfile::initFromArray([
 session_start();
 $request = Request::createFromGlobals();
 
-// Handle incoming tokens from Bitrix24 (Initial load)
+// Debug: Log what we receive
+error_log('=== Bitrix24 WhatsApp Index.php Debug ===');
+error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
+error_log('Has POST AUTH_ID: ' . ($request->request->has('AUTH_ID') ? 'YES' : 'NO'));
+error_log('Has SESSION B24_AUTH: ' . (isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO'));
+
+// Handle incoming tokens from Bitrix24 (Initial load) - Bitrix24 sends via POST
 if ($request->request->has('AUTH_ID')) {
+    error_log('Saving Bitrix24 credentials to session');
     $_SESSION['B24_AUTH'] = [
+        'DOMAIN' => $request->request->get('DOMAIN'),
+        'PROTOCOL' => $request->request->get('PROTOCOL'),
         'AUTH_ID' => $request->request->get('AUTH_ID'),
         'REFRESH_ID' => $request->request->get('REFRESH_ID'),
         'AUTH_EXPIRES' => $request->request->get('AUTH_EXPIRES'),
-        'DOMAIN' => $request->request->get('DOMAIN'),
-        'PROTOCOL' => $request->request->get('PROTOCOL'),
         'SERVER_ENDPOINT' => $request->request->get('SERVER_ENDPOINT'),
     ];
+    error_log('Saved DOMAIN to session: ' . $_SESSION['B24_AUTH']['DOMAIN']);
 }
 
 $b24Service = null;
@@ -34,17 +45,43 @@ $errorMessage = null;
 
 if (isset($_SESSION['B24_AUTH'])) {
     try {
-        // Reconstruct the placement request from session
-        // The SDK expects DOMAIN in GET and auth credentials in POST body
-        $sessionRequest = new Request(
-            ['DOMAIN' => $_SESSION['B24_AUTH']['DOMAIN']], // GET - SDK looks for DOMAIN here
-            $_SESSION['B24_AUTH']                          // POST - all credentials including DOMAIN
+        error_log('Session B24_AUTH keys: ' . implode(', ', array_keys($_SESSION['B24_AUTH'])));
+        error_log('Session DOMAIN value: ' . ($_SESSION['B24_AUTH']['DOMAIN'] ?? 'EMPTY'));
+        
+        if (empty($_SESSION['B24_AUTH']['DOMAIN'])) {
+            throw new \Exception('DOMAIN is empty in session');
+        }
+        
+        // Build credentials directly from session, bypassing ServiceBuilderFactory's URL parsing
+        $authToken = new AuthToken(
+            $_SESSION['B24_AUTH']['AUTH_ID'],
+            $_SESSION['B24_AUTH']['REFRESH_ID'],
+            (int)$_SESSION['B24_AUTH']['AUTH_EXPIRES']
         );
-        $b24Service = ServiceBuilderFactory::createServiceBuilderFromPlacementRequest($sessionRequest, $appProfile);
+        
+        $domain = $_SESSION['B24_AUTH']['DOMAIN'];
+        if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
+            $domain = 'https://' . $domain;
+        }
+        
+        $credentials = new Credentials(
+            $domain,
+            $authToken,
+            $appProfile
+        );
+        
+        error_log('Creating service builder with domain: ' . $domain);
+        // Create builder and initialize with our credentials
+        $coreBuilder = new CoreBuilder($credentials);
+        $b24Service = new \Bitrix24\SDK\Services\ServiceBuilder($coreBuilder->build());
+        error_log('Service builder created successfully');
     } catch (\Exception $e) {
+        error_log('Error creating service builder: ' . $e->getMessage());
+        error_log('Error trace: ' . $e->getTraceAsString());
         $errorMessage = 'Session error: ' . $e->getMessage();
     }
 } else {
+    error_log('No session B24_AUTH found');
     $errorMessage = 'No authorization found. Please open this app from the Bitrix24 menu.';
 }
 
