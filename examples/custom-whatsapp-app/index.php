@@ -32,10 +32,11 @@ $errorMessage = null;
 
 if (isset($_SESSION['B24_AUTH'])) {
     try {
-        // The SDK expects DOMAIN in GET (query) and tokens in POST (request)
+        // Reconstruct the placement request from session
+        // The SDK expects DOMAIN and all auth credentials in the request body (POST data)
         $sessionRequest = new Request(
-            ['DOMAIN' => $_SESSION['B24_AUTH']['DOMAIN']], // GET
-            $_SESSION['B24_AUTH']                          // POST
+            [], // GET parameters (empty)
+            $_SESSION['B24_AUTH'] // POST body with DOMAIN, AUTH_ID, REFRESH_ID, etc.
         );
         $b24Service = ServiceBuilderFactory::createServiceBuilderFromPlacementRequest($sessionRequest, $appProfile);
     } catch (\Exception $e) {
