@@ -125,8 +125,11 @@ if ($hasValidSession) {
         );
         
         error_log('Creating service builder with domain: ' . $domain);
-        $coreBuilder = new CoreBuilder($credentials);
-        $b24Service = new \Bitrix24\SDK\Services\ServiceBuilder($coreBuilder->build());
+        // Use fluent interface to set credentials before building
+        $core = (new CoreBuilder())
+            ->withCredentials($credentials)
+            ->build();
+        $b24Service = new \Bitrix24\SDK\Services\ServiceBuilder($core);
         error_log('✓ Service builder created successfully');
     } catch (\Exception $e) {
         error_log('✗ Error creating service builder: ' . $e->getMessage());
