@@ -24,6 +24,8 @@ if ($request->request->has('AUTH_ID')) {
         'REFRESH_ID' => $request->request->get('REFRESH_ID'),
         'AUTH_EXPIRES' => $request->request->get('AUTH_EXPIRES'),
         'DOMAIN' => $request->request->get('DOMAIN'),
+        'PROTOCOL' => $request->request->get('PROTOCOL'),
+        'SERVER_ENDPOINT' => $request->request->get('SERVER_ENDPOINT'),
     ];
 }
 
@@ -33,10 +35,10 @@ $errorMessage = null;
 if (isset($_SESSION['B24_AUTH'])) {
     try {
         // Reconstruct the placement request from session
-        // The SDK expects DOMAIN and all auth credentials in the request body (POST data)
+        // The SDK expects DOMAIN in GET and auth credentials in POST body
         $sessionRequest = new Request(
-            [], // GET parameters (empty)
-            $_SESSION['B24_AUTH'] // POST body with DOMAIN, AUTH_ID, REFRESH_ID, etc.
+            ['DOMAIN' => $_SESSION['B24_AUTH']['DOMAIN']], // GET - SDK looks for DOMAIN here
+            $_SESSION['B24_AUTH']                          // POST - all credentials including DOMAIN
         );
         $b24Service = ServiceBuilderFactory::createServiceBuilderFromPlacementRequest($sessionRequest, $appProfile);
     } catch (\Exception $e) {
