@@ -114,16 +114,35 @@ if ($b24Service !== null) {
         $allConnectors = $connectorList->getConnectors();
         
         $isRegistered = false;
+        $foundConnector = false;
         foreach ($allConnectors as $connectorItem) {
             // Note: the SDK returns an array of ConnectorItemResult objects 
             // which extends AbstractItem, exposing properties via getters/magic variables
             if ($connectorItem->id === $connectorId) {
                 $isRegistered = true;
+                $foundConnector = true;
                 break;
             }
         }
-        
         $sessionManager->saveRegistration($connectorId, $isRegistered);
+        // If not found, try to force registration
+        if (!$foundConnector) {
+            error_log('Connector whatsapp_direct not found in Bitrix24 connector list. Attempting re-registration.');
+            try {
+                $handlerUrl = 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php';
+                $b24Service->getIMOpenLinesScope()->connector()->register([
+                    'ID' => $connectorId,
+                    'NAME' => 'WhatsApp Direct',
+                    'ICON' => [
+                        'DATA_IMAGE' => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzI1RDM2NiIgZD0iTTEyIDBDNS4zNzMgMCAwIDUuMzczIDAgMTJjMCAyLjEyNC41NDYgNC4xMTkgMS41IDEuODU3TDAgMjRsNy4zOTUtMS4zODRDOC43MDEgMjMuNDU0IDEwLjI5OSAyNCAxMiAyNGM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDB6bTAtLjY2N2ExMi42NjcgMTIuNjY3IDAgMCAxIDEyLjY2NyAxMi42NjdBMTIuNjY3IDEyLjY2NyAwIDAgMSAxMiAyNC42NjcgMTIuNjY3IDEyLjY2NyAwIDAgMSAtIDYuNjg0IDEuNzQ5TDAgMjRsMS43NDktNi42ODRBMTIuNjY3IDEyLjY2NyAwIDAgMSAtLjY2NyAxMnoiLz48L3N2Zz4=',
+                    ],
+                    'URL_IM' => $handlerUrl,
+                ]);
+                error_log('Connector whatsapp_direct registration attempted.');
+            } catch (\Exception $e) {
+                error_log('Connector whatsapp_direct registration failed: ' . $e->getMessage());
+            }
+        }
     } catch (\Exception $e) {
         $isRegistered = false;
     }
