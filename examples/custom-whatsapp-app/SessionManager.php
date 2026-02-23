@@ -132,9 +132,76 @@ class SessionManager
         }
     }
 
+    /**
+     * Save connector registration status (cached result)
+     */
+    public function saveRegistration(string $connectorId, bool $isRegistered): bool
+    {
+        try {
+            $filePath = $this->getRegistrationFile($connectorId);
+            $data = [
+                'timestamp' => time(),
+                'registered' => $isRegistered
+            ];
+            
+            $result = file_put_contents(
+                $filePath,
+                json_encode($data),
+                LOCK_EX
+            );
+            
+            error_log('SessionManager: Saved registration status for ' . $connectorId . ': ' . ($isRegistered ? 'YES' : 'NO'));
+            return $result !== false;
+        } catch (\Exception $e) {
+            error_log('SessionManager: Error saving registration: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get cached connector registration status
+     */
+    public function getRegistration(string $connectorId): ?bool
+    {
+        try {
+            $filePath = $this->getRegistrationFile($connectorId);
+            
+            if (!file_exists($filePath)) {
+                error_log('SessionManager: No registration file found');
+                return null;
+            }
+            
+            $content = file_get_contents($filePath);
+            $data = json_decode($content, true);
+            
+            if (!is_array($data)) {
+                error_log('SessionManager: Invalid registration file format');
+                return null;
+            }
+            
+            // Keep registration status cached for 1 hour
+            if (time() - ($data['timestamp'] ?? 0) > 3600) {
+                error_log('SessionManager: Registration cache expired');
+                return null;
+            }
+            
+            $registered = $data['registered'] ?? false;
+            error_log('SessionManager: Retrieved cached registration status: ' . ($registered ? 'YES' : 'NO'));
+            return $registered;
+        } catch (\Exception $e) {
+            error_log('SessionManager: Error reading registration: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private function getFilePath(): string
     {
         return $this->storageDir . '/' . 'auth_' . $this->sessionId . '.json';
+    }
+
+    private function getRegistrationFile(string $connectorId): string
+    {
+        return $this->storageDir . '/' . 'reg_' . $this->sessionId . '_' . $connectorId . '.json';
     }
 
     public function getSessionId(): string

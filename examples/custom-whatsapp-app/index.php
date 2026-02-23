@@ -179,22 +179,60 @@ if ($hasValidAuth) {
 }
 
 if ($b24Service !== null) {
-    // Check if connector is registered
-    $connectors = $b24Service->getIMOpenLinesScope()->connector()->list()->getConnectors();
-    $isRegistered = isset($connectors[$connectorId]);
+    // First check cached registration status
+    $cachedRegistration = $sessionManager->getRegistration($connectorId);
+    if ($cachedRegistration !== null) {
+        error_log('Using cached registration status: ' . ($cachedRegistration ? 'YES' : 'NO'));
+        $isRegistered = $cachedRegistration;
+    } else {
+        // If not cached, check with API
+        try {
+            error_log('Connector check: Fetching connector list from API...');
+            $connectorList = $b24Service->getIMOpenLinesScope()->connector()->list();
+            $connectors = $connectorList->getConnectors();
+            
+            error_log('Connector check: Found ' . count($connectors) . ' connectors');
+            error_log('Connector check: Looking for connector ID: ' . $connectorId);
+            error_log('Connector check: Available connector IDs: ' . implode(', ', array_keys($connectors)));
+            
+            $isRegistered = isset($connectors[$connectorId]);
+            error_log('Connector check: Is registered? ' . ($isRegistered ? 'YES' : 'NO'));
+            
+            // Cache the result for next time
+            $sessionManager->saveRegistration($connectorId, $isRegistered);
+        } catch (\Exception $e) {
+            error_log('Connector check: Error fetching connector list: ' . $e->getMessage());
+            // If API fails, assume not registered to be safe
+            $isRegistered = false;
+        }
+    }
 
     if (isset($_POST['action']) && $_POST['action'] === 'register') {
-        $handlerUrl = 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php';
-        
-        $b24Service->getIMOpenLinesScope()->connector()->register([
-            'ID' => $connectorId,
-            'NAME' => 'WhatsApp Custom',
-            'ICON' => [
-                'DATA_IMAGE' => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzI1RDM2NiIgZD0iTTEyIDBDNS4zNzMgMCAwIDUuMzczIDAgMTJjMCAyLjEyNC41NDYgNC4xMTkgMS41IDEuODU3TDAgMjRsNy4zOTUtMS4zODRDOC43MDEgMjMuNDU0IDEwLjI5OSAyNCAxMiAyNGM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDB6bTAtLjY2N2ExMi42NjcgMTIuNjY3IDAgMCAxIDEyLjY2NyAxMi42NjdBMTIuNjY3IDEyLjY2NyAwIDAgMSAxMiAyNC42NjcgMTIuNjY3IDEyLjY2NyAwIDAgMSAtIDYuNjg0IDEuNzQ5TDAgMjRsMS43NDktNi42ODRBMTIuNjY3IDEyLjY2NyAwIDAgMSAtLjY2NyAxMnoiLz48L3N2Zz4=', 
-            ],
-            'URL_IM' => $handlerUrl,
-        ]);
-        $isRegistered = true;
+        try {
+            $handlerUrl = 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php';
+            
+            error_log('Registering connector with ID: ' . $connectorId);
+            error_log('Handler URL: ' . $handlerUrl);
+            
+            $b24Service->getIMOpenLinesScope()->connector()->register([
+                'ID' => $connectorId,
+                'NAME' => 'WhatsApp Custom',
+                'ICON' => [
+                    'DATA_IMAGE' => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzI1RDM2NiIgZD0iTTEyIDBDNS4zNzMgMCAwIDUuMzczIDAgMTJjMCAyLjEyNC41NDYgNC4xMTkgMS41IDEuODU3TDAgMjRsNy4zOTUtMS4zODRDOC43MDEgMjMuNDU0IDEwLjI5OSAyNCAxMiAyNGM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDB6bTAtLjY2N2ExMi42NjcgMTIuNjY3IDAgMCAxIDEyLjY2NyAxMi42NjdBMTIuNjY3IDEyLjY2NyAwIDAgMSAxMiAyNC42NjcgMTIuNjY3IDEyLjY2NyAwIDAgMSAtIDYuNjg0IDEuNzQ5TDAgMjRsMS43NDktNi42ODRBMTIuNjY3IDEyLjY2NyAwIDAgMSAtLjY2NyAxMnoiLz48L3N2Zz4=', 
+                ],
+                'URL_IM' => $handlerUrl,
+            ]);
+            
+            error_log('✓ Connector registered successfully');
+            $isRegistered = true;
+            
+            // Cache registration status for 1 hour
+            $sessionManager->saveRegistration($connectorId, true);
+        } catch (\Exception $e) {
+            error_log('✗ Error registering connector: ' . $e->getMessage());
+            error_log('Error trace: ' . $e->getTraceAsString());
+            $errorMessage = 'Failed to register connector: ' . $e->getMessage();
+        }
     }
 }
 
