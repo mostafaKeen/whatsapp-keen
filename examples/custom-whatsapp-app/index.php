@@ -37,34 +37,21 @@ $appProfile = ApplicationProfile::initFromArray([
     'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'],
 ]);
 
-// Start session with persistent settings
-session_name('bitrix24_whatsapp_app');
-session_start([
-    'gc_maxlifetime' => 86400,  // 24 hours
-    'gc_probability' => 1,
-    'gc_divisor' => 1,
-]);
-
-error_log('=== Session Debug ===');
-error_log('Session Name: ' . session_name());
-error_log('Session ID: ' . session_id());
-error_log('Session Save Path: ' . ini_get('session.save_path'));
-error_log('Session Handler: ' . ini_get('session.save_handler'));
-
-$request = Request::createFromGlobals();
+// Use custom session manager instead of PHP sessions for reliability on shared hosting
+require_once __DIR__ . '/SessionManager.php';
+$sessionManager = new SessionManager();
 
 // Debug: Log what we receive
 error_log('=== Bitrix24 WhatsApp Index.php Debug ===');
 error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
-error_log('$_POST available: ' . (count($_POST) > 0 ? 'YES (' . count($_POST) . ' fields)' : 'NO'));
-error_log('$_REQUEST available: ' . (count($_REQUEST) > 0 ? 'YES (' . count($_REQUEST) . ' fields)' : 'NO'));
-error_log('Has SESSION B24_AUTH: ' . (isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO'));
+error_log('Session Manager ID: ' . $sessionManager->getSessionId());
+error_log('Has stored B24_AUTH: ' . ($sessionManager->getAuth() !== null ? 'YES' : 'NO'));
 
 // Use $_REQUEST which includes both GET and POST
 // This is more reliable for Bitrix24's form submissions
 $hasAuthData = isset($_REQUEST['AUTH_ID']) && !empty($_REQUEST['AUTH_ID']);
 
-error_log('Has AUTH_ID in $_REQUEST: ' . ($hasAuthData ? 'YES' : 'NO'));
+error_log('Has AUTH_ID in current request: ' . ($hasAuthData ? 'YES' : 'NO'));
 
 if ($hasAuthData) {
     error_log('Received Bitrix24 authorization data via POST/REQUEST');
@@ -83,7 +70,7 @@ if ($hasAuthData) {
     error_log('Extracted AUTH_EXPIRES: ' . ($authExpires ? "[$authExpires]" : 'EMPTY'));
     
     if (!empty($domain) && !empty($authId) && !empty($refreshId) && !empty($authExpires)) {
-        $_SESSION['B24_AUTH'] = [
+        $authDataToSave = [
             'DOMAIN' => trim($domain),
             'PROTOCOL' => $protocol,
             'AUTH_ID' => trim($authId),
@@ -92,14 +79,13 @@ if ($hasAuthData) {
             'SERVER_ENDPOINT' => $serverEndpoint,
         ];
         
-        // Force session to be written immediately
-        session_write_close();
-        session_start();
-        
-        error_log('✓ Successfully saved credentials to session');
-        error_log('✓ Session DOMAIN: ' . $_SESSION['B24_AUTH']['DOMAIN']);
-        error_log('✓ Session AUTH_ID: ' . substr($_SESSION['B24_AUTH']['AUTH_ID'], 0, 30) . '...');
-        error_log('✓ Session persisted and reloaded');
+        if ($sessionManager->saveAuth($authDataToSave)) {
+            error_log('✓ Successfully saved credentials to storage');
+            error_log('✓ Storage DOMAIN: ' . $authDataToSave['DOMAIN']);
+            error_log('✓ Storage AUTH_ID: ' . substr($authDataToSave['AUTH_ID'], 0, 30) . '...');
+        } else {
+            error_log('✗ Failed to save credentials to storage');
+        }
     } else {
         error_log('✗ ERROR: Some required fields are empty!');
         error_log('  DOMAIN empty: ' . (empty($domain) ? 'YES' : 'NO'));
@@ -108,37 +94,32 @@ if ($hasAuthData) {
         error_log('  AUTH_EXPIRES empty: ' . (empty($authExpires) ? 'YES' : 'NO'));
     }
 } else {
-    error_log('✗ No authorization data found in $_REQUEST');
+    error_log('✗ No authorization data found in current request');
     error_log('Available $_REQUEST keys: ' . implode(', ', array_keys($_REQUEST)));
 }
 
-// Check if we have valid session data
-$hasValidSession = isset($_SESSION['B24_AUTH']) && !empty($_SESSION['B24_AUTH']['DOMAIN']) && !empty($_SESSION['B24_AUTH']['AUTH_ID']);
+// Check if we have valid stored auth data
+$storedAuth = $sessionManager->getAuth();
+$hasValidAuth = $storedAuth !== null && !empty($storedAuth['DOMAIN']) && !empty($storedAuth['AUTH_ID']);
 
-error_log('Has valid session B24_AUTH: ' . ($hasValidSession ? 'YES' : 'NO'));
+error_log('Has valid stored B24_AUTH: ' . ($hasValidAuth ? 'YES' : 'NO'));
 
-if (!$hasValidSession) {
-    error_log('Checking session contents for debugging:');
-    if (isset($_SESSION['B24_AUTH'])) {
-        error_log('  Session B24_AUTH exists: ' . print_r($_SESSION['B24_AUTH'], true));
-    } else {
-        error_log('  Session B24_AUTH does not exist');
-        error_log('  All session data: ' . print_r($_SESSION, true));
-    }
+if (!$hasValidAuth && $storedAuth) {
+    error_log('Checking stored auth contents for debugging: ' . print_r($storedAuth, true));
 }
 
-if ($hasValidSession) {
+if ($hasValidAuth) {
     try {
-        error_log('Restoring from session - DOMAIN: ' . $_SESSION['B24_AUTH']['DOMAIN']);
+        error_log('Restoring from stored auth - DOMAIN: ' . $storedAuth['DOMAIN']);
         
-        // Build credentials directly from session
+        // Build credentials from stored auth
         $authToken = new AuthToken(
-            $_SESSION['B24_AUTH']['AUTH_ID'],
-            $_SESSION['B24_AUTH']['REFRESH_ID'],
-            (int)$_SESSION['B24_AUTH']['AUTH_EXPIRES']
+            $storedAuth['AUTH_ID'],
+            $storedAuth['REFRESH_ID'],
+            (int)$storedAuth['AUTH_EXPIRES']
         );
         
-        $domain = $_SESSION['B24_AUTH']['DOMAIN'];
+        $domain = $storedAuth['DOMAIN'];
         if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
             $domain = 'https://' . $domain;
         }
@@ -146,7 +127,7 @@ if ($hasValidSession) {
         // For OAuth, we need Endpoints object instead of WebhookUrl
         $endpoints = new Endpoints(
             $domain,
-            $_SESSION['B24_AUTH']['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/'
+            $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/'
         );
         
         // Credentials for OAuth: webhookUrl=null, authToken=set, endpoints=set
@@ -187,14 +168,14 @@ if ($hasValidSession) {
         $errorMessage = 'Failed to initialize: ' . $e->getMessage();
     }
 } else {
-    error_log('Cannot create service: No valid session data');
-    if (isset($_SESSION['B24_AUTH'])) {
-        error_log('Session B24_AUTH exists but incomplete:');
-        error_log('  DOMAIN: ' . ($_SESSION['B24_AUTH']['DOMAIN'] ?? 'EMPTY'));
-        error_log('  AUTH_ID: ' . ($_SESSION['B24_AUTH']['AUTH_ID'] ?? 'EMPTY'));
-        error_log('  REFRESH_ID: ' . ($_SESSION['B24_AUTH']['REFRESH_ID'] ?? 'EMPTY'));
+    error_log('Cannot create service: No valid stored auth data');
+    if ($storedAuth) {
+        error_log('Stored auth exists but incomplete:');
+        error_log('  DOMAIN: ' . ($storedAuth['DOMAIN'] ?? 'EMPTY'));
+        error_log('  AUTH_ID: ' . ($storedAuth['AUTH_ID'] ?? 'EMPTY'));
+        error_log('  REFRESH_ID: ' . ($storedAuth['REFRESH_ID'] ?? 'EMPTY'));
     }
-    $errorMessage = 'Session data not saved. Please try again by opening the app from Bitrix24 menu.';
+    $errorMessage = 'No valid authorization found. Please close this window and open the app from Bitrix24 menu.';
 }
 
 if ($b24Service !== null) {
@@ -253,15 +234,13 @@ if ($b24Service !== null) {
             <div class="mt-4 p-3 border rounded bg-light">
                 <small class="text-muted">Debug Info for Developer:</small><br>
                 <small>Request Method: <b><?= $_SERVER['REQUEST_METHOD'] ?></b></small><br>
-                <small>Session ID: <b><?= session_id() ?></b></small><br>
-                <small>Session Save Path: <b><?= ini_get('session.save_path') ?: 'default' ?></b></small><br>
-                <small>Session Handler: <b><?= ini_get('session.save_handler') ?></b></small><br>
-                <small>Session B24_AUTH exists: <b><?= isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO' ?></b></small>
-                <?php if (isset($_SESSION['B24_AUTH'])): ?>
-                    <small>Session DOMAIN: <b><?= $_SESSION['B24_AUTH']['DOMAIN'] ?? 'NOT SET' ?></b></small><br>
-                    <small>Session AUTH_ID: <b><?= substr($_SESSION['B24_AUTH']['AUTH_ID'] ?? '', 0, 20) . '...' ?></b></small><br>
+                <small>Session Manager ID: <b><?= $sessionManager->getSessionId() ?></b></small><br>
+                <small>Stored B24_AUTH exists: <b><?= $sessionManager->getAuth() !== null ? 'YES' : 'NO' ?></b></small>
+                <?php if ($sessionManager->getAuth()): $auth = $sessionManager->getAuth(); ?>
+                    <small>Stored DOMAIN: <b><?= $auth['DOMAIN'] ?? 'NOT SET' ?></b></small><br>
+                    <small>Stored AUTH_ID: <b><?= substr($auth['AUTH_ID'] ?? '', 0, 20) . '...' ?></b></small><br>
                 <?php endif; ?>
-                <small>Data received in request:</small>
+                <small>Data received in current request:</small>
                 <pre style="font-size: 10px;"><?= print_r($_REQUEST, true) ?></pre>
             </div>
         <?php elseif (!$isRegistered): ?>
