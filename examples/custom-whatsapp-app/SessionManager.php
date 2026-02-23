@@ -23,20 +23,33 @@ class SessionManager
             mkdir($this->storageDir, 0755, true);
         }
         
-        // Generate or retrieve session ID
-        $this->sessionId = isset($_COOKIE['b24_whatsapp_sid']) 
-            ? $_COOKIE['b24_whatsapp_sid'] 
-            : bin2hex(random_bytes(16));
+        // Use DOMAIN from request as stable session ID
+        // This is more reliable than cookies on shared hosting
+        $domain = $_REQUEST['DOMAIN'] ?? $_COOKIE['b24_domain'] ?? null;
         
-        // Set cookie to persist session ID
-        if (!isset($_COOKIE['b24_whatsapp_sid'])) {
-            setcookie('b24_whatsapp_sid', $this->sessionId, [
-                'expires' => time() + 86400 * 7,  // 7 days
-                'path' => '/',
-                'httponly' => true,
-                'samesite' => 'Lax'
-            ]);
+        if (!empty($domain)) {
+            // Use domain hash as session ID - consistent across all requests for same domain
+            $this->sessionId = 'domain_' . md5($domain);
+            error_log('SessionManager::__construct: Using domain-based session ID from [' . $domain . ']: ' . $this->sessionId);
+            
+            // Also store domain in cookie as fallback
+            @setcookie('b24_domain', $domain, time() + 86400 * 7, dirname($_SERVER['PHP_SELF']) ?: '/');
+        } else {
+            // Fallback to cookie-based session ID
+            $this->sessionId = isset($_COOKIE['b24_whatsapp_sid']) 
+                ? $_COOKIE['b24_whatsapp_sid'] 
+                : 'sid_' . bin2hex(random_bytes(8));
+            
+            error_log('SessionManager::__construct: Using cookie-based session ID: ' . $this->sessionId);
+            
+            // Set cookie for next request
+            if (!isset($_COOKIE['b24_whatsapp_sid'])) {
+                @setcookie('b24_whatsapp_sid', $this->sessionId, time() + 86400 * 7, dirname($_SERVER['PHP_SELF']) ?: '/');
+            }
         }
+        
+        error_log('SessionManager::__construct: Final session ID: ' . $this->sessionId);
+        error_log('SessionManager::__construct: Storage directory: ' . $this->storageDir);
     }
 
     /**
