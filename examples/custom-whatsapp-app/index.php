@@ -25,7 +25,8 @@ ob_start();
 $b24Service = null;
 $errorMessage = null;
 $isRegistered = false;
-$connectorId = 'custom_whatsapp';
+$connectorId = 'whatsapp_direct';
+$allConnectors = [];
 
 try {
     require_once __DIR__ . '/../../vendor/autoload.php';
@@ -41,21 +42,20 @@ $appProfile = ApplicationProfile::initFromArray([
 require_once __DIR__ . '/SessionManager.php';
 $sessionManager = new SessionManager();
 
-// Debug: Log what we receive
-error_log('=== Bitrix24 WhatsApp Index.php Debug ===');
-error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
-error_log('Session Manager ID: ' . $sessionManager->getSessionId());
-error_log('Has stored B24_AUTH: ' . ($sessionManager->getAuth() !== null ? 'YES' : 'NO'));
+// Manual Cache Clear
+if (isset($_GET['clear_cache'])) {
+    $sessionManager->saveRegistration($connectorId, false);
+    header('Location: index.php');
+    exit;
+}
+
+// Debug logs
+error_log('=== Bitrix24 WhatsApp Direct Index.php Debug ===');
 
 // Use $_REQUEST which includes both GET and POST
-// This is more reliable for Bitrix24's form submissions
 $hasAuthData = isset($_REQUEST['AUTH_ID']) && !empty($_REQUEST['AUTH_ID']);
 
-error_log('Has AUTH_ID in current request: ' . ($hasAuthData ? 'YES' : 'NO'));
-
 if ($hasAuthData) {
-    error_log('Received Bitrix24 authorization data via POST/REQUEST');
-    
     // Extract from $_REQUEST (most reliable for Bitrix24)
     $domain = $_REQUEST['DOMAIN'] ?? null;
     $authId = $_REQUEST['AUTH_ID'] ?? null;
@@ -63,11 +63,6 @@ if ($hasAuthData) {
     $authExpires = $_REQUEST['AUTH_EXPIRES'] ?? null;
     $protocol = $_REQUEST['PROTOCOL'] ?? null;
     $serverEndpoint = $_REQUEST['SERVER_ENDPOINT'] ?? null;
-    
-    error_log('Extracted DOMAIN: ' . ($domain ? "[$domain]" : 'EMPTY'));
-    error_log('Extracted AUTH_ID length: ' . (strlen($authId ?? '') > 0 ? strlen($authId) : 'EMPTY'));
-    error_log('Extracted REFRESH_ID length: ' . (strlen($refreshId ?? '') > 0 ? strlen($refreshId) : 'EMPTY'));
-    error_log('Extracted AUTH_EXPIRES: ' . ($authExpires ? "[$authExpires]" : 'EMPTY'));
     
     if (!empty($domain) && !empty($authId) && !empty($refreshId) && !empty($authExpires)) {
         $authDataToSave = [
@@ -78,167 +73,71 @@ if ($hasAuthData) {
             'AUTH_EXPIRES' => trim($authExpires),
             'SERVER_ENDPOINT' => $serverEndpoint,
         ];
-        
-        if ($sessionManager->saveAuth($authDataToSave)) {
-            error_log('✓ Successfully saved credentials to storage');
-            error_log('✓ Storage DOMAIN: ' . $authDataToSave['DOMAIN']);
-            error_log('✓ Storage AUTH_ID: ' . substr($authDataToSave['AUTH_ID'], 0, 30) . '...');
-        } else {
-            error_log('✗ Failed to save credentials to storage');
-        }
-    } else {
-        error_log('✗ ERROR: Some required fields are empty!');
-        error_log('  DOMAIN empty: ' . (empty($domain) ? 'YES' : 'NO'));
-        error_log('  AUTH_ID empty: ' . (empty($authId) ? 'YES' : 'NO'));
-        error_log('  REFRESH_ID empty: ' . (empty($refreshId) ? 'YES' : 'NO'));
-        error_log('  AUTH_EXPIRES empty: ' . (empty($authExpires) ? 'YES' : 'NO'));
+        $sessionManager->saveAuth($authDataToSave);
     }
-} else {
-    error_log('✗ No authorization data found in current request');
-    error_log('Available $_REQUEST keys: ' . implode(', ', array_keys($_REQUEST)));
 }
 
-// Check if we have valid stored auth data
+// Check stored auth
 $storedAuth = $sessionManager->getAuth();
 $hasValidAuth = $storedAuth !== null && !empty($storedAuth['DOMAIN']) && !empty($storedAuth['AUTH_ID']);
 
-error_log('Has valid stored B24_AUTH: ' . ($hasValidAuth ? 'YES' : 'NO'));
-
-if (!$hasValidAuth && $storedAuth) {
-    error_log('Checking stored auth contents for debugging: ' . print_r($storedAuth, true));
-}
-
 if ($hasValidAuth) {
     try {
-        error_log('Restoring from stored auth - DOMAIN: ' . $storedAuth['DOMAIN']);
-        
-        // Build credentials from stored auth
         $authToken = new AuthToken(
             $storedAuth['AUTH_ID'],
             $storedAuth['REFRESH_ID'],
             (int)$storedAuth['AUTH_EXPIRES']
         );
-        
         $domain = $storedAuth['DOMAIN'];
         if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
             $domain = 'https://' . $domain;
         }
+        $endpoints = new Endpoints($domain, $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/');
+        $credentials = new Credentials(null, $authToken, $appProfile, $endpoints);
         
-        // For OAuth, we need Endpoints object instead of WebhookUrl
-        $endpoints = new Endpoints(
-            $domain,
-            $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/'
-        );
-        
-        // Credentials for OAuth: webhookUrl=null, authToken=set, endpoints=set
-        $credentials = new Credentials(
-            null,  // No webhook URL for OAuth
-            $authToken,
-            $appProfile,
-            $endpoints
-        );
-        
-        error_log('Creating service builder with domain: ' . $domain);
-        // Build core and required dependencies
         $logger = new NullLogger();
-        $core = (new CoreBuilder())
-            ->withCredentials($credentials)
-            ->withLogger($logger)
-            ->build();
-        
-        // Create batch and bulk items reader
+        $core = (new CoreBuilder())->withCredentials($credentials)->withLogger($logger)->build();
         $batch = new Batch($core, $logger);
-        $bulkItemsReader = (new BulkItemsReaderBuilder(
-            $core,
-            $batch,
-            $logger
-        ))->build();
-        
-        // Create service builder with all required parameters
-        $b24Service = new ServiceBuilder(
-            $core,
-            $batch,
-            $bulkItemsReader,
-            $logger
-        );
-        error_log('✓ Service builder created successfully');
+        $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
+        $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
     } catch (\Exception $e) {
-        error_log('✗ Error creating service builder: ' . $e->getMessage());
-        error_log('Error trace: ' . $e->getTraceAsString());
-        $errorMessage = 'Failed to initialize: ' . $e->getMessage();
+        $errorMessage = 'Init failed: ' . $e->getMessage();
     }
 } else {
-    error_log('Cannot create service: No valid stored auth data');
-    if ($storedAuth) {
-        error_log('Stored auth exists but incomplete:');
-        error_log('  DOMAIN: ' . ($storedAuth['DOMAIN'] ?? 'EMPTY'));
-        error_log('  AUTH_ID: ' . ($storedAuth['AUTH_ID'] ?? 'EMPTY'));
-        error_log('  REFRESH_ID: ' . ($storedAuth['REFRESH_ID'] ?? 'EMPTY'));
-    }
     $errorMessage = 'No valid authorization found. Please close this window and open the app from Bitrix24 menu.';
 }
 
 if ($b24Service !== null) {
-    // First check cached registration status
-    $cachedRegistration = $sessionManager->getRegistration($connectorId);
-    if ($cachedRegistration !== null) {
-        error_log('Using cached registration status: ' . ($cachedRegistration ? 'YES' : 'NO'));
-        $isRegistered = $cachedRegistration;
-    } else {
-        // If not cached, check with API
-        try {
-            error_log('Connector check: Fetching connector list from API...');
-            $connectorList = $b24Service->getIMOpenLinesScope()->connector()->list();
-            $connectors = $connectorList->getConnectors();
-            
-            error_log('Connector check: Found ' . count($connectors) . ' connectors');
-            error_log('Connector check: Looking for connector ID: ' . $connectorId);
-            error_log('Connector check: Available connector IDs: ' . implode(', ', array_keys($connectors)));
-            
-            $isRegistered = isset($connectors[$connectorId]);
-            error_log('Connector check: Is registered? ' . ($isRegistered ? 'YES' : 'NO'));
-            
-            // Cache the result for next time
-            $sessionManager->saveRegistration($connectorId, $isRegistered);
-        } catch (\Exception $e) {
-            error_log('Connector check: Error fetching connector list: ' . $e->getMessage());
-            // If API fails, assume not registered to be safe
-            $isRegistered = false;
-        }
+    // Check registration status and get full list for debug
+    try {
+        $connectorList = $b24Service->getIMOpenLinesScope()->connector()->list();
+        $allConnectors = $connectorList->getConnectors();
+        $isRegistered = isset($allConnectors[$connectorId]);
+        $sessionManager->saveRegistration($connectorId, $isRegistered);
+    } catch (\Exception $e) {
+        $isRegistered = false;
     }
 
     if (isset($_POST['action']) && $_POST['action'] === 'register') {
         try {
             $handlerUrl = 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php';
-            
-            error_log('Registering connector with ID: ' . $connectorId);
-            error_log('Handler URL: ' . $handlerUrl);
-            
             $b24Service->getIMOpenLinesScope()->connector()->register([
                 'ID' => $connectorId,
-                'NAME' => 'WhatsApp Custom',
+                'NAME' => 'WhatsApp Direct',
                 'ICON' => [
                     'DATA_IMAGE' => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzI1RDM2NiIgZD0iTTEyIDBDNS4zNzMgMCAwIDUuMzczIDAgMTJjMCAyLjEyNC41NDYgNC4xMTkgMS41IDEuODU3TDAgMjRsNy4zOTUtMS4zODRDOC43MDEgMjMuNDU0IDEwLjI5OSAyNCAxMiAyNGM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDB6bTAtLjY2N2ExMi42NjcgMTIuNjY3IDAgMCAxIDEyLjY2NyAxMi42NjdBMTIuNjY3IDEyLjY2NyAwIDAgMSAxMiAyNC42NjcgMTIuNjY3IDEyLjY2NyAwIDAgMSAtIDYuNjg0IDEuNzQ5TDAgMjRsMS43NDktNi42ODRBMTIuNjY3IDEyLjY2NyAwIDAgMSAtLjY2NyAxMnoiLz48L3N2Zz4=', 
                 ],
                 'URL_IM' => $handlerUrl,
             ]);
-            
-            error_log('✓ Connector registered successfully');
             $isRegistered = true;
-            
-            // Cache registration status for 1 hour
             $sessionManager->saveRegistration($connectorId, true);
         } catch (\Exception $e) {
-            error_log('✗ Error registering connector: ' . $e->getMessage());
-            error_log('Error trace: ' . $e->getTraceAsString());
-            $errorMessage = 'Failed to register connector: ' . $e->getMessage();
+            $errorMessage = 'Registration failed: ' . $e->getMessage();
         }
     }
 }
 
 } catch (\Exception $e) {
-    error_log('✗ FATAL ERROR in index.php: ' . $e->getMessage());
-    error_log('Trace: ' . $e->getTraceAsString());
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
 
@@ -246,59 +145,62 @@ if ($b24Service !== null) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WhatsApp Connector Settings</title>
+    <title>WhatsApp Direct Settings</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body class="p-4">
     <div class="container">
-        <h1>WhatsApp Integration</h1>
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>WhatsApp Direct Integration</h1>
+            <a href="?clear_cache=1" class="btn btn-sm btn-outline-secondary">Clear Cache</a>
+        </div>
         <hr>
+        
         <?php if ($errorMessage): ?>
             <div class="alert alert-danger">
-                <h4>Authorization Required</h4>
                 <?= $errorMessage ?>
-            </div>
-            <div class="card mt-4">
-                <div class="card-header bg-light">How to authorize:</div>
-                <div class="card-body">
-                    <ol>
-                        <li>Close this slider window.</li>
-                        <li><b>Refresh your main Bitrix24 browser tab.</b></li>
-                        <li>Find <b>"wosol-keen local"</b> in your left-hand menu and click it.</li>
-                    </ol>
-                </div>
-            </div>
-            
-            <div class="mt-4 p-3 border rounded bg-light">
-                <small class="text-muted">Debug Info for Developer:</small><br>
-                <small>Request Method: <b><?= $_SERVER['REQUEST_METHOD'] ?></b></small><br>
-                <small>Session Manager ID: <b><?= $sessionManager->getSessionId() ?></b></small><br>
-                <small>Stored B24_AUTH exists: <b><?= $sessionManager->getAuth() !== null ? 'YES' : 'NO' ?></b></small>
-                <?php if ($sessionManager->getAuth()): $auth = $sessionManager->getAuth(); ?>
-                    <small>Stored DOMAIN: <b><?= $auth['DOMAIN'] ?? 'NOT SET' ?></b></small><br>
-                    <small>Stored AUTH_ID: <b><?= substr($auth['AUTH_ID'] ?? '', 0, 20) . '...' ?></b></small><br>
-                <?php endif; ?>
-                <small>Data received in current request:</small>
-                <pre style="font-size: 10px;"><?= print_r($_REQUEST, true) ?></pre>
             </div>
         <?php elseif (!$isRegistered): ?>
             <div class="alert alert-warning">
-                Connector is not registered in Bitrix24.
+                Connector <b>WhatsApp Direct</b> is not registered yet.
             </div>
             <form method="post">
                 <input type="hidden" name="action" value="register">
-                <button type="submit" class="btn btn-primary">Register Connector</button>
+                <button type="submit" class="btn btn-success btn-lg">Register WhatsApp Direct</button>
             </form>
         <?php else: ?>
             <div class="alert alert-success">
-                WhatsApp Connector is Active!
+                <h4>✓ WhatsApp Direct Connector is Active!</h4>
+                <p>Search for <b>"WhatsApp Direct"</b> in your Bitrix24 Contact Center.</p>
             </div>
-            <p>Handler URL: <code><?= 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php' ?></code></p>
+            <div class="card bg-light mb-4">
+                <div class="card-body">
+                    <strong>Handler URL:</strong> <code><?= 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php' ?></code>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($allConnectors)): ?>
+            <div class="mt-5 p-3 border rounded bg-light">
+                <h5>Registered Connectors:</h5>
+                <ul class="list-group mt-2">
+                    <?php foreach ($allConnectors as $id => $conn): ?>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong><?= htmlspecialchars($conn['NAME'] ?? $id) ?></strong><br>
+                                <small class="text-muted">ID: <?= htmlspecialchars($id) ?></small>
+                            </div>
+                            <?php if ($id === $connectorId): ?>
+                                <span class="badge badge-success">Active</span>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         <?php endif; ?>
     </div>
 </body>
 </html>
 <?php
-// Flush and end output buffering
 ob_end_flush();
 ?>
