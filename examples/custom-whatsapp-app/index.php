@@ -112,7 +112,17 @@ if ($b24Service !== null) {
     try {
         $connectorList = $b24Service->getIMOpenLinesScope()->connector()->list();
         $allConnectors = $connectorList->getConnectors();
-        $isRegistered = isset($allConnectors[$connectorId]);
+        
+        $isRegistered = false;
+        foreach ($allConnectors as $connectorItem) {
+            // Note: the SDK returns an array of ConnectorItemResult objects 
+            // which extends AbstractItem, exposing properties via getters/magic variables
+            if ($connectorItem->id === $connectorId) {
+                $isRegistered = true;
+                break;
+            }
+        }
+        
         $sessionManager->saveRegistration($connectorId, $isRegistered);
     } catch (\Exception $e) {
         $isRegistered = false;
@@ -184,13 +194,13 @@ if ($b24Service !== null) {
             <div class="mt-5 p-3 border rounded bg-light">
                 <h5>Registered Connectors:</h5>
                 <ul class="list-group mt-2">
-                    <?php foreach ($allConnectors as $id => $conn): ?>
+                    <?php foreach ($allConnectors as $conn): ?>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <strong><?= htmlspecialchars($conn['NAME'] ?? $id) ?></strong><br>
-                                <small class="text-muted">ID: <?= htmlspecialchars($id) ?></small>
+                                <strong><?= htmlspecialchars($conn->NAME ?? $conn->id) ?></strong><br>
+                                <small class="text-muted">ID: <?= htmlspecialchars($conn->id) ?></small>
                             </div>
-                            <?php if ($id === $connectorId): ?>
+                            <?php if ($conn->id === $connectorId): ?>
                                 <span class="badge badge-success">Active</span>
                             <?php endif; ?>
                         </li>
