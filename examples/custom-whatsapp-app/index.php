@@ -37,14 +37,26 @@ $appProfile = ApplicationProfile::initFromArray([
     'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'],
 ]);
 
-session_start();
+// Start session with persistent settings
+session_name('bitrix24_whatsapp_app');
+session_start([
+    'gc_maxlifetime' => 86400,  // 24 hours
+    'gc_probability' => 1,
+    'gc_divisor' => 1,
+]);
+
+error_log('=== Session Debug ===');
+error_log('Session Name: ' . session_name());
+error_log('Session ID: ' . session_id());
+error_log('Session Save Path: ' . ini_get('session.save_path'));
+error_log('Session Handler: ' . ini_get('session.save_handler'));
+
 $request = Request::createFromGlobals();
 
 // Debug: Log what we receive
 error_log('=== Bitrix24 WhatsApp Index.php Debug ===');
 error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
 error_log('$_POST available: ' . (count($_POST) > 0 ? 'YES (' . count($_POST) . ' fields)' : 'NO'));
-error_log('$request->request available: ' . (count($request->request->all()) > 0 ? 'YES (' . count($request->request->all()) . ' fields)' : 'NO'));
 error_log('$_REQUEST available: ' . (count($_REQUEST) > 0 ? 'YES (' . count($_REQUEST) . ' fields)' : 'NO'));
 error_log('Has SESSION B24_AUTH: ' . (isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO'));
 
@@ -79,9 +91,15 @@ if ($hasAuthData) {
             'AUTH_EXPIRES' => trim($authExpires),
             'SERVER_ENDPOINT' => $serverEndpoint,
         ];
+        
+        // Force session to be written immediately
+        session_write_close();
+        session_start();
+        
         error_log('✓ Successfully saved credentials to session');
         error_log('✓ Session DOMAIN: ' . $_SESSION['B24_AUTH']['DOMAIN']);
         error_log('✓ Session AUTH_ID: ' . substr($_SESSION['B24_AUTH']['AUTH_ID'], 0, 30) . '...');
+        error_log('✓ Session persisted and reloaded');
     } else {
         error_log('✗ ERROR: Some required fields are empty!');
         error_log('  DOMAIN empty: ' . (empty($domain) ? 'YES' : 'NO'));
@@ -91,12 +109,23 @@ if ($hasAuthData) {
     }
 } else {
     error_log('✗ No authorization data found in $_REQUEST');
+    error_log('Available $_REQUEST keys: ' . implode(', ', array_keys($_REQUEST)));
 }
 
 // Check if we have valid session data
 $hasValidSession = isset($_SESSION['B24_AUTH']) && !empty($_SESSION['B24_AUTH']['DOMAIN']) && !empty($_SESSION['B24_AUTH']['AUTH_ID']);
 
 error_log('Has valid session B24_AUTH: ' . ($hasValidSession ? 'YES' : 'NO'));
+
+if (!$hasValidSession) {
+    error_log('Checking session contents for debugging:');
+    if (isset($_SESSION['B24_AUTH'])) {
+        error_log('  Session B24_AUTH exists: ' . print_r($_SESSION['B24_AUTH'], true));
+    } else {
+        error_log('  Session B24_AUTH does not exist');
+        error_log('  All session data: ' . print_r($_SESSION, true));
+    }
+}
 
 if ($hasValidSession) {
     try {
@@ -225,6 +254,8 @@ if ($b24Service !== null) {
                 <small class="text-muted">Debug Info for Developer:</small><br>
                 <small>Request Method: <b><?= $_SERVER['REQUEST_METHOD'] ?></b></small><br>
                 <small>Session ID: <b><?= session_id() ?></b></small><br>
+                <small>Session Save Path: <b><?= ini_get('session.save_path') ?: 'default' ?></b></small><br>
+                <small>Session Handler: <b><?= ini_get('session.save_handler') ?></b></small><br>
                 <small>Session B24_AUTH exists: <b><?= isset($_SESSION['B24_AUTH']) ? 'YES' : 'NO' ?></b></small>
                 <?php if (isset($_SESSION['B24_AUTH'])): ?>
                     <small>Session DOMAIN: <b><?= $_SESSION['B24_AUTH']['DOMAIN'] ?? 'NOT SET' ?></b></small><br>
