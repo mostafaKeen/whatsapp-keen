@@ -11,13 +11,14 @@ $appId = $whatsappConfig['gupshup_app_id'];
 $apiToken = $whatsappConfig['gupshup_api_token'];
 
 // Typical Gupshup Partner API to get templates
-$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
+// Adding pageSize=100 to ensure we get more than the default
+$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates?pageSize=100';
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: Bearer ' . $apiToken
+    'Authorization: ' . $apiToken
 ]);
 
 $response = curl_exec($ch);

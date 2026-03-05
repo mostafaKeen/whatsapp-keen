@@ -142,6 +142,7 @@ if ($b24Service !== null) {
 <head>
     <title>WhatsApp Direct Settings</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body class="p-4">
     <div class="container">
@@ -332,10 +333,22 @@ if ($b24Service !== null) {
                                 <strong>Category:</strong> <span id="tCategory"></span><br>
                                 <strong>Status:</strong> <span id="tStatus"></span><br>
                                 <strong>Type:</strong> <span id="tType"></span><br>
+                                <strong>Language:</strong> <span id="tLang"></span><br>
                                 <strong>WABA ID:</strong> <span id="tWaba"></span>
                             </div>
+
+                            <div id="tMediaSection" class="mb-3" style="display:none;">
+                                <h6>Media Preview:</h6>
+                                <div id="tMediaPreview" class="p-2 border rounded text-center bg-white"></div>
+                            </div>
+
                             <h6>Content Preview:</h6>
-                            <pre id="tData" class="p-3 bg-dark text-white rounded" style="white-space: pre-wrap;"></pre>
+                            <pre id="tData" class="p-3 bg-dark text-white rounded" style="white-space: pre-wrap; mb-3"></pre>
+
+                            <div id="tButtonsSection" class="mb-3" style="display:none;">
+                                <h6>Interactive Buttons:</h6>
+                                <div id="tButtonsList" class="d-flex flex-wrap"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -496,6 +509,7 @@ if ($b24Service !== null) {
                         $('#tCategory').text(t.category);
                         $('#tStatus').text(t.status);
                         $('#tType').text(t.templateType);
+                        $('#tLang').text(t.languageCode);
                         $('#tWaba').text(t.wabaId);
                         $('#tData').text(t.data);
                         
@@ -505,6 +519,47 @@ if ($b24Service !== null) {
                         } else {
                             $('#tReasonAlert').hide();
                         }
+
+                        // Parse ContainerMeta for Media and Buttons
+                        $('#tMediaSection').hide();
+                        $('#tButtonsSection').hide();
+                        
+                        try {
+                            var meta = typeof t.containerMeta === 'string' ? JSON.parse(t.containerMeta) : t.containerMeta;
+                            
+                            if (meta) {
+                                // Hande Media
+                                if (meta.mediaUrl || meta.sampleMedia) {
+                                    var mUrl = meta.mediaUrl || meta.sampleMedia;
+                                    var previewHtml = '';
+                                    if (t.templateType === 'IMAGE') {
+                                        previewHtml = '<img src="' + mUrl + '" style="max-width: 100%; max-height: 200px;" class="rounded shadow-sm">';
+                                    } else {
+                                        previewHtml = '<a href="' + mUrl + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> View Media Attachment</a>';
+                                    }
+                                    $('#tMediaPreview').html(previewHtml);
+                                    $('#tMediaSection').show();
+                                }
+
+                                // Handle Buttons
+                                if (meta.buttons && meta.buttons.length > 0) {
+                                    var bHtml = '';
+                                    meta.buttons.forEach(function(btn) {
+                                        var icon = 'fa-reply';
+                                        if (btn.type === 'PHONE_NUMBER') icon = 'fa-phone';
+                                        if (btn.type === 'URL') icon = 'fa-external-link-alt';
+                                        
+                                        bHtml += '<div class="mr-2 mb-2 p-2 px-3 border rounded bg-white shadow-sm">';
+                                        bHtml += '<i class="fas ' + icon + ' mr-2 text-primary"></i> <strong>' + btn.text + '</strong>';
+                                        if (btn.phone_number) bHtml += '<br><small class="text-muted">' + btn.phone_number + '</small>';
+                                        if (btn.url) bHtml += '<br><small class="text-muted scroll-x" style="font-size: 10px;">' + btn.url + '</small>';
+                                        bHtml += '</div>';
+                                    });
+                                    $('#tButtonsList').html(bHtml);
+                                    $('#tButtonsSection').show();
+                                }
+                            }
+                        } catch(e) { console.error("Error parsing meta:", e); }
                         
                         $('#templateModal').modal('show');
                     });
