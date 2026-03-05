@@ -152,7 +152,8 @@ function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messag
         'message_type' => $messageType,
         'file_url' => $fileUrl,
         'status' => 'sent',
-        'direction' => 'outbound'
+        'direction' => 'outbound',
+        'source' => 'custom_widget'
     ];
 
     $history = [];

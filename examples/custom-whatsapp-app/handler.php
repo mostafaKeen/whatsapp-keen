@@ -66,8 +66,50 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
         error_log("Gupshup send error: " . $error);
     } else {
         error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
+        // Log to local history so it shows in the custom widget
+        logMessageToJson($phone, $message);
     }
 
     echo json_encode(['SUCCESS' => true]);
     exit;
+}
+
+/**
+ * Logs the message to a file based on phone number.
+ * Note: In IMOpenLines handler, we don't always have the CRM Entity ID immediately,
+ * so we use the phone number based lookup or just log by phone.
+ */
+function logMessageToJson(string $phone, string $message) {
+    $dir = __DIR__ . '/messages';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+
+    // Since we don't have entityId/Type from the Bitrix event payload easily without extra REST calls,
+    // we search for existing files that match this phone number in the messages directory.
+    $files = glob($dir . '/*.json');
+    $logged = false;
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        $history = json_decode($content, true) ?: [];
+        if (!empty($history) && isset($history[0]['phone'])) {
+            // Clean both phones for comparison
+            $cleanLogPhone = preg_replace('/[^0-9]/', '', (string)$history[0]['phone']);
+            $cleanTargetPhone = preg_replace('/[^0-9]/', '', $phone);
+            
+            if ($cleanLogPhone === $cleanTargetPhone) {
+                $history[] = [
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'phone' => $phone,
+                    'message' => $message,
+                    'status' => 'sent',
+                    'direction' => 'outbound',
+                    'source' => 'crm_chat'
+                ];
+                file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+                $logged = true;
+                break;
+            }
+        }
+    }
 }

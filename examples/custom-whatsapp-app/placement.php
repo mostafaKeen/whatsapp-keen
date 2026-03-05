@@ -556,7 +556,7 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                 success: function(response) {
                     showStatus('Message sent successfully!', 'success');
                     
-                    addMessageToHistory(message, response.file_url, response.timestamp, 'outbound');
+                    addMessageToHistory(message, response.file_url, response.timestamp, 'outbound', 'custom_widget');
                     scrollToBottom();
                     lastMessageCount++;
                     
@@ -637,12 +637,14 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                .show();
     }
 
-    function addMessageToHistory(message, fileUrl, timestamp, direction) {
+    function addMessageToHistory(message, fileUrl, timestamp, direction, source) {
         var isInbound = direction === 'inbound';
+        var sourceLabel = (isInbound) ? 'Received' : (source === 'crm_chat' ? 'Sent (CRM Chat)' : 'Sent (Widget)');
+        
         var html = '<div class="history-item ' + (isInbound ? 'inbound' : '') + '" style="display: none;">' +
                    '  <div class="history-meta">' +
                    '    <span>' + timestamp + '</span>' +
-                   '    <span>' + (isInbound ? 'Received' : 'Sent') + '</span>' +
+                   '    <span>' + sourceLabel + '</span>' +
                    '  </div>' +
                    '  <div class="history-body">';
         
@@ -678,7 +680,7 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                 if (Array.isArray(history) && history.length > lastMessageCount) {
                     var newMessages = history.slice(lastMessageCount);
                     newMessages.forEach(function(item) {
-                        addMessageToHistory(item.message, item.file_url, item.timestamp, item.direction);
+                        addMessageToHistory(item.message, item.file_url, item.timestamp, item.direction, item.source);
                     });
                     lastMessageCount = history.length;
                     scrollToBottom();

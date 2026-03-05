@@ -64,7 +64,9 @@ if (is_array($value) && !empty($value['messages'][0])) {
                     'chat' => [
                         'id' => $cleanPhone,
                         'url' => 'https://wa.me/' . $cleanPhone,
-                    ]
+                    ],
+                    'direction' => 'inbound',
+                    'source' => 'whatsapp'
                 ]
             ], $connectorId, null);
             
