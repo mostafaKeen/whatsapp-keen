@@ -469,12 +469,15 @@ if ($b24Service !== null) {
                         $.ajax({
                             url: 'get_templates.php',
                             method: 'GET',
+                            cache: false,
+                            data: { t: new Date().getTime() },
                             success: function(response) {
                                 $('#templatesLoading').hide();
                                 $('#templatesContainer').show();
                                 
                                 var html = '';
                                 if (response.status === 'success' && response.templates && response.templates.length > 0) {
+                                    console.log('Received templates count:', response.templates.length);
                                     response.templates.forEach(function(t) {
                                         var statusClass = 'badge-secondary';
                                         if (t.status === 'APPROVED') statusClass = 'badge-success';

@@ -16,6 +16,8 @@ $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates?pageSize
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
+curl_setopt($ch, CURLOPT_FORBID_REUSE, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
     'Authorization: ' . $apiToken
@@ -27,6 +29,9 @@ $error = curl_error($ch);
 curl_close($ch);
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
 
 if ($error) {
     http_response_code(500);
