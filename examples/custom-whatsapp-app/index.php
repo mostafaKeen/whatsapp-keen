@@ -226,7 +226,7 @@ if ($b24Service !== null) {
                                     <div class="row">
                                         <div class="col-md-6 form-group">
                                             <label>Template Type *</label>
-                                            <select name="templateType" class="form-control" required>
+                                            <select name="templateType" id="templateType" class="form-control" required>
                                                 <option value="TEXT">TEXT</option>
                                                 <option value="IMAGE">IMAGE</option>
                                                 <option value="VIDEO">VIDEO</option>
@@ -235,18 +235,44 @@ if ($b24Service !== null) {
                                         </div>
                                         <div class="col-md-6 form-group">
                                             <label>Header (Optional)</label>
-                                            <input type="text" name="header" class="form-control" placeholder="60 characters max">
+                                            <input type="text" name="header" id="headerField" class="form-control" placeholder="60 characters max">
                                         </div>
                                     </div>
+
+                                    <!-- Media Example Section -->
+                                    <div id="mediaExampleSection" class="p-3 mb-3 border rounded bg-light" style="display:none;">
+                                        <h6 class="text-info"><i class="fas fa-photo-video"></i> Media Configuration</h6>
+                                        <div class="form-group">
+                                            <label>Sample Media URL/Handle *</label>
+                                            <input type="text" name="exampleMedia" class="form-control" placeholder="URL to a sample image/file or Gupshup Media ID">
+                                            <small class="text-muted">Required for Meta approval of media templates.</small>
+                                        </div>
+                                        <div class="form-group" id="exampleHeaderGroup">
+                                            <label>Example Header Text (Sample)</label>
+                                            <input type="text" name="exampleHeader" class="form-control" placeholder="Sample text for header variable">
+                                        </div>
+                                    </div>
+
                                     <div class="form-group">
                                         <label>Content (Body) *</label>
                                         <textarea name="content" class="form-control" rows="3" placeholder="Hi {{1}}, your order {{2}} is ready." required></textarea>
                                         <small class="text-muted">Use {{1}}, {{2}} for variables.</small>
                                     </div>
+
+                                    <!-- Interactive Buttons Section -->
+                                    <div class="p-3 mb-3 border rounded bg-light">
+                                        <h6 class="text-primary"><i class="fas fa-mouse-pointer"></i> Interactive Buttons (Optional)</h6>
+                                        <div id="buttonsContainer">
+                                            <!-- Buttons will be added here -->
+                                        </div>
+                                        <button type="button" id="addButton" class="btn btn-outline-primary btn-sm mt-2 border-dashed">+ Add Button</button>
+                                        <input type="hidden" name="buttons" id="buttonsJson">
+                                    </div>
+
                                     <div class="form-group">
                                         <label>Example (Sample Value) *</label>
                                         <textarea name="example" class="form-control" rows="2" placeholder="Hi John, your order #123 is ready." required></textarea>
-                                        <small class="text-muted">Gupshup requires a real example to approve templates.</small>
+                                        <small class="text-muted">Gupshup requires a real example for approval.</small>
                                     </div>
                                     <div class="form-group">
                                         <label>Footer (Optional)</label>
@@ -317,12 +343,80 @@ if ($b24Service !== null) {
                 $(document).ready(function() {
                     loadTemplates();
 
+                    // Handle Template Type change
+                    $('#templateType').change(function() {
+                        var type = $(this).val();
+                        if (type !== 'TEXT') {
+                            $('#mediaExampleSection').show();
+                            // For media, the header is the media itself per Meta docs
+                            $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
+                        } else {
+                            $('#mediaExampleSection').hide();
+                            $('#headerField').prop('disabled', false).attr('placeholder', '60 characters max');
+                        }
+                    });
+
+                    // Dynamic Buttons logic
+                    var buttonCount = 0;
+                    $('#addButton').click(function() {
+                        if (buttonCount >= 3) { alert('Maximum 3 buttons allowed'); return; }
+                        buttonCount++;
+                        
+                        var bHtml = '<div class="btn-item border-bottom pb-2 mb-2" id="btn_' + buttonCount + '">' +
+                            '<div class="d-flex justify-content-between"><strong>Button #' + buttonCount + '</strong> <button type="button" class="close remove-btn" data-id="' + buttonCount + '">&times;</button></div>' +
+                            '<div class="row">' +
+                                '<div class="col-6"><label class="small">Type</label><select class="form-control form-control-sm b-type"><option value="QUICK_REPLY">Quick Reply</option><option value="PHONE_NUMBER">Call Number</option><option value="URL">Visit URL</option></select></div>' +
+                                '<div class="col-6"><label class="small">Text</label><input type="text" class="form-control form-control-sm b-text" placeholder="Button text"></div>' +
+                            '</div>' +
+                            '<div class="row mt-1 b-extra" style="display:none;">' +
+                                '<div class="col-12"><label class="small b-extra-label">Value</label><input type="text" class="form-control form-control-sm b-value"></div>' +
+                            '</div>' +
+                        '</div>';
+                        
+                        $('#buttonsContainer').append(bHtml);
+                    });
+
+                    $(document).on('change', '.b-type', function() {
+                        var val = $(this).val();
+                        var parent = $(this).closest('.btn-item');
+                        if (val === 'QUICK_REPLY') {
+                            parent.find('.b-extra').hide();
+                        } else {
+                            parent.find('.b-extra').show();
+                            parent.find('.b-extra-label').text(val === 'PHONE_NUMBER' ? 'Phone Number (with code)' : 'URL (https://...)');
+                        }
+                    });
+
+                    $(document).on('click', '.remove-btn', function() {
+                        $('#btn_' + $(this).data('id')).remove();
+                        buttonCount--;
+                    });
+
                     $('#refreshTemplates').click(function() {
                         loadTemplates();
                     });
 
                     $('#createTemplateForm').submit(function(e) {
                         e.preventDefault();
+                        
+                        // Serialize buttons to JSON
+                        var btns = [];
+                        $('.btn-item').each(function() {
+                            var item = {
+                                type: $(this).find('.b-type').val(),
+                                text: $(this).find('.b-text').val()
+                            };
+                            if (item.type === 'PHONE_NUMBER') item.phone_number = $(this).find('.b-value').val();
+                            if (item.type === 'URL') item.url = $(this).find('.b-value').val();
+                            btns.push(item);
+                        });
+                        
+                        if (btns.length > 0) {
+                            $('#buttonsJson').val(JSON.stringify(btns));
+                        } else {
+                            $('#buttonsJson').val('');
+                        }
+
                         $('#submitTemplateBtn').prop('disabled', true).text('Processing...');
                         $('#createError').hide();
 

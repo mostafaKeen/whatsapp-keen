@@ -25,6 +25,9 @@ $content = $_POST['content'] ?? '';
 $example = $_POST['example'] ?? '';
 $header = $_POST['header'] ?? '';
 $footer = $_POST['footer'] ?? '';
+$buttons = $_POST['buttons'] ?? ''; // JSON string from UI
+$exampleHeader = $_POST['exampleHeader'] ?? '';
+$exampleMedia = $_POST['exampleMedia'] ?? ''; // Media handle if already uploaded or URL
 
 if (empty($elementName) || empty($content) || empty($example)) {
     http_response_code(400);
@@ -50,6 +53,15 @@ if (!empty($header)) {
 }
 if (!empty($footer)) {
     $postData['footer'] = $footer;
+}
+if (!empty($buttons)) {
+    $postData['buttons'] = $buttons;
+}
+if (!empty($exampleHeader)) {
+    $postData['exampleHeader'] = $exampleHeader;
+}
+if (!empty($exampleMedia)) {
+    $postData['exampleMedia'] = $exampleMedia;
 }
 
 $ch = curl_init($url);
