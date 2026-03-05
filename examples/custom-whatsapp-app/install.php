@@ -34,6 +34,16 @@ require_once __DIR__ . '/../../vendor/autoload.php';
             document.getElementById('status').style.display = 'block';
             this.disabled = true;
             
+            // Register Placements
+            var placementUrl = document.location.origin + document.location.pathname.replace('install.php', 'placement.php');
+            
+            BX24.placement.bind('CRM_LEAD_DETAIL_TAB', { url: placementUrl }, function() {
+                console.log('Lead placement bound');
+            });
+            BX24.placement.bind('CRM_DEAL_DETAIL_TAB', { url: placementUrl }, function() {
+                console.log('Deal placement bound');
+            });
+
             // This is the CRITICAL call Bitrix24 is waiting for
             BX24.installFinish();
             

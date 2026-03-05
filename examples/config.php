@@ -6,4 +6,6 @@ return [
     'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => 'imconnector,im,crm',
     'whatsapp_api_token' => 'EAAMrqIJHlTwBQxGBiKH0HZAIiZAGKbMR6LZBdp2LBXSlmFbv2ZBtJ9VroDsaow0GmnHCdfM975VnNgW9mZAuMBRa4ZAunG3y7XG6LSSpggJoXQF0DGYryOoqr8XAXZAdtUqM8luyRhn6CeamU5uOi26wD67pAnTUQDkIfsuiCcEDm1Cqk33Xoo3YcW9FC6dvTIjZBDZBzCzBfUZCuoGPS7eZA0EDt723TBjzeSdiolBKGYTB3bftNZANksST7UI5Bj5njQTyjAtjEWLX6oRz7ilmMlpf',
     'lead_id' => 201129274930,
+    'gupshup_app_id' => '977174cf-1792-4cac-b8d0-88de34646d75',
+    'gupshup_api_token' => 'sk_f24369e4bf7147d1b23edaaf4f63d5d2',
 ];

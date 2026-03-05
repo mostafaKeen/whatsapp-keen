@@ -25,22 +25,49 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
     $message = $data['message']['text'];
     $chatId = $data['chat']['id'];
 
-    // LOGIC: Send to WhatsApp via your whatsapp_api_token
-    // Example: sendToWhatsApp($message, $chatId, $whatsappConfig['whatsapp_api_token']);
-
-    error_log(sprintf("Outbound message to WhatsApp: %s in chat %s", $message, $chatId));
+    // Logic to send out to WhatsApp via Gupshup Partner API v3
+    $appId = $whatsappConfig['gupshup_app_id'];
+    $apiToken = $whatsappConfig['gupshup_api_token'];
     
+    // In IMConnector, the chat ID is typically mapped to the external user's unique identifier (phone number)
+    $phone = preg_replace('/[^0-9]/', '', $chatId);
+    
+    if (empty($phone)) {
+        error_log("Outbound message failed: No valid phone number found in chat ID ($chatId)");
+        echo json_encode(['SUCCESS' => false, 'error' => 'Invalid phone number']);
+        exit;
+    }
+
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to' => $phone,
+        'type' => 'text',
+        'text' => ['body' => $message]
+    ];
+    
+    $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'accept: application/json',
+        'Authorization: Bearer ' . $apiToken
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Gupshup send error: " . $error);
+    } else {
+        error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
+    }
+
     echo json_encode(['SUCCESS' => true]);
     exit;
-}
-
-// Inbound flow (simulate or handle WhatsApp webhook)
-if ($request->get('source') === 'whatsapp') {
-    // This is where your WhatsApp provider would hit your webhook
-    $b24Service = ServiceBuilderFactory::createServiceBuilderFromWebhook($whatsappConfig['webhook_url']);
-    
-    // Send to Bitrix24
-    // $b24Service->getIMOpenLinesScope()->connector()->sendMessages(...)
-    
-    echo "Message received from WhatsApp and sent to Bitrix24";
 }
