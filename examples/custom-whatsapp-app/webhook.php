@@ -16,7 +16,7 @@ $whatsappConfig = require __DIR__ . '/../config.php';
 // Prepare Bitrix24 Service Builder using Webhook URL for fast inbound processing
 $b24Service = ServiceBuilderFactory::createServiceBuilderFromWebhook($whatsappConfig['webhook_url']);
 
-$connectorId = 'whatsapp_direct';
+$connectorId = 'wosolkeen';
 
 $rawBody = file_get_contents('php://input');
 $decoded = json_decode($rawBody, true);

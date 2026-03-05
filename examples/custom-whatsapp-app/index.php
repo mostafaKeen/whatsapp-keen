@@ -25,7 +25,7 @@ ob_start();
 $b24Service = null;
 $errorMessage = null;
 $isRegistered = false;
-$connectorId = 'whatsapp_direct';
+$connectorId = 'wosolkeen';
 $allConnectors = [];
 
 try {
