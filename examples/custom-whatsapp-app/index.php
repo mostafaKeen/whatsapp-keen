@@ -325,9 +325,13 @@ if ($b24Service !== null) {
                             <button type="button" class="close" data-dismiss="modal">&times;</button>
                         </div>
                         <div class="modal-body">
+                            <div id="tReasonAlert" class="alert alert-danger mb-3" style="display:none;">
+                                <strong>Rejection/Failure Reason:</strong> <span id="tReason"></span>
+                            </div>
                             <div class="p-3 bg-light rounded border mb-3">
                                 <strong>Category:</strong> <span id="tCategory"></span><br>
                                 <strong>Status:</strong> <span id="tStatus"></span><br>
+                                <strong>Type:</strong> <span id="tType"></span><br>
                                 <strong>WABA ID:</strong> <span id="tWaba"></span>
                             </div>
                             <h6>Content Preview:</h6>
@@ -461,14 +465,16 @@ if ($b24Service !== null) {
                                     response.templates.forEach(function(t) {
                                         var statusClass = 'badge-secondary';
                                         if (t.status === 'APPROVED') statusClass = 'badge-success';
-                                        if (t.status === 'REJECTED') statusClass = 'badge-danger';
+                                        if (t.status === 'REJECTED' || t.status === 'FAILED') statusClass = 'badge-danger';
                                         if (t.status === 'PENDING') statusClass = 'badge-warning';
+
+                                        var reasonHtml = t.reason ? '<div class="small text-danger mt-1"><i>' + t.reason + '</i></div>' : '';
 
                                         html += '<tr>';
                                         html += '<td><strong>' + t.elementName + '</strong></td>';
-                                        html += '<td>' + t.category + '</td>';
+                                        html += '<td>' + t.category + ' <span class="badge badge-light border">' + t.templateType + '</span></td>';
                                         html += '<td>' + t.languageCode + '</td>';
-                                        html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td>';
+                                        html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span>' + reasonHtml + '</td>';
                                         html += '<td><button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\'>View details</button></td>';
                                         html += '</tr>';
                                     });
@@ -489,8 +495,17 @@ if ($b24Service !== null) {
                         $('#tName').text(t.elementName);
                         $('#tCategory').text(t.category);
                         $('#tStatus').text(t.status);
+                        $('#tType').text(t.templateType);
                         $('#tWaba').text(t.wabaId);
                         $('#tData').text(t.data);
+                        
+                        if (t.reason) {
+                            $('#tReason').text(t.reason);
+                            $('#tReasonAlert').show();
+                        } else {
+                            $('#tReasonAlert').hide();
+                        }
+                        
                         $('#templateModal').modal('show');
                     });
                 });
