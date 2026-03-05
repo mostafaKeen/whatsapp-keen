@@ -183,6 +183,124 @@ if ($b24Service !== null) {
             </div>
         <?php endif; ?>
 
+        <?php if ($isRegistered): ?>
+            <!-- WhatsApp Templates Section -->
+            <div class="mt-5">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>WhatsApp Templates</h3>
+                    <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
+                </div>
+                <div id="templatesLoading" class="text-center p-5 border rounded bg-white shadow-sm" style="display:none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading templates...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Fetching templates from Gupshup...</p>
+                </div>
+                <div id="templatesError" class="alert alert-danger" style="display:none;"></div>
+                <div id="templatesContainer" class="table-responsive bg-white shadow-sm rounded border">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Language</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templatesList">
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted small">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Template Preview Modal -->
+            <div class="modal fade" id="templateModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tName">Template Details</h5>
+                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="p-3 bg-light rounded border mb-3">
+                                <strong>Category:</strong> <span id="tCategory"></span><br>
+                                <strong>Status:</strong> <span id="tStatus"></span><br>
+                                <strong>WABA ID:</strong> <span id="tWaba"></span>
+                            </div>
+                            <h6>Content Preview:</h6>
+                            <pre id="tData" class="p-3 bg-dark text-white rounded" style="white-space: pre-wrap;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+            <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+            <script>
+                $(document).ready(function() {
+                    loadTemplates();
+
+                    $('#refreshTemplates').click(function() {
+                        loadTemplates();
+                    });
+
+                    function loadTemplates() {
+                        $('#templatesLoading').show();
+                        $('#templatesContainer').hide();
+                        $('#templatesError').hide();
+
+                        $.ajax({
+                            url: 'get_templates.php',
+                            method: 'GET',
+                            success: function(response) {
+                                $('#templatesLoading').hide();
+                                $('#templatesContainer').show();
+                                
+                                var html = '';
+                                if (response.status === 'success' && response.templates && response.templates.length > 0) {
+                                    response.templates.forEach(function(t) {
+                                        var statusClass = 'badge-secondary';
+                                        if (t.status === 'APPROVED') statusClass = 'badge-success';
+                                        if (t.status === 'REJECTED') statusClass = 'badge-danger';
+                                        if (t.status === 'PENDING') statusClass = 'badge-warning';
+
+                                        html += '<tr>';
+                                        html += '<td><strong>' + t.elementName + '</strong></td>';
+                                        html += '<td>' + t.category + '</td>';
+                                        html += '<td>' + t.languageCode + '</td>';
+                                        html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td>';
+                                        html += '<td><button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\'>View details</button></td>';
+                                        html += '</tr>';
+                                    });
+                                } else {
+                                    html = '<tr><td colspan="5" class="text-center py-4">No templates found or API returned an empty list.</td></tr>';
+                                }
+                                $('#templatesList').html(html);
+                            },
+                            error: function(xhr) {
+                                $('#templatesLoading').hide();
+                                $('#templatesError').text('Error fetching templates: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error')).show();
+                            }
+                        });
+                    }
+
+                    $(document).on('click', '.view-btn', function() {
+                        var t = $(this).data('json');
+                        $('#tName').text(t.elementName);
+                        $('#tCategory').text(t.category);
+                        $('#tStatus').text(t.status);
+                        $('#tWaba').text(t.wabaId);
+                        $('#tData').text(t.data);
+                        $('#templateModal').modal('show');
+                    });
+                });
+            </script>
+        <?php endif; ?>
+
         <?php if (!empty($allConnectors)): ?>
             <div class="mt-5 p-3 border rounded bg-light">
                 <h5>Registered Connectors:</h5>

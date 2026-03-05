@@ -11,7 +11,7 @@ $appId = $whatsappConfig['gupshup_app_id'];
 $apiToken = $whatsappConfig['gupshup_api_token'];
 
 // Typical Gupshup Partner API to get templates
-$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/templates';
+$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
