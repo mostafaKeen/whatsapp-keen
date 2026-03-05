@@ -42,6 +42,16 @@ require_once __DIR__ . '/../../vendor/autoload.php';
             // Using window.location.href to safely get the full current URL
             var placementUrl = window.location.href.replace('install.php', 'placement.php');
             
+            // Unbind first to prevent duplicates
+            BX24.callMethod('placement.unbind', {
+                PLACEMENT: 'CRM_LEAD_DETAIL_TAB',
+                HANDLER: placementUrl
+            });
+            BX24.callMethod('placement.unbind', {
+                PLACEMENT: 'CRM_DEAL_DETAIL_TAB',
+                HANDLER: placementUrl
+            });
+
             BX24.callMethod('placement.bind', {
                 PLACEMENT: 'CRM_LEAD_DETAIL_TAB',
                 HANDLER: placementUrl,

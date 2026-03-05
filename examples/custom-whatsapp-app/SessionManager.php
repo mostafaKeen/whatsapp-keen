@@ -10,7 +10,7 @@ class SessionManager
     private string $storageDir;
     private string $sessionId;
 
-    public function __construct(string $storageDir = null)
+    public function __construct(?string $storageDir = null)
     {
         if ($storageDir === null) {
             $storageDir = __DIR__ . '/../../var/sessions';
