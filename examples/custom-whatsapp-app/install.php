@@ -39,33 +39,32 @@ require_once __DIR__ . '/../../vendor/autoload.php';
             this.disabled = true;
             
             // Register Placements
-            // Using window.location.href to safely get the full current URL
             var placementUrl = window.location.href.replace('install.php', 'placement.php');
+            var placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
             
-            // Unbind first to prevent duplicates
-            BX24.callMethod('placement.unbind', {
-                PLACEMENT: 'CRM_LEAD_DETAIL_TAB',
-                HANDLER: placementUrl
-            });
-            BX24.callMethod('placement.unbind', {
-                PLACEMENT: 'CRM_DEAL_DETAIL_TAB',
-                HANDLER: placementUrl
-            });
-
-            BX24.callMethod('placement.bind', {
-                PLACEMENT: 'CRM_LEAD_DETAIL_TAB',
-                HANDLER: placementUrl,
-                TITLE: 'WhatsApp'
-            }, function(res) {
-                console.log('Lead tab bind:', res.data());
-            });
-
-            BX24.callMethod('placement.bind', {
-                PLACEMENT: 'CRM_DEAL_DETAIL_TAB',
-                HANDLER: placementUrl,
-                TITLE: 'WhatsApp'
-            }, function(res) {
-                console.log('Deal tab bind:', res.data());
+            placements.forEach(function(pCode) {
+                // 1. Get ALL currently bound handlers for this placement
+                BX24.callMethod('placement.get', { PLACEMENT: pCode }, function(res) {
+                    if (res.data()) {
+                        var existing = res.data();
+                        existing.forEach(function(item) {
+                            // 2. Unbind every single one found
+                            BX24.callMethod('placement.unbind', {
+                                PLACEMENT: pCode,
+                                HANDLER: item.handler
+                            });
+                        });
+                    }
+                    
+                    // 3. Bind the new one only AFTER a short delay to ensure unbinds processed
+                    setTimeout(function() {
+                        BX24.callMethod('placement.bind', {
+                            PLACEMENT: pCode,
+                            HANDLER: placementUrl,
+                            TITLE: 'WhatsApp'
+                        });
+                    }, 500);
+                });
             });
 
             // This is the CRITICAL call Bitrix24 is waiting for
