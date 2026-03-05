@@ -30,18 +30,32 @@ require_once __DIR__ . '/../../vendor/autoload.php';
     </div>
 
     <script>
+        BX24.init(function() {
+            console.log("BX24 Initialized");
+        });
+
         document.getElementById('finishBtn').addEventListener('click', function() {
             document.getElementById('status').style.display = 'block';
             this.disabled = true;
             
             // Register Placements
-            var placementUrl = document.location.origin + document.location.pathname.replace('install.php', 'placement.php');
+            // Using window.location.href to safely get the full current URL
+            var placementUrl = window.location.href.replace('install.php', 'placement.php');
             
-            BX24.placement.bind('CRM_LEAD_DETAIL_TAB', { url: placementUrl }, function() {
-                console.log('Lead placement bound');
+            BX24.callMethod('placement.bind', {
+                PLACEMENT: 'CRM_LEAD_DETAIL_TAB',
+                HANDLER: placementUrl,
+                TITLE: 'WhatsApp'
+            }, function(res) {
+                console.log('Lead tab bind:', res.data());
             });
-            BX24.placement.bind('CRM_DEAL_DETAIL_TAB', { url: placementUrl }, function() {
-                console.log('Deal placement bound');
+
+            BX24.callMethod('placement.bind', {
+                PLACEMENT: 'CRM_DEAL_DETAIL_TAB',
+                HANDLER: placementUrl,
+                TITLE: 'WhatsApp'
+            }, function(res) {
+                console.log('Deal tab bind:', res.data());
             });
 
             // This is the CRITICAL call Bitrix24 is waiting for
