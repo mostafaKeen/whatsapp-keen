@@ -188,8 +188,81 @@ if ($b24Service !== null) {
             <div class="mt-5">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3>WhatsApp Templates</h3>
-                    <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
+                    <div>
+                        <button id="createTemplateBtn" class="btn btn-sm btn-success mr-2" data-toggle="modal" data-target="#createTemplateModal">+ Create New Template</button>
+                        <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
+                    </div>
                 </div>
+
+                <!-- Create Template Modal -->
+                <div class="modal fade" id="createTemplateModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <form id="createTemplateForm">
+                                <div class="modal-header bg-success text-white">
+                                    <h5 class="modal-title">Create New WhatsApp Template</h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-6 form-group">
+                                            <label>Template Name (Element Name) *</label>
+                                            <input type="text" name="elementName" class="form-control" placeholder="e.g. order_confirmation_01" required>
+                                            <small class="text-muted">Unique, lowercase, no spaces (use underscores).</small>
+                                        </div>
+                                        <div class="col-md-3 form-group">
+                                            <label>Category *</label>
+                                            <select name="category" class="form-control" required>
+                                                <option value="MARKETING">MARKETING</option>
+                                                <option value="UTILITY">UTILITY</option>
+                                                <option value="AUTHENTICATION">AUTHENTICATION</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 form-group">
+                                            <label>Language *</label>
+                                            <input type="text" name="languageCode" class="form-control" value="en_US" placeholder="en_US" required>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 form-group">
+                                            <label>Template Type *</label>
+                                            <select name="templateType" class="form-control" required>
+                                                <option value="TEXT">TEXT</option>
+                                                <option value="IMAGE">IMAGE</option>
+                                                <option value="VIDEO">VIDEO</option>
+                                                <option value="DOCUMENT">DOCUMENT</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 form-group">
+                                            <label>Header (Optional)</label>
+                                            <input type="text" name="header" class="form-control" placeholder="60 characters max">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Content (Body) *</label>
+                                        <textarea name="content" class="form-control" rows="3" placeholder="Hi {{1}}, your order {{2}} is ready." required></textarea>
+                                        <small class="text-muted">Use {{1}}, {{2}} for variables.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Example (Sample Value) *</label>
+                                        <textarea name="example" class="form-control" rows="2" placeholder="Hi John, your order #123 is ready." required></textarea>
+                                        <small class="text-muted">Gupshup requires a real example to approve templates.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Footer (Optional)</label>
+                                        <input type="text" name="footer" class="form-control" placeholder="60 characters max">
+                                    </div>
+                                    <div id="createError" class="alert alert-danger" style="display:none;"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                    <button type="submit" id="submitTemplateBtn" class="btn btn-success">Submit for Approval</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="templatesLoading" class="text-center p-5 border rounded bg-white shadow-sm" style="display:none;">
                     <div class="spinner-border text-primary" role="status">
                         <span class="sr-only">Loading templates...</span>
@@ -246,6 +319,35 @@ if ($b24Service !== null) {
 
                     $('#refreshTemplates').click(function() {
                         loadTemplates();
+                    });
+
+                    $('#createTemplateForm').submit(function(e) {
+                        e.preventDefault();
+                        $('#submitTemplateBtn').prop('disabled', true).text('Processing...');
+                        $('#createError').hide();
+
+                        $.ajax({
+                            url: 'create_template.php',
+                            method: 'POST',
+                            data: $(this).serialize(),
+                            success: function(response) {
+                                if (response.status === 'success') {
+                                    $('#createTemplateModal').modal('hide');
+                                    $('#createTemplateForm')[0].reset();
+                                    loadTemplates();
+                                    alert('Template submitted successfully! It will appear in the list once processed by Gupshup.');
+                                } else {
+                                    $('#createError').text(response.message || 'Failed to create template.').show();
+                                }
+                                $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
+                            },
+                            error: function(xhr) {
+                                var msg = 'Error creating template.';
+                                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                                $('#createError').text(msg).show();
+                                $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
+                            }
+                        });
                     });
 
                     function loadTemplates() {
