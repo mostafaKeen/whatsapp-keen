@@ -191,7 +191,68 @@ if ($b24Service !== null) {
                     <h3>WhatsApp Templates</h3>
                     <div>
                         <button id="createTemplateBtn" class="btn btn-sm btn-success mr-2" data-toggle="modal" data-target="#createTemplateModal">+ Create New Template</button>
+                        <button id="sendCampaignBtn" class="btn btn-sm btn-info mr-2" data-toggle="modal" data-target="#campaignModal"><i class="fas fa-paper-plane"></i> Send Bulk Campaign</button>
                         <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
+                    </div>
+                </div>
+
+                <!-- Campaign Modal -->
+                <div class="modal fade" id="campaignModal" tabindex="-1" data-backdrop="static">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <form id="campaignForm">
+                                <div class="modal-header bg-info text-white">
+                                    <h5 class="modal-title"><i class="fas fa-paper-plane"></i> Send Bulk Campaign</h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-6 form-group">
+                                            <label>Sender/Source Number (With Country Code) *</label>
+                                            <input type="text" name="source" class="form-control" placeholder="e.g. 91891056XXXX" required>
+                                        </div>
+                                        <div class="col-md-6 form-group">
+                                            <label>App Name (from Gupshup) *</label>
+                                            <input type="text" name="appName" class="form-control" placeholder="e.g. GupshupDevAssistant01" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Select Template *</label>
+                                        <select name="templateId" id="campaignTemplateSelect" class="form-control" required>
+                                            <option value="">-- Select an approved template --</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Target Phone Numbers (One per line, include country code) *</label>
+                                        <textarea name="numbers" class="form-control" rows="8" placeholder="918286836XXX&#10;919876543XXX" required></textarea>
+                                        <small class="text-muted" id="campaignNumberCount">0 numbers</small>
+                                    </div>
+
+                                    <!-- Progress/Status Area (Hidden initially) -->
+                                    <div id="campaignStatusArea" style="display:none;" class="mt-4 p-3 border rounded bg-light">
+                                        <h6>Campaign Progress</h6>
+                                        <p id="campaignStatusText" class="mb-1 text-primary">Starting...</p>
+                                        <div class="progress mb-2" style="height: 20px;">
+                                            <div id="campaignProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                        </div>
+                                        <div class="d-flex justify-content-between text-muted small">
+                                            <span id="campaignStatSuccess" class="text-success">Success: 0</span>
+                                            <span id="campaignStatFailed" class="text-danger">Failed: 0</span>
+                                            <span id="campaignStatTotal">Total: 0</span>
+                                        </div>
+                                        <div class="mt-3 text-center" id="campaignControls">
+                                            <button type="button" class="btn btn-sm btn-warning" id="pauseCampaignBtn" style="display:none;"><i class="fas fa-pause"></i> Pause</button>
+                                            <button type="button" class="btn btn-sm btn-success" id="resumeCampaignBtn" style="display:none;"><i class="fas fa-play"></i> Resume</button>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="currentCampaignJobId" value="">
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal" id="campaignCancelBtn">Close</button>
+                                    <button type="submit" id="startCampaignBtn" class="btn btn-info">Start Campaign</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
@@ -843,7 +904,134 @@ if ($b24Service !== null) {
                             }
                         });
                     });
-                });
+
+                    // ============================================
+                    // BULK CAMPAIGN LOGIC
+                    // ============================================
+                    var currentCampaignTimer = null;
+                    var activeJobId = null;
+
+                    $('#campaignModal').on('show.bs.modal', function() {
+                        var $sel = $('#campaignTemplateSelect');
+                        $sel.empty().append('<option value="">-- Select an approved template --</option>');
+                        if (window.allTemplatesData && window.allTemplatesData.length > 0) {
+                            window.allTemplatesData.forEach(function(t) {
+                                if (t.status === 'APPROVED') {
+                                    $sel.append('<option value="'+(t.id || t.templateId || t.externalId)+'">'+t.elementName+' ('+t.templateType+')</option>');
+                                }
+                            });
+                        }
+                    });
+
+                    $('textarea[name="numbers"]').on('input', function() {
+                        var lines = $(this).val().split('\n').filter(function(l) { return l.trim() !== ''; });
+                        $('#campaignNumberCount').text(lines.length + ' numbers');
+                    });
+
+                    $('#campaignForm').on('submit', function(e) {
+                        e.preventDefault();
+                        if (activeJobId) return; // Already running/paused
+
+                        var formData = $(this).serializeArray();
+                        var templateName = $('#campaignTemplateSelect option:selected').text();
+                        formData.push({name: 'templateName', value: templateName});
+
+                        $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
+                        $('#campaignStatusArea').slideDown();
+                        $('#campaignStatusText').text('Initializing campaign job...').removeClass('text-danger text-success').addClass('text-info');
+                        updateCampaignProgress(0, 0, 0, 0);
+
+                        $.ajax({
+                            url: 'create_campaign_job.php',
+                            method: 'POST',
+                            data: $.param(formData),
+                            success: function(res) {
+                                if (res.status === 'success') {
+                                    activeJobId = res.job_id;
+                                    $('textarea[name="numbers"], input[name="source"], input[name="appName"], select[name="templateId"]').prop('readonly', true);
+                                    $('#campaignStatusText').text('Campaign Job Created. Starting batches...');
+                                    $('#pauseCampaignBtn').show();
+                                    $('#resumeCampaignBtn').hide();
+                                    processNextCampaignBatch();
+                                } else {
+                                    campaignError(res.message);
+                                }
+                            },
+                            error: function(xhr) {
+                                campaignError('Failed to create campaign job: HTTP ' + xhr.status);
+                            }
+                        });
+                    });
+
+                    function processNextCampaignBatch() {
+                        if (!activeJobId) return;
+                        
+                        $('#campaignStatusText').text('Processing batch...');
+                        
+                        $.ajax({
+                            url: 'send_campaign_batch.php',
+                            method: 'POST',
+                            data: { job_id: activeJobId, batch_size: 5 },
+                            success: function(res) {
+                                if (!res || res.status !== 'success') {
+                                    pauseCampaignUI('Error from batch script: ' + (res.message||'Unknown'));
+                                    return;
+                                }
+                                
+                                updateCampaignProgress(res.processed, res.total, res.success, res.failed);
+                                
+                                if (res.job_status === 'completed') {
+                                    $('#campaignStatusText').text('Campaign Completed!').removeClass('text-info').addClass('text-success');
+                                    $('#pauseCampaignBtn, #resumeCampaignBtn').hide();
+                                    $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', false).text('Close');
+                                    $('#startCampaignBtn').prop('disabled', false).text('Start New Campaign');
+                                    activeJobId = null; 
+                                } else if (res.job_status === 'paused' || res.rate_limited) {
+                                    pauseCampaignUI('Paused (Rate limit hit 429). Please wait before resuming.');
+                                } else {
+                                    // Make next request in 1.5 seconds to space out Gupshup API calls
+                                    currentCampaignTimer = setTimeout(processNextCampaignBatch, 1500);
+                                }
+                            },
+                            error: function(xhr) {
+                                pauseCampaignUI('Connection error while processing batch. Paused.');
+                            }
+                        });
+                    }
+
+                    function updateCampaignProgress(processed, total, success, failed) {
+                        var pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+                        $('#campaignProgressBar').css('width', pct + '%').text(pct + '% (' + processed + '/' + total + ')');
+                        $('#campaignStatSuccess').text('Success: ' + (success||0));
+                        $('#campaignStatFailed').text('Failed: ' + (failed||0));
+                        $('#campaignStatTotal').text('Total: ' + (total||0));
+                    }
+
+                    function pauseCampaignUI(msg) {
+                        clearTimeout(currentCampaignTimer);
+                        $('#campaignStatusText').text(msg).removeClass('text-info').addClass('text-warning');
+                        $('#pauseCampaignBtn').hide();
+                        $('#resumeCampaignBtn').show();
+                        $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', false);
+                    }
+
+                    function campaignError(msg) {
+                        $('#campaignStatusText').text(msg).removeClass('text-info text-success').addClass('text-danger');
+                        $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', false);
+                        activeJobId = null;
+                    }
+
+                    $('#pauseCampaignBtn').on('click', function() {
+                        pauseCampaignUI('Campaign paused by user.');
+                    });
+
+                    $('#resumeCampaignBtn').on('click', function() {
+                        if (!activeJobId) { alert('No active job to resume.'); return; }
+                        $(this).hide();
+                        $('#pauseCampaignBtn').show();
+                        $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
+                        processNextCampaignBatch();
+                    });
             </script>
         <?php endif; ?>
 
