@@ -16,14 +16,15 @@ $webhookUrl = $whatsappConfig['webhook_url'];
 // Remove any trailing slash from webhook URL
 $webhookUrl = rtrim($webhookUrl, '/');
 
+$start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
+
 // Build the API URL for crm.contact.list
 $apiUrl = $webhookUrl . '/crm.contact.list.json';
 
-// We'll fetch all contacts by handling pagination if necessary, 
-// but for now, let's start with a large batch or just the first page as requested
 $postData = [
     'select' => ['ID', 'NAME', 'LAST_NAME', 'PHONE'],
-    'order'  => ['NAME' => 'ASC']
+    'order'  => ['NAME' => 'ASC'],
+    'start'  => $start
 ];
 
 $ch = curl_init($apiUrl);

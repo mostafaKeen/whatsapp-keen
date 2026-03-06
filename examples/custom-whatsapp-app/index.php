@@ -243,6 +243,9 @@ if ($b24Service !== null) {
                                                     <span class="ml-2">Loading contacts...</span>
                                                 </div>
                                                 <div id="contactList"></div>
+                                                <div class="text-center p-2" id="loadMoreContactsContainer" style="display:none;">
+                                                    <button type="button" class="btn btn-sm btn-link" id="loadMoreContacts">Load More Contacts...</button>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -940,34 +943,69 @@ if ($b24Service !== null) {
                     // BULK CAMPAIGN LOGIC
                     // ============================================
                     var allContacts = [];
+                    var nextStart = 50;
+
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
                         if (!isVisible && allContacts.length === 0) {
-                            fetchCampaignContacts();
+                            fetchCampaignContacts(0);
                         }
                     });
 
-                    function fetchCampaignContacts() {
-                        $('#contactsLoading').show();
-                        $('#contactList').hide();
+                    function fetchCampaignContacts(start) {
+                        if (start === 0) {
+                            $('#contactsLoading').show();
+                            $('#contactList').hide();
+                            $('#loadMoreContactsContainer').hide();
+                            allContacts = [];
+                        } else {
+                            $('#loadMoreContacts').prop('disabled', true).text('Loading...');
+                        }
+
                         $.ajax({
-                            url: 'get_contacts.php',
+                            url: 'get_contacts.php?start=' + start,
                             method: 'GET',
                             cache: false,
                             success: function(res) {
-                                allContacts = (res.result || []).filter(function(c) {
+                                var newContacts = (res.result || []).filter(function(c) {
                                     return c.PHONE && c.PHONE.length > 0;
                                 });
-                                renderCampaignContacts();
-                                $('#contactsLoading').hide();
-                                $('#contactList').show();
+                                
+                                allContacts = allContacts.concat(newContacts);
+                                nextStart = res.next || null;
+
+                                renderCampaignContacts($('#contactSearchInput').val());
+                                
+                                if (start === 0) {
+                                    $('#contactsLoading').hide();
+                                    $('#contactList').show();
+                                } else {
+                                    $('#loadMoreContacts').prop('disabled', false).text('Load More Contacts...');
+                                }
+
+                                if (nextStart) {
+                                    $('#loadMoreContactsContainer').show();
+                                } else {
+                                    $('#loadMoreContactsContainer').hide();
+                                }
                             },
                             error: function() {
-                                $('#contactsLoading').html('<span class="text-danger">Failed to load contacts. Ensure Bitrix24 is accessible.</span>');
+                                if (start === 0) {
+                                    $('#contactsLoading').html('<span class="text-danger">Failed to load contacts. Ensure Bitrix24 is accessible.</span>');
+                                } else {
+                                    showToast('Failed to load more contacts', 'error');
+                                    $('#loadMoreContacts').prop('disabled', false).text('Load More Contacts...');
+                                }
                             }
                         });
                     }
+
+                    $('#loadMoreContacts').click(function() {
+                        if (nextStart) {
+                            fetchCampaignContacts(nextStart);
+                        }
+                    });
 
                     function renderCampaignContacts(search) {
                         var html = '';
@@ -978,7 +1016,11 @@ if ($b24Service !== null) {
                         });
                         
                         if (filtered.length === 0) {
-                            html = '<div class="text-center p-3 text-muted">No contacts with phone numbers found.</div>';
+                            if (allContacts.length > 0) {
+                                html = '<div class="text-center p-3 text-muted">No contacts match your search.</div>';
+                            } else {
+                                html = '<div class="text-center p-3 text-muted">No contacts with phone numbers found.</div>';
+                            }
                         } else {
                             filtered.forEach(function(c) {
                                 c.PHONE.forEach(function(p, pIdx) {
