@@ -462,6 +462,7 @@ if ($b24Service !== null) {
             <script>
                 $(document).ready(function() {
                     loadTemplates();
+                    $('#refreshTemplates').click(function() { loadTemplates(); });
 
                     // Handle Template Type change
                     $('#templateType').change(function() {
@@ -789,9 +790,6 @@ if ($b24Service !== null) {
                                 }
                             });
                         }
-                    });
-
-                    $('#templateModal').modal('show');
                     });
                 });
             </script>
