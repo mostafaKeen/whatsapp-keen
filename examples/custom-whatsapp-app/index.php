@@ -379,14 +379,13 @@ if ($b24Service !== null) {
                                         <label>Example (Sample Value) *</label>
                                         <textarea name="example" class="form-control" rows="2" required></textarea>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Footer (Optional)</label>
                                         <input type="text" name="footer" class="form-control" placeholder="60 characters max">
                                     </div>
+                                    <div id="editError" class="alert alert-danger" style="display:none; white-space: pre-wrap; font-family: monospace; font-size: 11px;"></div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    <button type="submit" id="submitEditBtn" class="btn btn-primary">Save Changes</button>
                                 </div>
                             </form>
                         </div>
@@ -552,14 +551,19 @@ if ($b24Service !== null) {
                                     loadTemplates();
                                     alert('Template submitted successfully! It will appear in the list once processed by Gupshup.');
                                 } else {
-                                    $('#createError').text(response.message || 'Failed to create template.').show();
+                                    var detail = response.message || JSON.stringify(response, null, 2);
+                                    $('#createError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
                                 }
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             },
                             error: function(xhr) {
-                                var msg = 'Error creating template.';
-                                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                                $('#createError').text(msg).show();
+                                var msg = 'Network or Server Error.';
+                                if (xhr.responseJSON) {
+                                    msg = JSON.stringify(xhr.responseJSON, null, 2);
+                                } else if (xhr.responseText) {
+                                    msg = xhr.responseText;
+                                }
+                                $('#createError').html('<strong>Request Failed:</strong><br>' + msg).show();
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             }
                         });
@@ -716,6 +720,8 @@ if ($b24Service !== null) {
                             }
                         } catch(e) { console.error("Error parsing meta for edit:", e); }
 
+                        $('#editError').hide().text('');
+                        $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                         $('#editTemplateModal').modal('show');
                     });
 
@@ -755,6 +761,9 @@ if ($b24Service !== null) {
                             btns.push(item);
                         });
                         $('#editButtonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
+                        
+                        $('#editError').hide().text('');
+                        $('#submitEditBtn').prop('disabled', true).text('Saving...');
 
                         $.ajax({
                             url: 'edit_template.php',
@@ -766,8 +775,20 @@ if ($b24Service !== null) {
                                     loadTemplates();
                                     alert('Template updated successfully!');
                                 } else {
-                                    alert('Error: ' + (res.message || 'Unknown error'));
+                                    var detail = res.message || JSON.stringify(res, null, 2);
+                                    $('#editError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
+                                    $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
+                            },
+                            error: function(xhr) {
+                                var msg = 'Network or Server Error.';
+                                if (xhr.responseJSON) {
+                                    msg = JSON.stringify(xhr.responseJSON, null, 2);
+                                } else if (xhr.responseText) {
+                                    msg = xhr.responseText;
+                                }
+                                $('#editError').html('<strong>Request Failed:</strong><br>' + msg).show();
+                                $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
                     });
