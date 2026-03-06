@@ -587,7 +587,7 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
             });
         });
 
-        setInterval(pollHistory, 5000);
+        setInterval(pollHistory, 3000);
     });
 
     function initChat(name, phone) {
@@ -735,7 +735,8 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
         if (!entityId || !entityType) return;
         $.ajax({
             url: 'get_history.php',
-            data: { id: entityId, type: entityType },
+            data: { id: entityId, type: entityType, _t: Date.now() },
+            cache: false,
             success: function(history) {
                 if (!Array.isArray(history)) return;
 

@@ -69,30 +69,35 @@ if (is_array($value) && !empty($value['messages'][0])) {
         
         try {
             // Send the message into Bitrix24 IMOpenLines Channel!
-            $b24Service->getIMOpenLinesScope()->connector()->sendMessages([
-                0 => [ // message list
-                    'im' => [
-                        'chat_id' => $cleanPhone, // The external ID for the chat
-                        'message_id' => $messageId,
-                    ],
-                    'message' => [
-                        'id' => $messageId,
-                        'date' => $timestamp,
-                        'text' => $text,
-                    ],
-                    'user' => [
-                        'id' => $cleanPhone, // The external ID for the user
-                        'name' => $senderName,
-                        'last_name' => '',
-                    ],
-                    'chat' => [
-                        'id' => $cleanPhone,
-                        'url' => 'https://wa.me/' . $cleanPhone,
-                    ],
-                    'direction' => 'inbound',
-                    'source' => 'whatsapp'
+            // Signature: sendMessages(string $connector, string $line, array $messages)
+            $b24Service->getIMOpenLinesScope()->connector()->sendMessages(
+                $connectorId, 
+                $connectorId, // Using connectorId as line placeholder
+                [
+                    0 => [ // message list
+                        'im' => [
+                            'chat_id' => $cleanPhone,
+                            'message_id' => $messageId,
+                        ],
+                        'message' => [
+                            'id' => $messageId,
+                            'date' => $timestamp,
+                            'text' => $text,
+                        ],
+                        'user' => [
+                            'id' => $cleanPhone,
+                            'name' => $senderName,
+                            'last_name' => '',
+                        ],
+                        'chat' => [
+                            'id' => $cleanPhone,
+                            'url' => 'https://wa.me/' . $cleanPhone,
+                        ],
+                        'direction' => 'inbound',
+                        'source' => 'whatsapp'
+                    ]
                 ]
-            ], $connectorId, null);
+            );
             
             // Also log to local JSON so the widget showing history updates
             logIncomingMessageLocally($cleanPhone, $text, $messageId, $timestamp);
