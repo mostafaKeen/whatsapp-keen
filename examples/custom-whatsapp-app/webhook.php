@@ -66,17 +66,25 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $status  = $st['status']     ?? null;
                 $recipientPhone = preg_replace('/[^0-9]/', '', $st['recipient_id'] ?? '');
 
-                if ($status && ($gsId || $id || $metaId)) {
-                    // Try to update existing history files
-                    updateMessageStatusInLogs($MSG_DIR, $gsId, $id, $metaId, $status);
+                if (!$status) continue;
 
-                    // If not found by message ID (new session), try by phone
-                    if ($recipientPhone) {
+                // Special case: 'enqueued' event — backfill the message ID on the
+                // most recent outbound entry with null id for this phone number.
+                // Gupshup does NOT return a message ID in the send API response,
+                // so this is the ONLY way to get the ID into history.
+                if ($status === 'enqueued' && ($gsId || $id) && $recipientPhone) {
+                    backfillMessageId($MSG_DIR, $recipientPhone, $gsId ?? $id);
+                }
+
+                // For all other statuses, update by ID across all files
+                if ($status !== 'enqueued' && ($gsId || $id || $metaId)) {
+                    $found = updateMessageStatusInLogs($MSG_DIR, $gsId, $id, $metaId, $status);
+                    if (!$found && $recipientPhone) {
                         updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
                     }
-
-                    error_log("Status event: status=$status, gs_id=$gsId, id=$id");
                 }
+
+                error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
             }
         }
 
@@ -274,6 +282,39 @@ function updateMessageStatusInLogs(string $dir, ?string $gsId, ?string $id, ?str
     }
 
     return $found;
+}
+
+/**
+ * Backfill: find the most recent outbound entry with null id for a given
+ * phone number and assign the Gupshup ID to it.
+ * Called when 'enqueued' event arrives — this IS the ID assignment event.
+ */
+function backfillMessageId(string $dir, string $phone, string $newId): void {
+    if (!is_dir($dir)) return;
+
+    $files = glob($dir . '/*.json');
+    foreach ($files as $file) {
+        $history = json_decode(file_get_contents($file), true) ?: [];
+        $updated = false;
+
+        // Work backwards to find the latest null-ID outbound message for this phone
+        for ($i = count($history) - 1; $i >= 0; $i--) {
+            $entryPhone = preg_replace('/[^0-9]/', '', $history[$i]['phone'] ?? '');
+            $isMatch = ($entryPhone === $phone || $entryPhone === ltrim($phone, '0'));
+
+            if ($isMatch && ($history[$i]['id'] ?? null) === null && ($history[$i]['direction'] ?? '') === 'outbound') {
+                $history[$i]['id']     = $newId;
+                $history[$i]['status'] = 'sent'; // enqueued → sent in UI terms
+                $updated = true;
+                error_log("Backfilled ID $newId into " . basename($file) . " entry #$i for phone $phone");
+                break; // Only fill the most recent one
+            }
+        }
+
+        if ($updated) {
+            file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+        }
+    }
 }
 
 /**
