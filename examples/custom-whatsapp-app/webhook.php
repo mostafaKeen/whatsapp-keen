@@ -28,12 +28,15 @@ if (function_exists('fastcgi_finish_request')) {
 require_once __DIR__ . '/../../vendor/autoload.php';
 $whatsappConfig = require __DIR__ . '/../config.php';
 
-$MSG_DIR    = dirname(__DIR__, 2) . '/var/messages';
-$LOG_DIR    = dirname(__DIR__, 2) . '/var/webhook_events';
-$WEBHOOK_URL = $whatsappConfig['webhook_url']; // Bitrix24 direct webhook URL
+$BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+$MSG_DIR      = $BASE_VAR_DIR . '/messages';
+$LOG_DIR      = $BASE_VAR_DIR . '/webhook_events';
+$JOB_DIR      = $BASE_VAR_DIR . '/jobs';
+$WEBHOOK_URL  = $whatsappConfig['webhook_url']; // Bitrix24 direct webhook URL
 
 if (!is_dir($MSG_DIR)) mkdir($MSG_DIR, 0755, true);
 if (!is_dir($LOG_DIR)) mkdir($LOG_DIR, 0755, true);
+if (!is_dir($JOB_DIR)) mkdir($JOB_DIR, 0755, true); // Create jobs dir if missing
 
 $rawBody = file_get_contents('php://input');
 
@@ -68,22 +71,16 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if (!$status) continue;
 
-                // Special case: 'enqueued' event — backfill the message ID on the
-                // most recent outbound entry with null id for this phone number.
-                // Gupshup does NOT return a message ID in the send API response,
-                // so this is the ONLY way to get the ID into history.
                 if ($status === 'enqueued' && ($gsId || $id) && $recipientPhone) {
                     backfillMessageId($MSG_DIR, $recipientPhone, $gsId ?? $id);
                 }
 
-                // For all other statuses, update by ID across all files
                 if ($status !== 'enqueued' && ($gsId || $id || $metaId)) {
                     $found = updateMessageStatusInLogs($MSG_DIR, $gsId, $id, $metaId, $status);
                     if (!$found && $recipientPhone) {
                         updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
                     }
                 }
-
                 error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
             }
         }
@@ -107,7 +104,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     default    => '[Unsupported message type: ' . $type . ']',
                 };
 
-                // Get sender name from contacts array
+                // Get sender name
                 $senderName = '';
                 foreach ($value['contacts'] ?? [] as $contact) {
                     if (preg_replace('/[^0-9]/', '', $contact['wa_id'] ?? '') === $phone) {
@@ -119,18 +116,25 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if (!$phone) continue;
 
-                // Look up Lead/Contact by phone (or create new Lead)
-                $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL);
+                // 2A. Check for Template Reply (Campaign Matching)
+                $campaignInfo = matchCampaignJobByPhone($JOB_DIR, $phone);
+                $campaignPrefix = ($campaignInfo) ? "Reply to template: [" . $campaignInfo['template_name'] . "]. Message: " : "Gupshup Message: ";
+
+                // 2B. Look up Lead/Contact by phone (or create new Lead)
+                $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL, $campaignInfo);
 
                 if ($entity) {
-                    $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
+                    // 2C. Add the message as a comment/TIMELINE entry to the found lead
+                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo);
 
-                    // Prevent duplicate inbound messages
+                    $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
+                    
+                    // Prevent duplicate inbound messages
                     foreach ($history as $existing) {
                         if (($existing['id'] ?? '') === $messageId) {
                             error_log("Duplicate inbound message skipped: $messageId");
-                            continue 2; // skip this message
+                            continue 2;
                         }
                     }
 
@@ -139,17 +143,16 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'timestamp'    => date('Y-m-d H:i:s', (int)$timestamp),
                         'phone'        => '+' . $phone,
                         'message'      => $text,
+                        'campaign_name'=> $campaignInfo['template_name'] ?? null,
                         'message_type' => $type,
-                        'file_url'     => null,
                         'status'       => 'received',
                         'direction'    => 'inbound',
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
-                    error_log("Saved inbound msg from +$phone to {$entity['type']}_{$entity['id']}");
                 } else {
-                    // Fallback: save by phone number
+                    // Fallback to phone file
                     $filename = $MSG_DIR . '/phone_' . $phone . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
                     $history[] = [
@@ -158,21 +161,74 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'phone'        => '+' . $phone,
                         'message'      => $text,
                         'message_type' => $type,
-                        'file_url'     => null,
                         'status'       => 'received',
                         'direction'    => 'inbound',
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
-                    error_log("No Lead found for +$phone, saved to fallback file");
                 }
             }
         }
     }
 }
-
 exit;
+
+
+/**
+ * Searches jobs directory for a match for the incoming phone number.
+ */
+function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
+    $files = glob($jobDir . '/*.json');
+    foreach ($files as $file) {
+        $data = json_decode(file_get_contents($file), true);
+        if (!$data || !isset($data['targets'])) continue;
+        foreach($data['targets'] as $t) {
+            $cleanT = preg_replace('/[^0-9]/', '', (string)$t['phone']);
+            $cleanP = preg_replace('/[^0-9]/', '', (string)$phone);
+            if ($cleanT === $cleanP) {
+                return [
+                    'job_id' => $data['job_id'],
+                    'template_name' => $data['template_name'],
+                    'template_id' => $data['template_id']
+                ];
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Pushes the inbound message to Bitrix24 as a comment for the entity.
+ */
+function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $text, ?array $campaign): void {
+    $title = ($campaign) ? "WhatsApp Reply to Campaign: [" . $campaign['template_name'] . "]" : "Inbound WhatsApp Message";
+    $comment = "$title\nMessage: $text";
+
+    // Adding as an activity or timeline entry is best. crm.timeline.item.add is v2, crm.livefeedmessage.add is easier.
+    // For universal compatibility, we Use crm.lead.update or crm.contact.update by appending to comments,
+    // OR we use crm.timeline.item.add if we want it to look like a message.
+    
+    // Let's use crm.timeline.item.add if it's available, otherwise simple crm.entity.update
+    $method = $entity['type'] === 'lead' ? 'crm.lead.update' : 'crm.contact.update';
+    
+    // First, let's get existing comments to append if we want history? No, Bitrix handles separate entries if we push activities.
+    // Let's create an activity.
+    bitrix24Call($webhookUrl, 'crm.activity.add', [
+        'fields' => [
+            'OWNER_TYPE_ID' => $entity['type'] === 'lead' ? 1 : 3, // 1=Lead, 3=Contact
+            'OWNER_ID'      => $entity['id'],
+            'TYPE_ID'       => 1, // Meeting? 2=Call, 3=Task. 1=Meeting is often used for generic. Or 6=Email.
+            'COMMUNICATION_TYPE_ID' => 'PHONE',
+            'DIRECTION'     => 1, // Inbound
+            'SUBJECT'       => $title,
+            'DESCRIPTION'   => $text,
+            'COMPLETED'     => 'Y',
+            'RESPONSIBLE_ID'=> 1, // Admin by default or we could search
+        ]
+    ]);
+}
+
 
 // ─── FUNCTIONS ─────────────────────────────────────────────────────────────
 
@@ -181,7 +237,8 @@ exit;
  * Creates a new Lead if not found.
  * Returns ['type' => 'lead', 'id' => 123] or null.
  */
-function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl): ?array {
+function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl, ?array $campaign = null): ?array {
+
     // Try multiple phone formats
     $variants = [
         $phone,
@@ -206,11 +263,11 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     error_log("No Lead/Contact found for +$phone, creating new Lead...");
     $createRes = bitrix24Call($webhookUrl, 'crm.lead.add', [
         'fields' => [
-            'TITLE'     => 'WA Inquiry: +' . $phone,
+            'TITLE'     => ($campaign ? 'CAMPAIGN: ' . $campaign['template_name'] : 'WA Inquiry') . ': +' . $phone,
             'NAME'      => $name ?: 'WhatsApp User',
             'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
             'SOURCE_ID' => 'WA_GUPSHUP',
-            'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook',
+            'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
         ],
     ]);
 

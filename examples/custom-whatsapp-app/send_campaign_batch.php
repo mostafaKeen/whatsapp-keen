@@ -24,7 +24,8 @@ if (empty($jobId)) {
     exit;
 }
 
-$jobDir = dirname(__DIR__, 2) . '/var/jobs';
+$BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+$jobDir = $BASE_VAR_DIR . '/jobs';
 $jobFile = $jobDir . '/' . $jobId . '.json';
 
 if (!file_exists($jobFile)) {

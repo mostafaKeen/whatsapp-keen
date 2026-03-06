@@ -82,7 +82,9 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
  * so we use the phone number based lookup or just log by phone.
  */
 function logMessageToJson(string $phone, string $message, $msgId = null) {
-    $dir = dirname(__DIR__, 2) . '/var/messages';
+    global $whatsappConfig;
+    $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+    $dir = $BASE_VAR_DIR . '/messages';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }

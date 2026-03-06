@@ -7,13 +7,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 $jobId = $_GET['job_id'] ?? '';
-if (empty($jobId)) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Job ID required']);
-    exit;
-}
+$whatsappConfig = require __DIR__ . '/../config.php';
+$BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+$jobFile = $BASE_VAR_DIR . '/jobs/' . basename($jobId) . '.json';
 
-$jobFile = dirname(__DIR__, 2) . '/var/jobs/' . basename($jobId) . '.json';
 if (!file_exists($jobFile)) {
     http_response_code(404);
     echo json_encode(['status' => 'error', 'message' => 'Job not found']);

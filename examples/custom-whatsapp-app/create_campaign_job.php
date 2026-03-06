@@ -34,7 +34,8 @@ if (empty($source) || empty($appName)) {
 }
 
 $jobId = 'job_' . time() . '_' . bin2hex(random_bytes(4));
-$jobDir = dirname(__DIR__, 2) . '/var/jobs';
+$BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+$jobDir = $BASE_VAR_DIR . '/jobs';
 if (!is_dir($jobDir)) {
     mkdir($jobDir, 0777, true);
 }

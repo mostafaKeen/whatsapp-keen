@@ -9,4 +9,5 @@ return [
     'gupshup_api_token' => 'sk_f24369e4bf7147d1b23edaaf4f63d5d2',
     'gupshup_source' => '15557967143', // Replace with your Gupshup source number
     'gupshup_app_name' => 'KEEN26WA', // Replace with your Gupshup app name
+    'var_dir' => __DIR__ . '/../var', // Base data directory
 ];
