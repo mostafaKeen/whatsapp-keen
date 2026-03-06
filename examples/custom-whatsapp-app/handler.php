@@ -66,8 +66,10 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
         error_log("Gupshup send error: " . $error);
     } else {
         error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
+        $decoded = json_decode($response, true);
+        $msgId = $decoded['messageId'] ?? null;
         // Log to local history so it shows in the custom widget
-        logMessageToJson($phone, $message);
+        logMessageToJson($phone, $message, $msgId);
     }
 
     echo json_encode(['SUCCESS' => true]);
@@ -79,7 +81,7 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
  * Note: In IMOpenLines handler, we don't always have the CRM Entity ID immediately,
  * so we use the phone number based lookup or just log by phone.
  */
-function logMessageToJson(string $phone, string $message) {
+function logMessageToJson(string $phone, string $message, $msgId = null) {
     $dir = __DIR__ . '/messages';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
@@ -99,6 +101,7 @@ function logMessageToJson(string $phone, string $message) {
             
             if ($cleanLogPhone === $cleanTargetPhone) {
                 $history[] = [
+                    'id' => $msgId,
                     'timestamp' => date('Y-m-d H:i:s'),
                     'phone' => $phone,
                     'message' => $message,

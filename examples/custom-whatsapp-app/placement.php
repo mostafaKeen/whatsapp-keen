@@ -12,6 +12,7 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script src="//api.bitrix24.com/api/v1/"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         :root {
             --primary-color: #25D366;
@@ -337,15 +338,26 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 
         .history-meta {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
             font-size: 11px;
             color: var(--text-muted);
-            margin-bottom: 2px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
+        .status-icon {
+            margin-left: 6px;
+            font-size: 14px;
+        }
+        .status-sent { color: #8696a0; }
+        .status-delivered { color: #8696a0; }
+        .status-read { color: #53bdeb; }
+        .status-failed { color: #ea0038; }
+
         .history-item.inbound .history-meta {
-            flex-direction: row-reverse;
+            flex-direction: row;
         }
 
         .history-meta span:last-child {
@@ -637,24 +649,48 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                .show();
     }
 
-    function addMessageToHistory(message, fileUrl, timestamp, direction, source) {
-        var isInbound = direction === 'inbound';
-        var sourceLabel = (isInbound) ? 'Received' : (source === 'crm_chat' ? 'Sent (CRM Chat)' : 'Sent (Widget)');
+    function addMessageToHistory(item) {
+        var isInbound = item.direction === 'inbound';
+        var sourceLabel = (isInbound) ? 'Received' : (item.source === 'crm_chat' ? 'Sent (CRM Chat)' : 'Sent (Widget)');
         
-        var html = '<div class="history-item ' + (isInbound ? 'inbound' : '') + '" style="display: none;">' +
+        // WhatsApp Status Ticks
+        var statusHtml = '';
+        if (!isInbound) {
+            switch(item.status) {
+                case 'read':
+                    statusHtml = '<i class="fas fa-check-double status-icon status-read" title="Read"></i>';
+                    break;
+                case 'delivered':
+                    statusHtml = '<i class="fas fa-check-double status-icon status-delivered" title="Delivered"></i>';
+                    break;
+                case 'sent':
+                case 'enqueued':
+                    statusHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
+                    break;
+                case 'failed':
+                    statusHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="Failed"></i>';
+                    break;
+            }
+        }
+
+        var msgIdAttr = item.id ? 'data-msg-id="' + item.id + '"' : '';
+        var html = '<div class="history-item ' + (isInbound ? 'inbound' : '') + '" ' + msgIdAttr + ' style="display: none;">' +
                    '  <div class="history-meta">' +
-                   '    <span>' + timestamp + '</span>' +
-                   '    <span>' + sourceLabel + '</span>' +
+                   '    <span>' + item.timestamp + '</span>' +
+                   '    <div class="d-flex align-items-center">' +
+                   '        <span>' + sourceLabel + '</span>' +
+                            statusHtml +
+                   '    </div>' +
                    '  </div>' +
                    '  <div class="history-body">';
         
-        if (message) {
-            html += '<div class="message-text">' + message.replace(/\n/g, '<br>') + '</div>';
+        if (item.message) {
+            html += '<div class="message-text">' + item.message.replace(/\n/g, '<br>') + '</div>';
         }
         
-        if (fileUrl) {
+        if (item.file_url) {
             html += '<div class="history-file">' +
-                    '  <a href="' + fileUrl + '" target="_blank">' +
+                    '  <a href="' + item.file_url + '" target="_blank">' +
                     '    <svg viewBox="0 0 24 24" width="14" height="14" style="fill: currentColor;"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>' +
                     '    View Attachment' +
                     '  </a>' +
@@ -677,16 +713,51 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
             url: 'get_history.php',
             data: { id: entityId, type: entityType },
             success: function(history) {
-                if (Array.isArray(history) && history.length > lastMessageCount) {
-                    var newMessages = history.slice(lastMessageCount);
-                    newMessages.forEach(function(item) {
-                        addMessageToHistory(item.message, item.file_url, item.timestamp, item.direction, item.source);
-                    });
-                    lastMessageCount = history.length;
-                    scrollToBottom();
-                }
+                if (!Array.isArray(history)) return;
+
+                // Update existing statuses or add new messages
+                history.forEach(function(item, index) {
+                    if (index < lastMessageCount) {
+                        // Check if status changed for an existing message with an ID
+                        if (item.id) {
+                            var $existing = $('.history-item[data-msg-id="' + item.id + '"]');
+                            if ($existing.length > 0) {
+                                // Update status icon if needed
+                                updateMessageStatusUI($existing, item.status);
+                            }
+                        }
+                    } else {
+                        // Add new message
+                        addMessageToHistory(item);
+                        lastMessageCount++;
+                        scrollToBottom();
+                    }
+                });
             }
         });
+    }
+
+    function updateMessageStatusUI($el, status) {
+        var $meta = $el.find('.history-meta div');
+        $meta.find('.status-icon').remove();
+        
+        var iconHtml = '';
+        switch(status) {
+            case 'read':
+                iconHtml = '<i class="fas fa-check-double status-icon status-read" title="Read"></i>';
+                break;
+            case 'delivered':
+                iconHtml = '<i class="fas fa-check-double status-icon status-delivered" title="Delivered"></i>';
+                break;
+            case 'sent':
+            case 'enqueued':
+                iconHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
+                break;
+            case 'failed':
+                iconHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="Failed"></i>';
+                break;
+        }
+        $meta.append(iconHtml);
     }
 </script>
 </body>

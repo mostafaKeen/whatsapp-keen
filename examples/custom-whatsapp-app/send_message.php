@@ -122,13 +122,15 @@ if ($error) {
         ]);
     } else {
         // Log the message to JSON file
+        $msgId = $decodedResponse['messageId'] ?? null; // Gupshup Partner API v3 usually returns messageId
         $timestamp = date('Y-m-d H:i:s');
-        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, $timestamp);
+        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, $timestamp, $msgId);
 
         http_response_code($httpCode);
         echo json_encode([
             'message' => 'Success',
             'timestamp' => $timestamp,
+            'messageId' => $msgId,
             'file_url' => $fileUrl,
             'message_type' => $messageType,
             'raw_response' => $decodedResponse ?? $response
@@ -136,7 +138,7 @@ if ($error) {
     }
 }
 
-function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null) {
+function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null) {
     if (!$timestamp) $timestamp = date('Y-m-d H:i:s');
     $dir = __DIR__ . '/messages';
     if (!is_dir($dir)) {
@@ -146,6 +148,7 @@ function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messag
     $filename = $dir . '/' . $type . '_' . $id . '.json';
     
     $logEntry = [
+        'id' => $msgId, // Gupshup/Meta message ID
         'timestamp' => $timestamp,
         'phone' => $phone,
         'message' => $message,

@@ -40,6 +40,20 @@ if (!$decoded) {
 // Gupshup Partner V3 webhook payload
 $value = $decoded['entry'][0]['changes'][0]['value'] ?? null;
 
+// 1. Handle Message Status Updates (enqueued, sent, delivered, read)
+if (is_array($value) && !empty($value['statuses'][0])) {
+    foreach ($value['statuses'] as $statusUpdate) {
+        $gsId = $statusUpdate['gs_id'] ?? null;
+        $metaId = $statusUpdate['id'] ?? $statusUpdate['meta_msg_id'] ?? null;
+        $newStatus = $statusUpdate['status'] ?? null;
+        
+        if ($newStatus && ($gsId || $metaId)) {
+            updateMessageStatusInLogs($gsId, $metaId, $newStatus);
+        }
+    }
+}
+
+// 2. Handle Incoming Messages
 if (is_array($value) && !empty($value['messages'][0])) {
     $msg = $value['messages'][0];
     
@@ -80,9 +94,69 @@ if (is_array($value) && !empty($value['messages'][0])) {
                 ]
             ], $connectorId, null);
             
+            // Also log to local JSON so the widget showing history updates
+            logIncomingMessageLocally($cleanPhone, $text, $messageId, $timestamp);
+            
             error_log("Successfully routed Gupshup incoming message from $phone to Bitrix24 IMOpenLines.");
         } catch (\Exception $e) {
             error_log("Failed to send Gupshup message into Bitrix24: " . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * Searches and updates message status in the messages directory.
+ */
+function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
+    $dir = __DIR__ . '/messages';
+    if (!is_dir($dir)) return;
+    
+    $files = glob($dir . '/*.json');
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        $history = json_decode($content, true) ?: [];
+        $updated = false;
+        
+        foreach ($history as &$entry) {
+            // Check against both IDs if possible
+            if (isset($entry['id']) && ($entry['id'] === $gsId || $entry['id'] === $metaId)) {
+                $entry['status'] = $newStatus;
+                $updated = true;
+                // If read, usually it was delivered before, we can stop here or keep searching if multiple match
+            }
+        }
+        
+        if ($updated) {
+            file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+            error_log("Updated message status to $newStatus for ID " . ($gsId ?: $metaId));
+        }
+    }
+}
+
+/**
+ * Logs incoming messages to local JSON so the widget can display them.
+ */
+function logIncomingMessageLocally($phone, $text, $msgId, $timestamp) {
+    $dir = __DIR__ . '/messages';
+    $files = glob($dir . '/*.json');
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        $history = json_decode($content, true) ?: [];
+        if (!empty($history) && isset($history[0]['phone'])) {
+            $cleanLogPhone = preg_replace('/[^0-9]/', '', (string)$history[0]['phone']);
+            if ($cleanLogPhone === $phone) {
+                $history[] = [
+                    'id' => $msgId,
+                    'timestamp' => date('Y-m-d H:i:s', (int)$timestamp),
+                    'phone' => $phone,
+                    'message' => $text,
+                    'status' => 'received',
+                    'direction' => 'inbound',
+                    'source' => 'whatsapp'
+                ];
+                file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+                break;
+            }
         }
     }
 }
