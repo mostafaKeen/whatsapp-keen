@@ -748,7 +748,7 @@ if ($b24Service !== null) {
                         $('#edit_btn_' + $(this).data('id')).remove();
                     });
 
-                    $('#editTemplateForm').submit(function(e) {
+                    $('#editTemplateForm').off('submit').on('submit', function(e) {
                         e.preventDefault();
                         var btns = [];
                         $('.edit-btn-item').each(function() {
@@ -768,26 +768,26 @@ if ($b24Service !== null) {
                         $.ajax({
                             url: 'edit_template.php',
                             method: 'POST',
+                            dataType: 'json',
                             data: $(this).serialize(),
                             success: function(res) {
+                                // Debug: always show raw response
+                                alert('Gupshup Response:\n' + JSON.stringify(res, null, 2));
+                                
                                 if (res.status === 'success') {
                                     $('#editTemplateModal').modal('hide');
                                     loadTemplates();
-                                    alert('Template updated successfully!');
                                 } else {
                                     var detail = res.message || JSON.stringify(res, null, 2);
                                     $('#editError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
                                     $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
                             },
-                            error: function(xhr) {
-                                var msg = 'Network or Server Error.';
-                                if (xhr.responseJSON) {
-                                    msg = JSON.stringify(xhr.responseJSON, null, 2);
-                                } else if (xhr.responseText) {
-                                    msg = xhr.responseText;
-                                }
-                                $('#editError').html('<strong>Request Failed:</strong><br>' + msg).show();
+                            error: function(xhr, status, err) {
+                                var msg = 'HTTP ' + xhr.status + ' - ' + status + ': ' + err + '\n\n';
+                                msg += xhr.responseText || '(no response body)';
+                                alert('Request Failed:\n' + msg);
+                                $('#editError').html('<strong>Request Failed (HTTP ' + xhr.status + '):</strong><br><pre>' + (xhr.responseText || 'No response') + '</pre>').show();
                                 $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
