@@ -7,11 +7,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$whatsappConfig = require __DIR__ . '/../config.php';
+
 $templateId = $_POST['templateId'] ?? '';
 $templateName = $_POST['templateName'] ?? '';
 $numbersRaw = $_POST['numbers'] ?? '';
-$source = $_POST['source'] ?? '';
-$appName = $_POST['appName'] ?? '';
+
+// Credentials from config
+$source = $whatsappConfig['gupshup_source'] ?? ''; 
+$appName = $whatsappConfig['gupshup_app_name'] ?? '';
 
 // Support variables mapping - for now we just expect an array of arrays or flat if static
 // For simplicity, we just extract numbers
@@ -25,7 +29,7 @@ if (empty($templateId) || empty($numbers)) {
 
 if (empty($source) || empty($appName)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Source number and App Name are required for Gupshup Template API.']);
+    echo json_encode(['status' => 'error', 'message' => 'Source number and App Name are missing from config.php. Please add "gupshup_source" and "gupshup_app_name" to your config file.']);
     exit;
 }
 

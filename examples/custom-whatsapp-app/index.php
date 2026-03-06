@@ -206,15 +206,8 @@ if ($b24Service !== null) {
                                     <button type="button" class="close text-white" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="row">
-                                        <div class="col-md-6 form-group">
-                                            <label>Sender/Source Number (With Country Code) *</label>
-                                            <input type="text" name="source" class="form-control" placeholder="e.g. 91891056XXXX" required>
-                                        </div>
-                                        <div class="col-md-6 form-group">
-                                            <label>App Name (from Gupshup) *</label>
-                                            <input type="text" name="appName" class="form-control" placeholder="e.g. GupshupDevAssistant01" required>
-                                        </div>
+                                    <div class="alert alert-info border-info small mb-3">
+                                        <i class="fas fa-info-circle"></i> Using Gupshup App: <strong><?= htmlspecialchars($whatsappConfig['gupshup_app_id']) ?></strong>
                                     </div>
                                     <div class="form-group">
                                         <label>Select Template *</label>
@@ -951,7 +944,7 @@ if ($b24Service !== null) {
                             success: function(res) {
                                 if (res.status === 'success') {
                                     activeJobId = res.job_id;
-                                    $('textarea[name="numbers"], input[name="source"], input[name="appName"], select[name="templateId"]').prop('readonly', true);
+                                    $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', true);
                                     $('#campaignStatusText').text('Campaign Job Created. Starting batches...');
                                     $('#pauseCampaignBtn').show();
                                     $('#resumeCampaignBtn').hide();
