@@ -143,6 +143,9 @@ if ($b24Service !== null) {
     <title>WhatsApp Direct Settings</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
 </head>
 <body class="p-4">
     <div class="container">
@@ -951,6 +954,7 @@ if ($b24Service !== null) {
                         $.ajax({
                             url: 'get_contacts.php',
                             method: 'GET',
+                            cache: false,
                             success: function(res) {
                                 allContacts = (res.result || []).filter(function(c) {
                                     return c.PHONE && c.PHONE.length > 0;
