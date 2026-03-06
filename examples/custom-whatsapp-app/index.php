@@ -748,9 +748,18 @@ if ($b24Service !== null) {
                     });
 
                     // Edit Template Form Submit
+                    var isEditSubmitting = false;
                     $('#editTemplateForm').off('submit').on('submit', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
+                        e.stopImmediatePropagation();
+
+                        if (isEditSubmitting) {
+                            console.warn('Edit already in progress, ignoring duplicate submit');
+                            return false;
+                        }
+                        isEditSubmitting = true;
+
                         var btns = [];
                         $('#editButtonsContainer .edit-btn-item').each(function() {
                             var item = { type: $(this).find('.eb-type').val(), text: $(this).find('.eb-text').val() };
@@ -769,13 +778,14 @@ if ($b24Service !== null) {
                             method: 'POST',
                             data: formData,
                             success: function(rawData) {
+                                isEditSubmitting = false;
                                 var res;
                                 try {
                                     res = (typeof rawData === 'object') ? rawData : JSON.parse(rawData);
                                 } catch(ex) {
-                                    // Non-JSON response — show raw content in error div, keep modal open
-                                    $('#editError').html('<strong>Server returned non-JSON (possible PHP error):</strong><pre style="font-size:11px;white-space:pre-wrap;max-height:200px;overflow:auto;">' + $('<div>').text(rawData).html() + '</pre>').show();
-                                    $('#submitEditBtn').prop('disabled', false).text('Save Changes');
+                                    showApiResponse('danger', 'Server returned non-JSON (possible PHP error):', rawData);
+                                    showToast('Server error — check result below table', 'error', 10000);
+                                    $('#editTemplateModal').modal('hide');
                                     return;
                                 }
                                 if (res.status === 'success' && !(res.message && res.message.toLowerCase().indexOf('error') !== -1)) {
@@ -788,16 +798,16 @@ if ($b24Service !== null) {
                                     showApiResponse('danger', 'Error from Gupshup:', detail + '\n\nFull response:\n' + JSON.stringify(res, null, 2));
                                     showToast('Error from Gupshup — check result below table', 'error', 10000);
                                     $('#editTemplateModal').modal('hide');
-                                    $('#editError').html('<strong>Error:</strong> ' + detail).show();
-                                    $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
                             },
                             error: function(xhr) {
-                                var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
-                                showApiResponse('danger', 'Request Failed (HTTP ' + xhr.status + '):', msg);
-                                showToast('Request failed — check result below table', 'error', 10000);
+                                isEditSubmitting = false;
+                                var statusMsg = xhr.status === 429 ? 'Rate limit hit (429 Too Many Requests). Please wait a minute before trying again.' :
+                                               xhr.status === 400 ? 'Bad Request (400): Gupshup rejected this edit.' : 'HTTP ' + xhr.status;
+                                var body = statusMsg + '\n\nRaw response:\n' + (xhr.responseText || 'No response body');
+                                showApiResponse('danger', 'Edit request failed:', body);
+                                showToast('Edit failed — check result below table', 'error', 10000);
                                 $('#editTemplateModal').modal('hide');
-                                $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
                     });
@@ -816,12 +826,17 @@ if ($b24Service !== null) {
                                 catch(ex) { showToast('Server error: ' + rawData, 'error', 6000); return; }
                                 if (res.status === 'success') {
                                     showToast('Template "' + name + '" deleted.', 'info');
+                                    showApiResponse('success', 'Delete Successful', 'Template "' + name + '" has been removed.');
                                     loadTemplates();
                                 } else {
-                                    showToast('Error: ' + (res.message || JSON.stringify(res)), 'error', 6000);
+                                    var detail = res.message || JSON.stringify(res, null, 2);
+                                    showApiResponse('danger', 'Delete Error:', detail);
+                                    showToast('Delete failed - check banner', 'error', 6000);
                                 }
                             },
                             error: function(xhr) {
+                                var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
+                                showApiResponse('danger', 'Delete Request Failed:', msg);
                                 showToast('Delete failed: HTTP ' + xhr.status, 'error', 6000);
                             }
                         });
