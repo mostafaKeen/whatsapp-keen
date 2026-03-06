@@ -314,6 +314,7 @@ if ($b24Service !== null) {
                                     <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                                 </div>
                                 <div class="modal-body">
+                                    <div id="editError" class="alert alert-danger" style="display:none; white-space: pre-wrap;"></div>
                                     <div class="row">
                                         <div class="col-md-6 form-group">
                                             <label>Template Name (Element Name)</label>
@@ -381,7 +382,6 @@ if ($b24Service !== null) {
                                     </div>
                                         <input type="text" name="footer" class="form-control" placeholder="60 characters max">
                                     </div>
-                                    <div id="editError" class="alert alert-danger" style="display:none; white-space: pre-wrap; font-family: monospace; font-size: 11px;"></div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -766,13 +766,17 @@ if ($b24Service !== null) {
                                     loadTemplates();
                                 } else {
                                     var detail = res.message || JSON.stringify(res, null, 2);
-                                    $('#editError').html('<strong>Error from Gupshup:</strong><pre style="font-size:11px;white-space:pre-wrap;margin-top:5px;">' + detail + '</pre>').show();
+                                    $('#editError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
+                                    $('#editTemplateModal .modal-body').animate({ scrollTop: 0 }, 200);
+                                    showToast('Error: ' + (res.message || 'See details in form'), 'error', 6000);
                                     $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
                             },
                             error: function(xhr) {
                                 var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
                                 $('#editError').html('<strong>Request Failed:</strong><pre style="font-size:11px;white-space:pre-wrap;max-height:200px;overflow:auto;">' + $('<div>').text(msg).html() + '</pre>').show();
+                                $('#editTemplateModal .modal-body').animate({ scrollTop: 0 }, 200);
+                                showToast('Request failed: HTTP ' + xhr.status, 'error', 6000);
                                 $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
