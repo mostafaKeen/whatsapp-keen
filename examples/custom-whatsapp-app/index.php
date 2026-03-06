@@ -223,6 +223,10 @@ if ($b24Service !== null) {
                                             <label>Language *</label>
                                             <input type="text" name="languageCode" class="form-control" value="en_US" placeholder="en_US" required>
                                         </div>
+                                        <div class="col-md-3 form-group">
+                                            <label>Vertical *</label>
+                                            <input type="text" name="vertical" class="form-control" value="TEXT" placeholder="e.g. Ticket Update" required>
+                                        </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-6 form-group">
@@ -278,6 +282,15 @@ if ($b24Service !== null) {
                                     <div class="form-group">
                                         <label>Footer (Optional)</label>
                                         <input type="text" name="footer" class="form-control" placeholder="60 characters max">
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input" id="allowCategoryChange" name="allowTemplateCategoryChange" value="true">
+                                            <label class="custom-control-label" for="allowCategoryChange">
+                                                Allow Meta to automatically update template category
+                                                <i class="fas fa-info-circle text-muted" title="If True, Meta will automatically update the category of the template as per the template content."></i>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div id="createError" class="alert alert-danger" style="display:none;"></div>
                                 </div>

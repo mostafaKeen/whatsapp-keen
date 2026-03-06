@@ -42,10 +42,11 @@ $postData = [
     'languageCode' => $languageCode,
     'category' => $category,
     'templateType' => $templateType,
-    'vertical' => 'TEXT',
+    'vertical' => $_POST['vertical'] ?? 'TEXT',
     'content' => $content,
     'example' => $example,
-    'enableSample' => 'true'
+    'enableSample' => 'true',
+    'allowTemplateCategoryChange' => $_POST['allowTemplateCategoryChange'] ?? 'false'
 ];
 
 if (!empty($header)) {
@@ -71,7 +72,7 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: Bearer ' . $apiToken,
+    'Authorization: ' . $apiToken,
     'Content-Type: application/x-www-form-urlencoded'
 ]);
 
