@@ -54,7 +54,7 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
         'accept: application/json',
-        'Authorization: Bearer ' . $apiToken
+        'Authorization: ' . $apiToken
     ]);
 
     $response = curl_exec($ch);

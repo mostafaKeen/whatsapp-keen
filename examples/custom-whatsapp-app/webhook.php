@@ -108,6 +108,7 @@ if (is_array($value) && !empty($value['messages'][0])) {
  * Searches and updates message status in the messages directory.
  */
 function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
+    if (!$gsId && !$metaId) return;
     $dir = __DIR__ . '/messages';
     if (!is_dir($dir)) return;
     
@@ -118,17 +119,16 @@ function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
         $updated = false;
         
         foreach ($history as &$entry) {
-            // Check against both IDs if possible
-            if (isset($entry['id']) && ($entry['id'] === $gsId || $entry['id'] === $metaId)) {
+            $eId = $entry['id'] ?? null;
+            if ($eId && ($eId === $gsId || $eId === $metaId)) {
                 $entry['status'] = $newStatus;
                 $updated = true;
-                // If read, usually it was delivered before, we can stop here or keep searching if multiple match
+                error_log("Matched message ID $eId in $file, setting status to $newStatus");
             }
         }
         
         if ($updated) {
             file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
-            error_log("Updated message status to $newStatus for ID " . ($gsId ?: $metaId));
         }
     }
 }
@@ -138,6 +138,8 @@ function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
  */
 function logIncomingMessageLocally($phone, $text, $msgId, $timestamp) {
     $dir = __DIR__ . '/messages';
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    
     $files = glob($dir . '/*.json');
     foreach ($files as $file) {
         $content = file_get_contents($file);
@@ -145,6 +147,11 @@ function logIncomingMessageLocally($phone, $text, $msgId, $timestamp) {
         if (!empty($history) && isset($history[0]['phone'])) {
             $cleanLogPhone = preg_replace('/[^0-9]/', '', (string)$history[0]['phone']);
             if ($cleanLogPhone === $phone) {
+                // Check if already logged to avoid duplicates
+                foreach ($history as $existing) {
+                    if (isset($existing['id']) && $existing['id'] === $msgId) return;
+                }
+                
                 $history[] = [
                     'id' => $msgId,
                     'timestamp' => date('Y-m-d H:i:s', (int)$timestamp),

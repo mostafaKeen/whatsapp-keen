@@ -568,9 +568,8 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                 success: function(response) {
                     showStatus('Message sent successfully!', 'success');
                     
-                    addMessageToHistory(message, response.file_url, response.timestamp, 'outbound', 'custom_widget');
-                    scrollToBottom();
-                    lastMessageCount++;
+                    // Trigger poll immediately to show the message with its real ID from the server
+                    pollHistory();
                     
                     $('#messageText').val('');
                     $('#removeFile').click();
@@ -650,8 +649,16 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
     }
 
     function addMessageToHistory(item) {
+        if (!item || typeof item !== 'object') {
+            console.error("Invalid history item detected:", item);
+            return;
+        }
+
         var isInbound = item.direction === 'inbound';
-        var sourceLabel = (isInbound) ? 'Received' : (item.source === 'crm_chat' ? 'Sent (CRM Chat)' : 'Sent (Widget)');
+        var source = item.source || 'unknown';
+        var sourceLabel = isInbound ? 'Received' : (source === 'crm_chat' ? 'Sent (CRM Chat)' : 'Sent (Widget)');
+        var timestamp = item.timestamp || '';
+        var messageText = item.message || '';
         
         // WhatsApp Status Ticks
         var statusHtml = '';
@@ -665,18 +672,22 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                     break;
                 case 'sent':
                 case 'enqueued':
+                case 'submitted':
                     statusHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
                     break;
                 case 'failed':
                     statusHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="Failed"></i>';
                     break;
+                default:
+                    // Only show status icon if we have a status, otherwise omit for clean look or show sent
+                    if (item.status) statusHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
             }
         }
 
         var msgIdAttr = item.id ? 'data-msg-id="' + item.id + '"' : '';
         var html = '<div class="history-item ' + (isInbound ? 'inbound' : '') + '" ' + msgIdAttr + ' style="display: none;">' +
                    '  <div class="history-meta">' +
-                   '    <span>' + item.timestamp + '</span>' +
+                   '    <span>' + timestamp + '</span>' +
                    '    <div class="d-flex align-items-center">' +
                    '        <span>' + sourceLabel + '</span>' +
                             statusHtml +
@@ -684,8 +695,8 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                    '  </div>' +
                    '  <div class="history-body">';
         
-        if (item.message) {
-            html += '<div class="message-text">' + item.message.replace(/\n/g, '<br>') + '</div>';
+        if (messageText) {
+            html += '<div class="message-text">' + messageText.replace(/\n/g, '<br>') + '</div>';
         }
         
         if (item.file_url) {

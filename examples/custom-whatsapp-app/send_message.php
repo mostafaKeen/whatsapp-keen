@@ -98,7 +98,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Content-Type: application/json',
     'accept: application/json',
-    'Authorization: Bearer ' . $apiToken
+    'Authorization: ' . $apiToken
 ]);
 
 $response = curl_exec($ch);
@@ -112,8 +112,12 @@ if ($error) {
 } else {
     $decodedResponse = json_decode($response, true);
     if ($httpCode >= 400) {
-        http_response_code($httpCode);
         $errorMessage = $decodedResponse['message'] ?? $decodedResponse['error'] ?? 'Gupshup returned an error.';
+        
+        // Log the failure in history too!
+        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, date('Y-m-d H:i:s'), null, 'failed');
+
+        http_response_code($httpCode);
         echo json_encode([
             'error' => $errorMessage,
             'http_code' => $httpCode,
@@ -122,9 +126,9 @@ if ($error) {
         ]);
     } else {
         // Log the message to JSON file
-        $msgId = $decodedResponse['messageId'] ?? null; // Gupshup Partner API v3 usually returns messageId
+        $msgId = $decodedResponse['messageId'] ?? null; 
         $timestamp = date('Y-m-d H:i:s');
-        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, $timestamp, $msgId);
+        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, $timestamp, $msgId, 'sent');
 
         http_response_code($httpCode);
         echo json_encode([
@@ -138,7 +142,7 @@ if ($error) {
     }
 }
 
-function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null) {
+function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null, $status = 'sent') {
     if (!$timestamp) $timestamp = date('Y-m-d H:i:s');
     $dir = __DIR__ . '/messages';
     if (!is_dir($dir)) {
@@ -154,7 +158,7 @@ function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messag
         'message' => $message,
         'message_type' => $messageType,
         'file_url' => $fileUrl,
-        'status' => 'sent',
+        'status' => $status,
         'direction' => 'outbound',
         'source' => 'custom_widget'
     ];
