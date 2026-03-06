@@ -67,7 +67,7 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
     } else {
         error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
         $decoded = json_decode($response, true);
-        $msgId = $decoded['messageId'] ?? null;
+        $msgId = $decoded['messageId'] ?? $decoded['id'] ?? $decoded['gs_id'] ?? null;
         // Log to local history so it shows in the custom widget
         logMessageToJson($phone, $message, $msgId);
     }

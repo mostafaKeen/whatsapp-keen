@@ -67,44 +67,42 @@ if (is_array($value) && !empty($value['messages'][0])) {
     if ($phone) {
         $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
         
-        try {
-            // Send the message into Bitrix24 IMOpenLines Channel!
-            // Signature: sendMessages(string $connector, string $line, array $messages)
+            try {
+            error_log("Routing to Bitrix24: Connector=$connectorId, Phone=$cleanPhone, MsgId=$messageId");
             $b24Service->getIMOpenLinesScope()->connector()->sendMessages(
                 $connectorId, 
-                $connectorId, // Using connectorId as line placeholder
+                $connectorId, 
                 [
-                    0 => [ // message list
+                    0 => [
                         'im' => [
                             'chat_id' => $cleanPhone,
                             'message_id' => $messageId,
                         ],
                         'message' => [
                             'id' => $messageId,
-                            'date' => $timestamp,
+                            'date' => (int)$timestamp,
                             'text' => $text,
                         ],
                         'user' => [
                             'id' => $cleanPhone,
                             'name' => $senderName,
-                            'last_name' => '',
                         ],
                         'chat' => [
                             'id' => $cleanPhone,
                             'url' => 'https://wa.me/' . $cleanPhone,
                         ],
                         'direction' => 'inbound',
-                        'source' => 'whatsapp'
                     ]
                 ]
             );
             
-            // Also log to local JSON so the widget showing history updates
-            logIncomingMessageLocally($cleanPhone, $text, $messageId, $timestamp);
+            error_log("Successfully routed to Bitrix24 IMOpenLines.");
             
-            error_log("Successfully routed Gupshup incoming message from $phone to Bitrix24 IMOpenLines.");
-        } catch (\Exception $e) {
-            error_log("Failed to send Gupshup message into Bitrix24: " . $e->getMessage());
+            // Also log to local JSON so the widget showing history updates
+            logIncomingMessageLocally($cleanPhone, $text, $messageId, (string)$timestamp);
+            
+        } catch (\Throwable $e) {
+            error_log("CRITICAL ERROR in inbound routing: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
         }
     }
 }

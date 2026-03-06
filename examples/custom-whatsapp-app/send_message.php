@@ -125,9 +125,13 @@ if ($error) {
             'payload_sent' => $payload
         ]);
     } else {
-        // Log the message to JSON file
-        $msgId = $decodedResponse['messageId'] ?? null; 
+        // Capture ID from various possible Gupshup response formats
+        $msgId = $decodedResponse['messageId'] ?? $decodedResponse['id'] ?? $decodedResponse['gs_id'] ?? null;
         $timestamp = date('Y-m-d H:i:s');
+        
+        // Debug Log
+        error_log("Gupshup Send Response: " . $response);
+        
         logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, $timestamp, $msgId, 'sent');
 
         http_response_code($httpCode);
