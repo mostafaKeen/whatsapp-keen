@@ -19,6 +19,16 @@ $b24Service = ServiceBuilderFactory::createServiceBuilderFromWebhook($whatsappCo
 $connectorId = 'wosolkeen';
 
 $rawBody = file_get_contents('php://input');
+
+// --- Log RAW payload for future analysis ---
+$logDir = __DIR__ . '/../../var/webhook_events';
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0777, true);
+}
+$filename = $logDir . '/event_' . date('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
+file_put_contents($filename, $rawBody);
+// ------------------------------------------
+
 $decoded = json_decode($rawBody, true);
 
 if (!$decoded) {
