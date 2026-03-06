@@ -41,7 +41,8 @@ require_once __DIR__ . '/../../vendor/autoload.php';
             // Register Placements
             var placementUrl = window.location.href.replace('install.php', 'placement.php');
             var placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
-            
+            var completedCount = 0;
+
             placements.forEach(function(pCode) {
                 // 1. Get ALL currently bound handlers for this placement
                 BX24.callMethod('placement.get', { PLACEMENT: pCode }, function(res) {
@@ -56,24 +57,26 @@ require_once __DIR__ . '/../../vendor/autoload.php';
                         });
                     }
                     
-                    // 3. Bind the new one only AFTER a short delay to ensure unbinds processed
-                    setTimeout(function() {
-                        BX24.callMethod('placement.bind', {
-                            PLACEMENT: pCode,
-                            HANDLER: placementUrl,
-                            TITLE: 'WhatsApp'
-                        });
-                    }, 500);
+                    // 3. Bind the new one
+                    BX24.callMethod('placement.bind', {
+                        PLACEMENT: pCode,
+                        HANDLER: placementUrl,
+                        TITLE: 'WhatsApp'
+                    }, function(bindRes) {
+                        completedCount++;
+                        console.log('Finished binding ' + pCode, bindRes.data());
+                        
+                        // 4. Once both are done, finish installation
+                        if (completedCount >= placements.length) {
+                            console.log('Placements registered. Finishing installation...');
+                            BX24.installFinish();
+                            
+                            document.getElementById('status').style.display = 'none';
+                            document.getElementById('nextSteps').style.display = 'block';
+                        }
+                    });
                 });
             });
-
-            // This is the CRITICAL call Bitrix24 is waiting for
-            BX24.installFinish();
-            
-            setTimeout(function() {
-                document.getElementById('status').style.display = 'none';
-                document.getElementById('nextSteps').style.display = 'block';
-            }, 1000);
         });
     </script>
 </body>
