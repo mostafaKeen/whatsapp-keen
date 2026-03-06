@@ -663,6 +663,7 @@ if ($b24Service !== null) {
                             success: function(rawData) {
                                 $('#templatesLoading').hide();
                                 $('#templatesContainer').show();
+                                window.allTemplatesData = [];
                                 var response;
                                 try { response = (typeof rawData === 'object') ? rawData : JSON.parse(rawData); }
                                 catch(ex) { $('#templatesError').text('Invalid response from server: ' + rawData).show(); return; }
@@ -686,6 +687,8 @@ if ($b24Service !== null) {
                                         html += '<button class="btn btn-outline-danger btn-sm delete-btn" data-name="' + t.elementName + '" title="Delete template"><i class="fas fa-trash"></i></button>';
                                         html += '</div></td></tr>';
                                     });
+                                    window.allTemplatesData = response.templates;
+                                    console.log('Templates loaded successfully:', response.templates.length);
                                 } else {
                                     html = '<tr><td colspan="5" class="text-center py-4">No templates found or API returned an empty list.</td></tr>';
                                 }
@@ -1032,6 +1035,7 @@ if ($b24Service !== null) {
                         $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
                         processNextCampaignBatch();
                     });
+                });
             </script>
         <?php endif; ?>
 
