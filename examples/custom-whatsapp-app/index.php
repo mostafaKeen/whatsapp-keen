@@ -458,17 +458,35 @@ if ($b24Service !== null) {
 
             <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
             <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+            <style>
+                #toastContainer { position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 280px; }
+                .gup-toast { padding: 12px 18px; margin-bottom: 10px; border-radius: 8px; color: #fff; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.2); opacity: 1; transition: opacity 0.5s; }
+                .gup-toast.success { background: #28a745; }
+                .gup-toast.error { background: #dc3545; }
+                .gup-toast.info { background: #007bff; }
+            </style>
+            <div id="toastContainer"></div>
             <script>
+                function showToast(msg, type, duration) {
+                    type = type || 'info';
+                    duration = duration || 3000;
+                    var $t = $('<div class="gup-toast ' + type + '">' + msg + '</div>');
+                    $('#toastContainer').append($t);
+                    setTimeout(function() {
+                        $t.css('opacity', 0);
+                        setTimeout(function() { $t.remove(); }, 500);
+                    }, duration);
+                }
+
                 $(document).ready(function() {
                     loadTemplates();
-                    $('#refreshTemplates').click(function() { loadTemplates(); });
+                    $('#refreshTemplates').off('click').on('click', function() { loadTemplates(); });
 
-                    // Handle Template Type change
+                    // Handle Template Type change (create form)
                     $('#templateType').change(function() {
                         var type = $(this).val();
                         if (type !== 'TEXT') {
                             $('#mediaExampleSection').show();
-                            // For media, the header is the media itself per Meta docs
                             $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
                         } else {
                             $('#mediaExampleSection').hide();
@@ -476,12 +494,11 @@ if ($b24Service !== null) {
                         }
                     });
 
-                    // Dynamic Buttons logic
+                    // Dynamic Buttons logic (create form)
                     var buttonCount = 0;
-                    $('#addButton').click(function() {
-                        if (buttonCount >= 3) { alert('Maximum 3 buttons allowed'); return; }
+                    $('#addButton').off('click').on('click', function() {
+                        if (buttonCount >= 3) { showToast('Maximum 3 buttons allowed', 'error'); return; }
                         buttonCount++;
-                        
                         var bHtml = '<div class="btn-item border-bottom pb-2 mb-2" id="btn_' + buttonCount + '">' +
                             '<div class="d-flex justify-content-between"><strong>Button #' + buttonCount + '</strong> <button type="button" class="close remove-btn" data-id="' + buttonCount + '">&times;</button></div>' +
                             '<div class="row">' +
@@ -492,7 +509,6 @@ if ($b24Service !== null) {
                                 '<div class="col-12"><label class="small b-extra-label">Value</label><input type="text" class="form-control form-control-sm b-value"></div>' +
                             '</div>' +
                         '</div>';
-                        
                         $('#buttonsContainer').append(bHtml);
                     });
 
@@ -512,101 +528,82 @@ if ($b24Service !== null) {
                         buttonCount--;
                     });
 
-                    $('#refreshTemplates').click(function() {
-                        loadTemplates();
-                    });
-
-                    $('#createTemplateForm').submit(function(e) {
+                    // Create Template Form Submit
+                    $('#createTemplateForm').off('submit').on('submit', function(e) {
                         e.preventDefault();
-                        
-                        // Serialize buttons to JSON
                         var btns = [];
                         $('.btn-item').each(function() {
-                            var item = {
-                                type: $(this).find('.b-type').val(),
-                                text: $(this).find('.b-text').val()
-                            };
+                            var item = { type: $(this).find('.b-type').val(), text: $(this).find('.b-text').val() };
                             if (item.type === 'PHONE_NUMBER') item.phone_number = $(this).find('.b-value').val();
                             if (item.type === 'URL') item.url = $(this).find('.b-value').val();
                             btns.push(item);
                         });
-                        
-                        if (btns.length > 0) {
-                            $('#buttonsJson').val(JSON.stringify(btns));
-                        } else {
-                            $('#buttonsJson').val('');
-                        }
-
+                        $('#buttonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
                         $('#submitTemplateBtn').prop('disabled', true).text('Processing...');
                         $('#createError').hide();
 
                         $.ajax({
-                            url: 'create_template.php',
+                            url: 'create_template.php?' + new Date().getTime(),
                             method: 'POST',
                             data: $(this).serialize(),
-                            success: function(response) {
-                                if (response.status === 'success') {
+                            success: function(rawData) {
+                                var res;
+                                try { res = (typeof rawData === 'object') ? rawData : JSON.parse(rawData); }
+                                catch(ex) { res = { status: 'error', message: rawData }; }
+                                if (res.status === 'success') {
                                     $('#createTemplateModal').modal('hide');
                                     $('#createTemplateForm')[0].reset();
                                     loadTemplates();
-                                    alert('Template submitted successfully! It will appear in the list once processed by Gupshup.');
+                                    showToast('Template submitted for approval!', 'success');
                                 } else {
-                                    var detail = response.message || JSON.stringify(response, null, 2);
-                                    $('#createError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
+                                    var detail = res.message || JSON.stringify(res, null, 2);
+                                    $('#createError').html('<strong>Error from Gupshup:</strong><br><pre style="font-size:11px;white-space:pre-wrap;">' + detail + '</pre>').show();
                                 }
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             },
                             error: function(xhr) {
-                                var msg = 'Network or Server Error.';
-                                if (xhr.responseJSON) {
-                                    msg = JSON.stringify(xhr.responseJSON, null, 2);
-                                } else if (xhr.responseText) {
-                                    msg = xhr.responseText;
-                                }
-                                $('#createError').html('<strong>Request Failed:</strong><br>' + msg).show();
+                                var msg = 'HTTP ' + xhr.status + ': ' + (xhr.responseText || 'Unknown error');
+                                $('#createError').html('<strong>Request Failed:</strong><br><pre style="font-size:11px;white-space:pre-wrap;">' + msg + '</pre>').show();
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             }
                         });
                     });
 
+                    // Load Templates
                     function loadTemplates() {
                         $('#templatesLoading').show();
                         $('#templatesContainer').hide();
                         $('#templatesError').hide();
 
                         $.ajax({
-                            url: 'get_templates.php',
+                            url: 'get_templates.php?' + new Date().getTime(),
                             method: 'GET',
                             cache: false,
-                            data: { t: new Date().getTime() },
-                            success: function(response) {
+                            success: function(rawData) {
                                 $('#templatesLoading').hide();
                                 $('#templatesContainer').show();
-                                
+                                var response;
+                                try { response = (typeof rawData === 'object') ? rawData : JSON.parse(rawData); }
+                                catch(ex) { $('#templatesError').text('Invalid response from server: ' + rawData).show(); return; }
+
                                 var html = '';
                                 if (response.status === 'success' && response.templates && response.templates.length > 0) {
-                                    console.log('Received templates count:', response.templates.length);
                                     response.templates.forEach(function(t) {
                                         var statusClass = 'badge-secondary';
                                         if (t.status === 'APPROVED') statusClass = 'badge-success';
                                         if (t.status === 'REJECTED' || t.status === 'FAILED') statusClass = 'badge-danger';
                                         if (t.status === 'PENDING') statusClass = 'badge-warning';
-
                                         var reasonHtml = t.reason ? '<div class="small text-danger mt-1"><i>' + t.reason + '</i></div>' : '';
-
                                         html += '<tr>';
                                         html += '<td><strong>' + t.elementName + '</strong></td>';
                                         html += '<td>' + t.category + ' <span class="badge badge-light border">' + t.templateType + '</span></td>';
                                         html += '<td>' + t.languageCode + '</td>';
                                         html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span>' + reasonHtml + '</td>';
-                                        html += '<td>';
-                                        html += '<div class="btn-group">';
+                                        html += '<td><div class="btn-group">';
                                         html += '<button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View details"><i class="fas fa-eye"></i></button>';
                                         html += '<button class="btn btn-outline-primary btn-sm edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit template"><i class="fas fa-edit"></i></button>';
                                         html += '<button class="btn btn-outline-danger btn-sm delete-btn" data-name="' + t.elementName + '" title="Delete template"><i class="fas fa-trash"></i></button>';
-                                        html += '</div>';
-                                        html += '</td>';
-                                        html += '</tr>';
+                                        html += '</div></td></tr>';
                                     });
                                 } else {
                                     html = '<tr><td colspan="5" class="text-center py-4">No templates found or API returned an empty list.</td></tr>';
@@ -615,11 +612,12 @@ if ($b24Service !== null) {
                             },
                             error: function(xhr) {
                                 $('#templatesLoading').hide();
-                                $('#templatesError').text('Error fetching templates: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error')).show();
+                                $('#templatesError').text('Error fetching templates: HTTP ' + xhr.status + ' - ' + (xhr.responseText || 'Unknown')).show();
                             }
                         });
                     }
 
+                    // View Template
                     $(document).on('click', '.view-btn', function() {
                         var t = $(this).data('json');
                         $('#tName').text(t.elementName);
@@ -629,72 +627,52 @@ if ($b24Service !== null) {
                         $('#tLang').text(t.languageCode);
                         $('#tWaba').text(t.wabaId);
                         $('#tData').text(t.data);
-                        
-                        if (t.reason) {
-                            $('#tReason').text(t.reason);
-                            $('#tReasonAlert').show();
-                        } else {
-                            $('#tReasonAlert').hide();
-                        }
-
-                        // Parse ContainerMeta for Media and Buttons
+                        if (t.reason) { $('#tReason').text(t.reason); $('#tReasonAlert').show(); }
+                        else { $('#tReasonAlert').hide(); }
                         $('#tMediaSection').hide();
                         $('#tButtonsSection').hide();
-                        
                         try {
                             var meta = typeof t.containerMeta === 'string' ? JSON.parse(t.containerMeta) : t.containerMeta;
-                            
                             if (meta) {
-                                // Hande Media
                                 if (meta.mediaUrl || meta.sampleMedia) {
                                     var mUrl = meta.mediaUrl || meta.sampleMedia;
-                                    var previewHtml = '';
-                                    if (t.templateType === 'IMAGE') {
-                                        previewHtml = '<img src="' + mUrl + '" style="max-width: 100%; max-height: 200px;" class="rounded shadow-sm">';
-                                    } else {
-                                        previewHtml = '<a href="' + mUrl + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> View Media Attachment</a>';
-                                    }
+                                    var previewHtml = t.templateType === 'IMAGE' ?
+                                        '<img src="' + mUrl + '" style="max-width:100%;max-height:200px;" class="rounded shadow-sm">' :
+                                        '<a href="' + mUrl + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> View Media</a>';
                                     $('#tMediaPreview').html(previewHtml);
                                     $('#tMediaSection').show();
                                 }
-
-                                // Handle Buttons
                                 if (meta.buttons && meta.buttons.length > 0) {
                                     var bHtml = '';
                                     meta.buttons.forEach(function(btn) {
-                                        var icon = 'fa-reply';
-                                        if (btn.type === 'PHONE_NUMBER') icon = 'fa-phone';
-                                        if (btn.type === 'URL') icon = 'fa-external-link-alt';
-                                        
-                                        bHtml += '<div class="mr-2 mb-2 p-2 px-3 border rounded bg-white shadow-sm">';
-                                        bHtml += '<i class="fas ' + icon + ' mr-2 text-primary"></i> <strong>' + btn.text + '</strong>';
+                                        var icon = btn.type === 'PHONE_NUMBER' ? 'fa-phone' : btn.type === 'URL' ? 'fa-external-link-alt' : 'fa-reply';
+                                        bHtml += '<div class="mr-2 mb-2 p-2 px-3 border rounded bg-white shadow-sm"><i class="fas ' + icon + ' mr-2 text-primary"></i><strong>' + btn.text + '</strong>';
                                         if (btn.phone_number) bHtml += '<br><small class="text-muted">' + btn.phone_number + '</small>';
-                                        if (btn.url) bHtml += '<br><small class="text-muted scroll-x" style="font-size: 10px;">' + btn.url + '</small>';
+                                        if (btn.url) bHtml += '<br><small class="text-muted">' + btn.url + '</small>';
                                         bHtml += '</div>';
                                     });
                                     $('#tButtonsList').html(bHtml);
                                     $('#tButtonsSection').show();
                                 }
                             }
-                        } catch(e) { console.error("Error parsing meta:", e); }
-                        
+                        } catch(e) { console.error('Error parsing meta:', e); }
                         $('#templateModal').modal('show');
                     });
 
-                    // Edit Template Logic
+                    // Edit Template - Open Modal
                     $(document).on('click', '.edit-btn', function() {
                         var t = $(this).data('json');
                         var $form = $('#editTemplateForm');
-                        
                         $form.find('[name="templateId"]').val(t.id);
                         $form.find('[name="elementName"]').val(t.elementName);
                         $form.find('[name="category"]').val(t.category);
                         $form.find('[name="languageCode"]').val(t.languageCode);
                         $form.find('[name="templateType"]').val(t.templateType);
                         $form.find('[name="content"]').val(t.data);
-                        $form.find('[name="example"]').val(t.meta ? (typeof t.meta === 'string' ? JSON.parse(t.meta).example : t.meta.example) : '');
-                        
-                        // Parse extra fields from containerMeta
+                        try {
+                            var exMeta = typeof t.meta === 'string' ? JSON.parse(t.meta) : t.meta;
+                            $form.find('[name="example"]').val(exMeta ? (exMeta.example || '') : '');
+                        } catch(e) { $form.find('[name="example"]').val(''); }
                         try {
                             var meta = typeof t.containerMeta === 'string' ? JSON.parse(t.containerMeta) : t.containerMeta;
                             if (meta) {
@@ -702,115 +680,127 @@ if ($b24Service !== null) {
                                 $form.find('[name="header"]').val(meta.header || '');
                                 $form.find('[name="exampleMedia"]').val(meta.sampleMedia || '');
                                 $form.find('[name="exampleHeader"]').val(meta.sampleText || '');
-                                
-                                // Show/hide sections based on type
-                                if (['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(t.templateType) !== -1) {
-                                    $('#editMediaExampleSection').show();
-                                } else {
-                                    $('#editMediaExampleSection').hide();
-                                }
-
-                                // Load buttons
+                                $('#editMediaExampleSection').toggle(['IMAGE','VIDEO','DOCUMENT'].indexOf(t.templateType) !== -1);
                                 $('#editButtonsContainer').empty();
                                 if (meta.buttons && meta.buttons.length > 0) {
-                                    meta.buttons.forEach(function(btn, i) {
-                                        addButtonToEditForm(btn);
-                                    });
+                                    meta.buttons.forEach(function(btn) { addButtonToEditForm(btn); });
                                 }
                             }
-                        } catch(e) { console.error("Error parsing meta for edit:", e); }
-
+                        } catch(e) { console.error('Error parsing meta for edit:', e); }
                         $('#editError').hide().text('');
                         $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                         $('#editTemplateModal').modal('show');
                     });
 
                     function addButtonToEditForm(btn) {
-                        var id = Date.now() + Math.random();
-                        var html = '<div class="edit-btn-item border-bottom pb-2 mb-2" id="edit_btn_' + id + '">' +
+                        btn = btn || {};
+                        var id = 'ebi_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+                        var html = '<div class="edit-btn-item border-bottom pb-2 mb-2" id="' + id + '">' +
                             '<div class="d-flex justify-content-between"><strong>Button</strong> <button type="button" class="close remove-edit-btn" data-id="' + id + '">&times;</button></div>' +
                             '<div class="row">' +
-                                '<div class="col-6"><label class="small">Type</label><select class="form-control form-control-sm eb-type"><option value="QUICK_REPLY" '+(btn && btn.type === 'QUICK_REPLY' ? 'selected' : '')+'>Quick Reply</option><option value="PHONE_NUMBER" '+(btn && btn.type === 'PHONE_NUMBER' ? 'selected' : '')+'>Call Number</option><option value="URL" '+(btn && btn.type === 'URL' ? 'selected' : '')+'>Visit URL</option></select></div>' +
-                                '<div class="col-6"><label class="small">Text</label><input type="text" class="form-control form-control-sm eb-text" value="'+(btn ? btn.text : '')+'" placeholder="Button text"></div>' +
+                                '<div class="col-6"><label class="small">Type</label><select class="form-control form-control-sm eb-type">' +
+                                    '<option value="QUICK_REPLY"' + (btn.type==='QUICK_REPLY'?' selected':'') + '>Quick Reply</option>' +
+                                    '<option value="PHONE_NUMBER"' + (btn.type==='PHONE_NUMBER'?' selected':'') + '>Call Number</option>' +
+                                    '<option value="URL"' + (btn.type==='URL'?' selected':'') + '>Visit URL</option>' +
+                                '</select></div>' +
+                                '<div class="col-6"><label class="small">Text</label><input type="text" class="form-control form-control-sm eb-text" value="' + (btn.text||'') + '" placeholder="Button text"></div>' +
                             '</div>' +
-                            '<div class="row mt-1 eb-extra" style="'+(btn && btn.type !== 'QUICK_REPLY' ? '' : 'display:none;')+'">' +
-                                '<div class="col-12"><label class="small eb-extra-label">'+(btn && btn.type === 'PHONE_NUMBER' ? 'Phone Number' : 'URL')+'</label><input type="text" class="form-control form-control-sm eb-value" value="'+(btn ? (btn.phone_number || btn.url || '') : '')+'"></div>' +
+                            '<div class="row mt-1 eb-extra" style="' + (btn.type && btn.type!=='QUICK_REPLY' ? '' : 'display:none;') + '">' +
+                                '<div class="col-12"><label class="small eb-extra-label">' + (btn.type==='PHONE_NUMBER'?'Phone Number':'URL') + '</label><input type="text" class="form-control form-control-sm eb-value" value="' + (btn.phone_number||btn.url||'') + '"></div>' +
                             '</div>' +
                         '</div>';
                         $('#editButtonsContainer').append(html);
                     }
 
-                    $('#addEditButton').click(function() {
-                        addButtonToEditForm();
-                    });
+                    $('#addEditButton').off('click').on('click', function() { addButtonToEditForm(); });
 
                     $(document).on('click', '.remove-edit-btn', function() {
-                        $('#edit_btn_' + $(this).data('id')).remove();
+                        $('#' + $(this).data('id')).remove();
                     });
 
+                    $(document).on('change', '.eb-type', function() {
+                        var val = $(this).val();
+                        var parent = $(this).closest('.edit-btn-item');
+                        if (val === 'QUICK_REPLY') {
+                            parent.find('.eb-extra').hide();
+                        } else {
+                            parent.find('.eb-extra').show();
+                            parent.find('.eb-extra-label').text(val === 'PHONE_NUMBER' ? 'Phone Number' : 'URL');
+                        }
+                    });
+
+                    // Edit Template Form Submit
                     $('#editTemplateForm').off('submit').on('submit', function(e) {
                         e.preventDefault();
+                        e.stopPropagation();
                         var btns = [];
-                        $('.edit-btn-item').each(function() {
-                            var item = {
-                                type: $(this).find('.eb-type').val(),
-                                text: $(this).find('.eb-text').val()
-                            };
+                        $('#editButtonsContainer .edit-btn-item').each(function() {
+                            var item = { type: $(this).find('.eb-type').val(), text: $(this).find('.eb-text').val() };
                             if (item.type === 'PHONE_NUMBER') item.phone_number = $(this).find('.eb-value').val();
                             if (item.type === 'URL') item.url = $(this).find('.eb-value').val();
                             btns.push(item);
                         });
                         $('#editButtonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
-                        
-                        $('#editError').hide().text('');
+                        $('#editError').hide().empty();
                         $('#submitEditBtn').prop('disabled', true).text('Saving...');
 
+                        var formData = $(this).serialize();
+
                         $.ajax({
-                            url: 'edit_template.php',
+                            url: 'edit_template.php?' + new Date().getTime(),
                             method: 'POST',
-                            dataType: 'json',
-                            data: $(this).serialize(),
-                            success: function(res) {
-                                // Debug: always show raw response
-                                alert('Gupshup Response:\n' + JSON.stringify(res, null, 2));
-                                
+                            data: formData,
+                            success: function(rawData) {
+                                var res;
+                                try {
+                                    res = (typeof rawData === 'object') ? rawData : JSON.parse(rawData);
+                                } catch(ex) {
+                                    // Non-JSON response — show raw content in error div, keep modal open
+                                    $('#editError').html('<strong>Server returned non-JSON (possible PHP error):</strong><pre style="font-size:11px;white-space:pre-wrap;max-height:200px;overflow:auto;">' + $('<div>').text(rawData).html() + '</pre>').show();
+                                    $('#submitEditBtn').prop('disabled', false).text('Save Changes');
+                                    return;
+                                }
                                 if (res.status === 'success') {
+                                    showToast('Template updated successfully!', 'success');
                                     $('#editTemplateModal').modal('hide');
                                     loadTemplates();
                                 } else {
                                     var detail = res.message || JSON.stringify(res, null, 2);
-                                    $('#editError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
+                                    $('#editError').html('<strong>Error from Gupshup:</strong><pre style="font-size:11px;white-space:pre-wrap;margin-top:5px;">' + detail + '</pre>').show();
                                     $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
                             },
-                            error: function(xhr, status, err) {
-                                var msg = 'HTTP ' + xhr.status + ' - ' + status + ': ' + err + '\n\n';
-                                msg += xhr.responseText || '(no response body)';
-                                alert('Request Failed:\n' + msg);
-                                $('#editError').html('<strong>Request Failed (HTTP ' + xhr.status + '):</strong><br><pre>' + (xhr.responseText || 'No response') + '</pre>').show();
+                            error: function(xhr) {
+                                var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
+                                $('#editError').html('<strong>Request Failed:</strong><pre style="font-size:11px;white-space:pre-wrap;max-height:200px;overflow:auto;">' + $('<div>').text(msg).html() + '</pre>').show();
                                 $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
                     });
 
-                    // Delete Template Logic
+                    // Delete Template
                     $(document).on('click', '.delete-btn', function() {
                         var name = $(this).data('name');
-                        if (confirm('Are you sure you want to delete template "' + name + '"? This action is irreversible.')) {
-                            $.ajax({
-                                url: 'delete_template.php',
-                                method: 'POST',
-                                data: { elementName: name },
-                                success: function(res) {
-                                    if (res.status === 'success') {
-                                        loadTemplates();
-                                        alert('Template deleted successfully!');
-                                    } else {
-                                        alert('Error: ' + (res.message || 'Unknown error'));
-                                    }
+                        if (!confirm('Delete template "' + name + '"? This is irreversible.')) return;
+                        $.ajax({
+                            url: 'delete_template.php?' + new Date().getTime(),
+                            method: 'POST',
+                            data: { elementName: name },
+                            success: function(rawData) {
+                                var res;
+                                try { res = (typeof rawData === 'object') ? rawData : JSON.parse(rawData); }
+                                catch(ex) { showToast('Server error: ' + rawData, 'error', 6000); return; }
+                                if (res.status === 'success') {
+                                    showToast('Template "' + name + '" deleted.', 'info');
+                                    loadTemplates();
+                                } else {
+                                    showToast('Error: ' + (res.message || JSON.stringify(res)), 'error', 6000);
                                 }
-                            });
-                        }
+                            },
+                            error: function(xhr) {
+                                showToast('Delete failed: HTTP ' + xhr.status, 'error', 6000);
+                            }
+                        });
                     });
                 });
             </script>
