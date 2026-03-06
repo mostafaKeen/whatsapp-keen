@@ -215,9 +215,35 @@ if ($b24Service !== null) {
                                             <option value="">-- Select an approved template --</option>
                                         </select>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Target Phone Numbers (One per line, include country code) *</label>
-                                        <textarea name="numbers" class="form-control" rows="8" placeholder="918286836XXX&#10;919876543XXX" required></textarea>
+                                    
+                                    <div class="form-group mt-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="mb-0">Target Phone Numbers (One per line) *</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" id="toggleContactSelector"><i class="fas fa-users"></i> Add from Bitrix24 Contacts</button>
+                                        </div>
+                                        
+                                        <!-- Contact Selector Section (Hidden by default) -->
+                                        <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded">
+                                            <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                                                <input type="text" id="contactSearchInput" class="form-control form-control-sm" style="width: 200px;" placeholder="Search contacts...">
+                                                <div>
+                                                    <div class="custom-control custom-checkbox custom-control-inline mr-2">
+                                                        <input type="checkbox" class="custom-control-input" id="selectAllContacts">
+                                                        <label class="custom-control-label small" for="selectAllContacts">Select All</label>
+                                                    </div>
+                                                    <button type="button" class="btn btn-sm btn-primary" id="applyContacts">Add Selected</button>
+                                                </div>
+                                            </div>
+                                            <div class="contact-list-container" id="contactListContainer">
+                                                <div class="text-center p-4" id="contactsLoading">
+                                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                                    <span class="ml-2">Loading contacts...</span>
+                                                </div>
+                                                <div id="contactList"></div>
+                                            </div>
+                                        </div>
+
+                                        <textarea name="numbers" id="campaignNumbersArea" class="form-control" rows="8" placeholder="918286836XXX&#10;919876543XXX" required></textarea>
                                         <small class="text-muted" id="campaignNumberCount">0 numbers</small>
                                     </div>
 
@@ -529,6 +555,12 @@ if ($b24Service !== null) {
                 .gup-toast.success { background: #28a745; }
                 .gup-toast.error { background: #dc3545; }
                 .gup-toast.info { background: #007bff; }
+                
+                .contact-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-top: none; padding: 10px; border-radius: 0 0 5px 5px; }
+                .contact-item { border-bottom: 1px solid #f1f1f1; padding: 5px 0; }
+                .contact-item:last-child { border-bottom: none; }
+                .contact-item label { margin-bottom: 0; cursor: pointer; display: block; }
+                #contactSearchInput { border-radius: 5px 5px 0 0; }
             </style>
             <div id="toastContainer"></div>
             <script>
@@ -904,6 +936,87 @@ if ($b24Service !== null) {
                     // ============================================
                     // BULK CAMPAIGN LOGIC
                     // ============================================
+                    var allContacts = [];
+                    $('#toggleContactSelector').click(function() {
+                        var isVisible = $('#contactSelectorSection').is(':visible');
+                        $('#contactSelectorSection').slideToggle();
+                        if (!isVisible && allContacts.length === 0) {
+                            fetchCampaignContacts();
+                        }
+                    });
+
+                    function fetchCampaignContacts() {
+                        $('#contactsLoading').show();
+                        $('#contactList').hide();
+                        $.ajax({
+                            url: 'get_contacts.php',
+                            method: 'GET',
+                            success: function(res) {
+                                allContacts = (res.result || []).filter(function(c) {
+                                    return c.PHONE && c.PHONE.length > 0;
+                                });
+                                renderCampaignContacts();
+                                $('#contactsLoading').hide();
+                                $('#contactList').show();
+                            },
+                            error: function() {
+                                $('#contactsLoading').html('<span class="text-danger">Failed to load contacts. Ensure Bitrix24 is accessible.</span>');
+                            }
+                        });
+                    }
+
+                    function renderCampaignContacts(search) {
+                        var html = '';
+                        var filter = (search || '').toLowerCase();
+                        var filtered = allContacts.filter(function(c) {
+                            var fullName = ((c.NAME || '') + ' ' + (c.LAST_NAME || '')).toLowerCase();
+                            return fullName.includes(filter);
+                        });
+                        
+                        if (filtered.length === 0) {
+                            html = '<div class="text-center p-3 text-muted">No contacts with phone numbers found.</div>';
+                        } else {
+                            filtered.forEach(function(c) {
+                                c.PHONE.forEach(function(p, pIdx) {
+                                    var uniqueId = 'contact_' + c.ID + '_' + pIdx;
+                                    html += '<div class="contact-item font-weight-normal">' +
+                                        '<div class="custom-control custom-checkbox">' +
+                                            '<input type="checkbox" class="custom-control-input contact-checkbox" id="' + uniqueId + '" value="' + p.VALUE + '">' +
+                                            '<label class="custom-control-label small" for="' + uniqueId + '">' + (c.NAME || 'No Name') + (c.LAST_NAME ? ' ' + c.LAST_NAME : '') + ' <span class="text-muted">(' + p.VALUE + ')</span></label>' +
+                                        '</div>' +
+                                    '</div>';
+                                });
+                            });
+                        }
+                        $('#contactList').html(html);
+                    }
+
+                    $('#contactSearchInput').on('input', function() {
+                        renderCampaignContacts($(this).val());
+                    });
+
+                    $('#selectAllContacts').change(function() {
+                        var checked = $(this).prop('checked');
+                        $('.contact-checkbox').prop('checked', checked);
+                    });
+
+                    $('#applyContacts').click(function() {
+                        var selected = [];
+                        $('.contact-checkbox:checked').each(function() {
+                            selected.push($(this).val());
+                        });
+                        
+                        if (selected.length === 0) {
+                            showToast('Please select at least one contact', 'info');
+                            return;
+                        }
+                        
+                        var currentVal = $('#campaignNumbersArea').val().trim();
+                        var newVal = currentVal + (currentVal ? "\n" : "") + selected.join("\n");
+                        $('#campaignNumbersArea').val(newVal).trigger('input');
+                        $('#contactSelectorSection').slideUp();
+                    });
+
                     var currentCampaignTimer = null;
                     var activeJobId = null;
 
@@ -919,7 +1032,7 @@ if ($b24Service !== null) {
                         }
                     });
 
-                    $('textarea[name="numbers"]').on('input', function() {
+                    $('#campaignNumbersArea').on('input', function() {
                         var lines = $(this).val().split('\n').filter(function(l) { return l.trim() !== ''; });
                         $('#campaignNumberCount').text(lines.length + ' numbers');
                     });

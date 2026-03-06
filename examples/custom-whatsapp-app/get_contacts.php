@@ -1,0 +1,50 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * get_contacts.php
+ * Fetches contacts from Bitrix24 for use in the campaign selection UI.
+ */
+
+// Enable error output for debugging
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
+$whatsappConfig = require __DIR__ . '/../config.php';
+$webhookUrl = $whatsappConfig['webhook_url'];
+
+// Remove any trailing slash from webhook URL
+$webhookUrl = rtrim($webhookUrl, '/');
+
+// Build the API URL for crm.contact.list
+$apiUrl = $webhookUrl . '/crm.contact.list.json';
+
+// We'll fetch all contacts by handling pagination if necessary, 
+// but for now, let's start with a large batch or just the first page as requested
+$postData = [
+    'select' => ['ID', 'NAME', 'LAST_NAME', 'PHONE'],
+    'order'  => ['NAME' => 'ASC']
+];
+
+$ch = curl_init($apiUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json'
+]);
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
+curl_close($ch);
+
+header('Content-Type: application/json');
+
+if ($error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $error]);
+} else {
+    http_response_code($httpCode);
+    echo $response;
+}
