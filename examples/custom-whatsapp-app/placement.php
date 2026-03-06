@@ -587,7 +587,12 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
             });
         });
 
-        setInterval(pollHistory, 3000);
+        setInterval(pollHistory, 2000);
+        
+        // Sneaky tip: poll immediately when user switches back to this tab
+        $(window).on('focus', function() {
+            pollHistory();
+        });
     });
 
     function initChat(name, phone) {
@@ -743,11 +748,19 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
                 // Update existing statuses or add new messages
                 history.forEach(function(item, index) {
                     if (index < lastMessageCount) {
-                        // Check if status changed for an existing message with an ID
+                        // Locate the existing DOM element by index
+                        var $existingByIndex = $('#historyList .history-item').eq(index);
+                        
+                        // If it doesn't have an ID yet, but the server now has one, backfill it!
+                        if (item.id && (!$existingByIndex.attr('data-msg-id') || $existingByIndex.attr('data-msg-id') === 'null')) {
+                            $existingByIndex.attr('data-msg-id', item.id);
+                            console.log('UI Backfilled ID:', item.id);
+                        }
+
+                        // Now try to update status by ID
                         if (item.id) {
                             var $existing = $('.history-item[data-msg-id="' + item.id + '"]');
                             if ($existing.length > 0) {
-                                // Update status icon if needed
                                 updateMessageStatusUI($existing, item.status);
                             }
                         }
