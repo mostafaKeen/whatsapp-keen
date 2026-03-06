@@ -417,6 +417,15 @@ if ($b24Service !== null) {
                         </tbody>
                     </table>
                 </div>
+
+                <!-- API Response Banner (persistent, always visible after edit/delete) -->
+                <div id="apiResponseBanner" class="mt-3" style="display:none;">
+                    <div class="alert alert-dismissible mb-0" id="apiResponseAlert" role="alert">
+                        <button type="button" class="close" onclick="$('#apiResponseBanner').hide()">&times;</button>
+                        <strong id="apiResponseTitle"></strong>
+                        <pre id="apiResponseBody" style="font-size:12px; white-space:pre-wrap; margin:6px 0 0 0;"></pre>
+                    </div>
+                </div>
             </div>
 
             <!-- Template Preview Modal -->
@@ -476,6 +485,15 @@ if ($b24Service !== null) {
                         $t.css('opacity', 0);
                         setTimeout(function() { $t.remove(); }, 500);
                     }, duration);
+                }
+
+                function showApiResponse(type, title, body) {
+                    var colorClass = type === 'success' ? 'alert-success' : 'alert-danger';
+                    $('#apiResponseAlert').removeClass('alert-success alert-danger').addClass(colorClass);
+                    $('#apiResponseTitle').text(title);
+                    $('#apiResponseBody').text(body);
+                    $('#apiResponseBanner').show();
+                    $('html, body').animate({ scrollTop: $('#apiResponseBanner').offset().top - 80 }, 400);
                 }
 
                 $(document).ready(function() {
@@ -760,23 +778,25 @@ if ($b24Service !== null) {
                                     $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                     return;
                                 }
-                                if (res.status === 'success') {
+                                if (res.status === 'success' && !(res.message && res.message.toLowerCase().indexOf('error') !== -1)) {
+                                    showApiResponse('success', 'Template updated successfully!', JSON.stringify(res, null, 2));
                                     showToast('Template updated successfully!', 'success');
                                     $('#editTemplateModal').modal('hide');
                                     loadTemplates();
                                 } else {
                                     var detail = res.message || JSON.stringify(res, null, 2);
-                                    $('#editError').html('<strong>Error from Gupshup:</strong><br>' + detail).show();
-                                    $('#editTemplateModal .modal-body').animate({ scrollTop: 0 }, 200);
-                                    showToast('Error: ' + (res.message || 'See details in form'), 'error', 6000);
+                                    showApiResponse('danger', 'Error from Gupshup:', detail + '\n\nFull response:\n' + JSON.stringify(res, null, 2));
+                                    showToast('Error from Gupshup — check result below table', 'error', 10000);
+                                    $('#editTemplateModal').modal('hide');
+                                    $('#editError').html('<strong>Error:</strong> ' + detail).show();
                                     $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                                 }
                             },
                             error: function(xhr) {
                                 var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
-                                $('#editError').html('<strong>Request Failed:</strong><pre style="font-size:11px;white-space:pre-wrap;max-height:200px;overflow:auto;">' + $('<div>').text(msg).html() + '</pre>').show();
-                                $('#editTemplateModal .modal-body').animate({ scrollTop: 0 }, 200);
-                                showToast('Request failed: HTTP ' + xhr.status, 'error', 6000);
+                                showApiResponse('danger', 'Request Failed (HTTP ' + xhr.status + '):', msg);
+                                showToast('Request failed — check result below table', 'error', 10000);
+                                $('#editTemplateModal').modal('hide');
                                 $('#submitEditBtn').prop('disabled', false).text('Save Changes');
                             }
                         });
