@@ -15,7 +15,7 @@ if (!$id || !$type) {
     exit;
 }
 
-$filename = __DIR__ . '/messages/' . strtolower($type) . '_' . $id . '.json';
+$filename = dirname(__DIR__, 2) . '/var/messages/' . strtolower($type) . '_' . $id . '.json';
 
 if (file_exists($filename)) {
     $content = file_get_contents($filename);

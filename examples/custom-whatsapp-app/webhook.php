@@ -109,7 +109,7 @@ if (is_array($value) && !empty($value['messages'][0])) {
  */
 function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
     if (!$gsId && !$metaId) return;
-    $dir = __DIR__ . '/messages';
+    $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) return;
     
     $files = glob($dir . '/*.json');
@@ -137,7 +137,7 @@ function updateMessageStatusInLogs($gsId, $metaId, $newStatus) {
  * Logs incoming messages to local JSON so the widget can display them.
  */
 function logIncomingMessageLocally($phone, $text, $msgId, $timestamp) {
-    $dir = __DIR__ . '/messages';
+    $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     
     $files = glob($dir . '/*.json');

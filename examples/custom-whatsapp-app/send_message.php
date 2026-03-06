@@ -144,7 +144,7 @@ if ($error) {
 
 function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null, $status = 'sent') {
     if (!$timestamp) $timestamp = date('Y-m-d H:i:s');
-    $dir = __DIR__ . '/messages';
+    $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }

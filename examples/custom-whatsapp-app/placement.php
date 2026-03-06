@@ -649,7 +649,20 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
     }
 
     function addMessageToHistory(item) {
-        if (!item || typeof item !== 'object') {
+        if (!item) return;
+
+        // Backward compatibility for old history formats (string instead of object)
+        if (typeof item === 'string') {
+            item = {
+                message: item,
+                timestamp: '',
+                direction: 'outbound',
+                source: 'unknown',
+                status: 'sent'
+            };
+        }
+
+        if (typeof item !== 'object') {
             console.error("Invalid history item detected:", item);
             return;
         }

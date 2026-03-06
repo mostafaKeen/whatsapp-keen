@@ -82,7 +82,7 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
  * so we use the phone number based lookup or just log by phone.
  */
 function logMessageToJson(string $phone, string $message, $msgId = null) {
-    $dir = __DIR__ . '/messages';
+    $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }

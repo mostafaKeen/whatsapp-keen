@@ -21,3 +21,4 @@ docs/api/var
 log.txt
 php_errors.log
 /var/webhook_events/
+/var/messages/
