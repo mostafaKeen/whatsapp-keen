@@ -377,10 +377,12 @@ if ($b24Service !== null) {
                                     </div>
 
                                     <div class="form-group">
-                                        <label>Example (Sample Value) *</label>
-                                        <textarea name="example" class="form-control" rows="2" required></textarea>
-                                    </div>
+                                        <label>Footer (Optional)</label>
                                         <input type="text" name="footer" class="form-control" placeholder="60 characters max">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Example (Sample Value) *</label>
+                                        <textarea name="example" class="form-control" rows="3" required placeholder="Full content with variables replaced by sample text"></textarea>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -681,7 +683,7 @@ if ($b24Service !== null) {
                     $(document).on('click', '.edit-btn', function() {
                         var t = $(this).data('json');
                         var $form = $('#editTemplateForm');
-                        $form.find('[name="templateId"]').val(t.id);
+                        $form.find('[name="templateId"]').val(t.id || t.templateId || t.externalId || '');
                         $form.find('[name="elementName"]').val(t.elementName);
                         $form.find('[name="category"]').val(t.category);
                         $form.find('[name="languageCode"]').val(t.languageCode);

@@ -18,15 +18,18 @@ $apiToken = $whatsappConfig['gupshup_api_token'];
 
 // Parameters from POST
 $templateId = $_POST['templateId'] ?? '';
-$content = $_POST['content'] ?? '';
+$elementName = $_POST['elementName'] ?? '';
+$languageCode = $_POST['languageCode'] ?? '';
 $category = $_POST['category'] ?? '';
 $templateType = $_POST['templateType'] ?? 'TEXT';
+$content = $_POST['content'] ?? '';
 $example = $_POST['example'] ?? '';
 $header = $_POST['header'] ?? '';
 $footer = $_POST['footer'] ?? '';
 $buttons = $_POST['buttons'] ?? '';
 $exampleMedia = $_POST['exampleMedia'] ?? '';
 $exampleHeader = $_POST['exampleHeader'] ?? '';
+$mediaId = $_POST['mediaId'] ?? '';
 
 if (empty($templateId)) {
     http_response_code(400);
@@ -37,10 +40,16 @@ if (empty($templateId)) {
 // Gupshup Edit Template API uses PUT
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates/' . $templateId;
 
+// Prepare data following Gupshup docs
 $postData = [
+    'appId' => $appId,
+    'templateId' => $templateId,
+    'vertical' => 'TEXT',
     'enableSample' => 'true'
 ];
 
+if (!empty($elementName)) $postData['elementName'] = $elementName;
+if (!empty($languageCode)) $postData['languageCode'] = $languageCode;
 if (!empty($content)) $postData['content'] = $content;
 if (!empty($category)) $postData['category'] = $category;
 if (!empty($templateType)) $postData['templateType'] = $templateType;
@@ -50,6 +59,7 @@ if (!empty($footer)) $postData['footer'] = $footer;
 if (!empty($buttons)) $postData['buttons'] = $buttons;
 if (!empty($exampleMedia)) $postData['exampleMedia'] = $exampleMedia;
 if (!empty($exampleHeader)) $postData['exampleHeader'] = $exampleHeader;
+if (!empty($mediaId)) $postData['mediaId'] = $mediaId;
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
