@@ -303,6 +303,96 @@ if ($b24Service !== null) {
                     </div>
                 </div>
 
+                <!-- Edit Template Modal -->
+                <div class="modal fade" id="editTemplateModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <form id="editTemplateForm">
+                                <input type="hidden" name="templateId">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title">Edit WhatsApp Template</h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-6 form-group">
+                                            <label>Template Name (Element Name)</label>
+                                            <input type="text" name="elementName" class="form-control" readonly>
+                                            <small class="text-muted">Element name cannot be changed.</small>
+                                        </div>
+                                        <div class="col-md-3 form-group">
+                                            <label>Category *</label>
+                                            <select name="category" class="form-control" required>
+                                                <option value="MARKETING">MARKETING</option>
+                                                <option value="UTILITY">UTILITY</option>
+                                                <option value="AUTHENTICATION">AUTHENTICATION</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 form-group">
+                                            <label>Language *</label>
+                                            <input type="text" name="languageCode" class="form-control" required>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 form-group">
+                                            <label>Template Type *</label>
+                                            <select name="templateType" class="form-control" required>
+                                                <option value="TEXT">TEXT</option>
+                                                <option value="IMAGE">IMAGE</option>
+                                                <option value="VIDEO">VIDEO</option>
+                                                <option value="DOCUMENT">DOCUMENT</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 form-group">
+                                            <label>Header (Optional)</label>
+                                            <input type="text" name="header" class="form-control" placeholder="60 characters max">
+                                        </div>
+                                    </div>
+
+                                    <!-- Media Example Section -->
+                                    <div id="editMediaExampleSection" class="p-3 mb-3 border rounded bg-light" style="display:none;">
+                                        <h6 class="text-info"><i class="fas fa-photo-video"></i> Media Configuration</h6>
+                                        <div class="form-group">
+                                            <label>Sample Media URL/Handle *</label>
+                                            <input type="text" name="exampleMedia" class="form-control" placeholder="URL or Handle ID">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Example Header Text (Sample)</label>
+                                            <input type="text" name="exampleHeader" class="form-control">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Content (Body) *</label>
+                                        <textarea name="content" class="form-control" rows="3" required></textarea>
+                                    </div>
+
+                                    <!-- Interactive Buttons Section -->
+                                    <div class="p-3 mb-3 border rounded bg-light">
+                                        <h6 class="text-primary"><i class="fas fa-mouse-pointer"></i> Interactive Buttons (Optional)</h6>
+                                        <div id="editButtonsContainer"></div>
+                                        <button type="button" id="addEditButton" class="btn btn-outline-primary btn-sm mt-2">+ Add Button</button>
+                                        <input type="hidden" name="buttons" id="editButtonsJson">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Example (Sample Value) *</label>
+                                        <textarea name="example" class="form-control" rows="2" required></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Footer (Optional)</label>
+                                        <input type="text" name="footer" class="form-control" placeholder="60 characters max">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="templatesLoading" class="text-center p-5 border rounded bg-white shadow-sm" style="display:none;">
                     <div class="spinner-border text-primary" role="status">
                         <span class="sr-only">Loading templates...</span>
@@ -504,7 +594,13 @@ if ($b24Service !== null) {
                                         html += '<td>' + t.category + ' <span class="badge badge-light border">' + t.templateType + '</span></td>';
                                         html += '<td>' + t.languageCode + '</td>';
                                         html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span>' + reasonHtml + '</td>';
-                                        html += '<td><button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\'>View details</button></td>';
+                                        html += '<td>';
+                                        html += '<div class="btn-group">';
+                                        html += '<button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View details"><i class="fas fa-eye"></i></button>';
+                                        html += '<button class="btn btn-outline-primary btn-sm edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit template"><i class="fas fa-edit"></i></button>';
+                                        html += '<button class="btn btn-outline-danger btn-sm delete-btn" data-name="' + t.elementName + '" title="Delete template"><i class="fas fa-trash"></i></button>';
+                                        html += '</div>';
+                                        html += '</td>';
                                         html += '</tr>';
                                     });
                                 } else {
@@ -578,6 +674,124 @@ if ($b24Service !== null) {
                         } catch(e) { console.error("Error parsing meta:", e); }
                         
                         $('#templateModal').modal('show');
+                    });
+
+                    // Edit Template Logic
+                    $(document).on('click', '.edit-btn', function() {
+                        var t = $(this).data('json');
+                        var $form = $('#editTemplateForm');
+                        
+                        $form.find('[name="templateId"]').val(t.id);
+                        $form.find('[name="elementName"]').val(t.elementName);
+                        $form.find('[name="category"]').val(t.category);
+                        $form.find('[name="languageCode"]').val(t.languageCode);
+                        $form.find('[name="templateType"]').val(t.templateType);
+                        $form.find('[name="content"]').val(t.data);
+                        $form.find('[name="example"]').val(t.meta ? (typeof t.meta === 'string' ? JSON.parse(t.meta).example : t.meta.example) : '');
+                        
+                        // Parse extra fields from containerMeta
+                        try {
+                            var meta = typeof t.containerMeta === 'string' ? JSON.parse(t.containerMeta) : t.containerMeta;
+                            if (meta) {
+                                $form.find('[name="footer"]').val(meta.footer || '');
+                                $form.find('[name="header"]').val(meta.header || '');
+                                $form.find('[name="exampleMedia"]').val(meta.sampleMedia || '');
+                                $form.find('[name="exampleHeader"]').val(meta.sampleText || '');
+                                
+                                // Show/hide sections based on type
+                                if (['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(t.templateType) !== -1) {
+                                    $('#editMediaExampleSection').show();
+                                } else {
+                                    $('#editMediaExampleSection').hide();
+                                }
+
+                                // Load buttons
+                                $('#editButtonsContainer').empty();
+                                if (meta.buttons && meta.buttons.length > 0) {
+                                    meta.buttons.forEach(function(btn, i) {
+                                        addButtonToEditForm(btn);
+                                    });
+                                }
+                            }
+                        } catch(e) { console.error("Error parsing meta for edit:", e); }
+
+                        $('#editTemplateModal').modal('show');
+                    });
+
+                    function addButtonToEditForm(btn) {
+                        var id = Date.now() + Math.random();
+                        var html = '<div class="edit-btn-item border-bottom pb-2 mb-2" id="edit_btn_' + id + '">' +
+                            '<div class="d-flex justify-content-between"><strong>Button</strong> <button type="button" class="close remove-edit-btn" data-id="' + id + '">&times;</button></div>' +
+                            '<div class="row">' +
+                                '<div class="col-6"><label class="small">Type</label><select class="form-control form-control-sm eb-type"><option value="QUICK_REPLY" '+(btn && btn.type === 'QUICK_REPLY' ? 'selected' : '')+'>Quick Reply</option><option value="PHONE_NUMBER" '+(btn && btn.type === 'PHONE_NUMBER' ? 'selected' : '')+'>Call Number</option><option value="URL" '+(btn && btn.type === 'URL' ? 'selected' : '')+'>Visit URL</option></select></div>' +
+                                '<div class="col-6"><label class="small">Text</label><input type="text" class="form-control form-control-sm eb-text" value="'+(btn ? btn.text : '')+'" placeholder="Button text"></div>' +
+                            '</div>' +
+                            '<div class="row mt-1 eb-extra" style="'+(btn && btn.type !== 'QUICK_REPLY' ? '' : 'display:none;')+'">' +
+                                '<div class="col-12"><label class="small eb-extra-label">'+(btn && btn.type === 'PHONE_NUMBER' ? 'Phone Number' : 'URL')+'</label><input type="text" class="form-control form-control-sm eb-value" value="'+(btn ? (btn.phone_number || btn.url || '') : '')+'"></div>' +
+                            '</div>' +
+                        '</div>';
+                        $('#editButtonsContainer').append(html);
+                    }
+
+                    $('#addEditButton').click(function() {
+                        addButtonToEditForm();
+                    });
+
+                    $(document).on('click', '.remove-edit-btn', function() {
+                        $('#edit_btn_' + $(this).data('id')).remove();
+                    });
+
+                    $('#editTemplateForm').submit(function(e) {
+                        e.preventDefault();
+                        var btns = [];
+                        $('.edit-btn-item').each(function() {
+                            var item = {
+                                type: $(this).find('.eb-type').val(),
+                                text: $(this).find('.eb-text').val()
+                            };
+                            if (item.type === 'PHONE_NUMBER') item.phone_number = $(this).find('.eb-value').val();
+                            if (item.type === 'URL') item.url = $(this).find('.eb-value').val();
+                            btns.push(item);
+                        });
+                        $('#editButtonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
+
+                        $.ajax({
+                            url: 'edit_template.php',
+                            method: 'POST',
+                            data: $(this).serialize(),
+                            success: function(res) {
+                                if (res.status === 'success') {
+                                    $('#editTemplateModal').modal('hide');
+                                    loadTemplates();
+                                    alert('Template updated successfully!');
+                                } else {
+                                    alert('Error: ' + (res.message || 'Unknown error'));
+                                }
+                            }
+                        });
+                    });
+
+                    // Delete Template Logic
+                    $(document).on('click', '.delete-btn', function() {
+                        var name = $(this).data('name');
+                        if (confirm('Are you sure you want to delete template "' + name + '"? This action is irreversible.')) {
+                            $.ajax({
+                                url: 'delete_template.php',
+                                method: 'POST',
+                                data: { elementName: name },
+                                success: function(res) {
+                                    if (res.status === 'success') {
+                                        loadTemplates();
+                                        alert('Template deleted successfully!');
+                                    } else {
+                                        alert('Error: ' + (res.message || 'Unknown error'));
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                    $('#templateModal').modal('show');
                     });
                 });
             </script>
