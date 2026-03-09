@@ -861,6 +861,29 @@ if ($hasValidAuth) {
                     return (rect.top >= 0 && rect.left >= 0 && rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && rect.right <= (window.innerWidth || document.documentElement.clientWidth));
                 }
 
+                // LocalStorage Shim for Bitrix24 iframe security restrictions
+                (function() {
+                    try {
+                        localStorage.getItem('test');
+                    } catch (e) {
+                        console.warn("LocalStorage access denied and shimmed for compatibility.");
+                        var storage = {};
+                        Object.defineProperty(window, 'localStorage', {
+                            value: {
+                                getItem: function(k) { return storage[k] || null; },
+                                setItem: function(k, v) { storage[k] = v; },
+                                removeItem: function(k) { delete storage[k]; },
+                                clear: function() { storage = {}; },
+                                length: Object.keys(storage).length,
+                                key: function(i) { return Object.keys(storage)[i] || null; }
+                            },
+                            configurable: true,
+                            enumerable: true,
+                            writable: true
+                        });
+                    }
+                })();
+
                 $(document).ready(function() {
                     loadTemplates();
                     $('#refreshTemplates').off('click').on('click', function() { loadTemplates(); });
@@ -945,10 +968,18 @@ if ($hasValidAuth) {
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             },
                             error: function(xhr) {
-                                var msg = 'Request failed (HTTP ' + xhr.status + '). Please try again.';
-                                $('#createError').html('<strong>Error:</strong> ' + msg).show();
-                                $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
+                            var errorMsg = 'Request failed (HTTP ' + xhr.status + ').';
+                            if (xhr.responseText) {
+                                try {
+                                    var errObj = JSON.parse(xhr.responseText);
+                                    errorMsg = errObj.message || errObj.error || errorMsg;
+                                } catch(e) {
+                                    errorMsg = xhr.responseText.substring(0, 100);
+                                }
                             }
+                            $('#createError').html('<strong>Error:</strong> ' + errorMsg).show();
+                            $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
+                        }
                         });
                     });
 

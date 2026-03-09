@@ -41,10 +41,15 @@ if (empty($templateId)) {
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates/' . $templateId;
 
 // Prepare data following Gupshup docs
+$vertical = $category;
+if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
+if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
+if (empty($vertical)) $vertical = 'TRANSACTIONAL';
+
 $postData = [
     'appId' => $appId,
     'templateId' => $templateId,
-    'vertical' => 'TEXT',
+    'vertical' => $vertical,
     'enableSample' => 'true'
 ];
 

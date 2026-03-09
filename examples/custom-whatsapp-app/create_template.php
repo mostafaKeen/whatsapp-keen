@@ -29,11 +29,17 @@ $buttons = $_POST['buttons'] ?? ''; // JSON string from UI
 $exampleHeader = $_POST['exampleHeader'] ?? '';
 $exampleMedia = $_POST['exampleMedia'] ?? ''; // Media handle if already uploaded or URL
 
-if (empty($elementName) || empty($content) || empty($example)) {
+if (empty($elementName) || empty($content)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Element Name, Content, and Example are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Element Name and Content are required.']);
     exit;
 }
+
+// Gupshup vertical usually needs to be TRANSACTIONAL, MARKETING, or OTP.
+// For self-serve accounts, category and vertical often align.
+$vertical = $category;
+if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
+if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
 
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
 
@@ -42,7 +48,7 @@ $postData = [
     'languageCode' => $languageCode,
     'category' => $category,
     'templateType' => $templateType,
-    'vertical' => $_POST['vertical'] ?? 'TEXT',
+    'vertical' => $vertical,
     'content' => $content,
     'example' => $example,
     'enableSample' => 'true',
