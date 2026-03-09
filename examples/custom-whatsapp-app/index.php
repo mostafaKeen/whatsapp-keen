@@ -1351,9 +1351,12 @@ if ($hasValidAuth) {
                             return;
                         }
                         
-                        var currentVal = $('#campaignNumbersArea').val().trim();
-                        var newVal = currentVal + (currentVal ? "\n" : "") + selected.join("\n");
-                        $('#campaignNumbersArea').val(newVal).trigger('input');
+                        var currentText = $('#campaignNumbersArea').val();
+                        var existing = currentText.split('\n').filter(Boolean);
+                        var combined = existing.concat(selected);
+                        var unique = combined.filter(function(item, pos) { return combined.indexOf(item) === pos; });
+                        
+                        $('#campaignNumbersArea').val(unique.join('\n')).trigger('input');
                         $('#contactSelectorSection').slideUp();
                     });
 
@@ -1419,8 +1422,10 @@ if ($hasValidAuth) {
                     });
 
                     $('#campaignNumbersArea').on('input', function() {
-                        var lines = $(this).val().split('\n').filter(function(l) { return l.trim() !== ''; });
-                        $('#campaignNumberCount').text(lines.length + ' numbers');
+                        var val = $(this).val();
+                        var lines = val.split('\n').filter(Boolean).map(function(s){ return s.replace(/[^0-9]/g, ''); }).filter(Boolean);
+                        var unique = lines.filter(function(item, pos) { return lines.indexOf(item) === pos; });
+                        $('#campaignNumberCount').text(unique.length + ' unique numbers');
                     });
 
                     $('#campaignForm').on('submit', function(e) {

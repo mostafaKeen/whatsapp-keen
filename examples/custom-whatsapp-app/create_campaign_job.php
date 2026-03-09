@@ -91,15 +91,17 @@ $jobData = [
     'targets' => []
 ];
 
+$processedNumbers = [];
 foreach ($numbers as $num) {
     // Basic cleanup, strip non-numeric
     $cleanNum = preg_replace('/[^0-9]/', '', $num);
-    if (!empty($cleanNum)) {
+    if (!empty($cleanNum) && !isset($processedNumbers[$cleanNum])) {
         $jobData['targets'][] = [
             'phone' => $cleanNum,
             'status' => 'pending', 
             'error' => null
         ];
+        $processedNumbers[$cleanNum] = true;
     }
 }
 $jobData['total'] = count($jobData['targets']);
