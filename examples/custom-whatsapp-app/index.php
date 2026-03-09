@@ -765,32 +765,6 @@ if ($hasValidAuth) {
                     </div>
                 </div>
 
-                <div id="templatesLoading" class="text-center p-5 border rounded bg-white shadow-sm" style="display:none;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="sr-only">Loading templates...</span>
-                    </div>
-                    <p class="mt-2 text-muted">Fetching templates from Gupshup...</p>
-                </div>
-                <div id="templatesError" class="alert alert-danger" style="display:none;"></div>
-                <div id="templatesContainer" class="table-responsive bg-white shadow-sm rounded border">
-                    <table class="table table-hover mb-0">
-                        <thead class="thead-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Language</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="templatesList">
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted small">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
             </div>
 
                 <!-- Template Preview Modal -->
@@ -1544,6 +1518,9 @@ if ($hasValidAuth) {
                     // --- Campaign Analysis Logic ---
                     function loadCampaignAnalysis() {
                         $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
+                        $.ajax({
+                            url: 'get_campaign_analysis.php?' + new Date().getTime(),
+                            method: 'GET',
                             success: function(res) {
                                 if (res.status === 'success' && res.data && res.data.length > 0) {
                                         var html = '<div class="table-responsive" style="max-height: 400px; overflow-y: auto;">' +
