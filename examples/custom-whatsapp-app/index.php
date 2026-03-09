@@ -1280,7 +1280,7 @@ if ($b24Service !== null) {
 
                     // --- Campaign Analysis Logic ---
                     function loadCampaignAnalysis() {
-                        $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
+                        $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
                         $.ajax({
                             url: 'get_campaign_analysis.php?' + new Date().getTime(),
                             method: 'GET',
@@ -1297,17 +1297,19 @@ if ($b24Service !== null) {
                                                 '<td><strong>' + (job.template_name || 'Unknown') + '</strong><br><small class="text-muted">' + job.job_id + '</small></td>' +
                                                 '<td>' + job.total + '</td>' +
                                                 '<td>' + sent + '</td>' +
+                                                '<td class="text-success font-weight-bold">' + d + '</td>' +
+                                                '<td class="text-primary font-weight-bold">' + r + '</td>' +
                                                 '<td class="text-danger font-weight-bold">' + f + '</td>' +
                                                 '<td><button class="btn btn-sm btn-outline-info" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-eye"></i> Details</button></td>' +
                                                 '</tr>';
                                     });
                                     $('#campaignAnalysisList').html(html);
                                 } else {
-                                    $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center text-muted">No campaigns found.</td></tr>');
+                                    $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center text-muted">No campaigns found.</td></tr>');
                                 }
                             },
                             error: function() {
-                                $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center text-danger">Failed to load analysis data.</td></tr>');
+                                $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center text-danger">Failed to load analysis data.</td></tr>');
                             }
                         });
                         loadTemplateUpdates();
