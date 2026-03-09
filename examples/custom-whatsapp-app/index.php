@@ -22,11 +22,8 @@ error_reporting(E_ALL);
 ob_start();
 
 // Initialize variables that will be used in HTML section
-$b24Service = null;
 $errorMessage = null;
-$isRegistered = false;
-$connectorId = 'wosolkeen';
-$allConnectors = [];
+$isRegistered = true; // Always active, no connector required
 
 try {
     require_once __DIR__ . '/../../vendor/autoload.php';
@@ -106,32 +103,6 @@ if ($hasValidAuth) {
 } else {
     $errorMessage = 'No valid authorization found. Please close this window and open the app from Bitrix24 menu.';
 }
-
-if ($b24Service !== null) {
-    // Check registration status and get full list for debug
-    try {
-        $connectorList = $b24Service->getIMOpenLinesScope()->connector()->list();
-        $allConnectors = $connectorList->getConnectors();
-        
-        $isRegistered = false;
-        $foundConnector = false;
-        foreach ($allConnectors as $connectorItem) {
-            // Note: the SDK returns an array of ConnectorItemResult objects 
-            // which extends AbstractItem, exposing properties via getters/magic variables
-            if ($connectorItem->id === $connectorId) {
-                $isRegistered = true;
-                $foundConnector = true;
-                break;
-            }
-        }
-        $sessionManager->saveRegistration($connectorId, $isRegistered);
-    } catch (\Exception $e) {
-        $isRegistered = false;
-    }
-
-    // Registration logic removed. No connector registration in index.php.
-}
-
 } catch (\Exception $e) {
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
@@ -143,128 +114,416 @@ if ($b24Service !== null) {
     <title>KEEN WABA</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-</head>
-<body class="p-4">
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1><i class="fab fa-whatsapp text-success"></i> KEEN WABA</h1>
-        </div>
-        <hr>
+    <style>
+        :root {
+            --primary: #25D366;
+            --primary-dark: #128C7E;
+            --secondary: #34B7F1;
+            --bg: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius: 16px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #f1fdf4 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 2rem;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        h1, h2, h3, h4, .modal-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .app-logo {
+            font-size: 2rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge-active {
+            background: #dcfce7;
+            color: #166534;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-modern {
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .btn-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-modern:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary-modern { background: var(--primary); color: white; }
+        .btn-primary-modern:hover { background: var(--primary-dark); color: white; }
+        .btn-info-modern { background: var(--secondary); color: white; }
+        .btn-info-modern:hover { background: #0ea5e9; color: white; }
+        .btn-outline-modern { 
+            background: transparent; 
+            border: 1px solid var(--border); 
+            color: var(--text-main);
+            box-shadow: none;
+        }
+        .btn-outline-modern:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+        .table-modern {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 12px;
+        }
+
+        .table-modern thead th {
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            padding: 0 1.5rem;
+        }
+
+        .table-modern tbody tr {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease;
+        }
+
+        .table-modern tbody tr:hover {
+            transform: scale(1.005);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+
+        .table-modern tbody td {
+            padding: 1.25rem 1.5rem;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-modern tbody td:first-child {
+            border-left: 1px solid var(--border);
+            border-radius: 12px 0 0 12px;
+        }
+
+        .table-modern tbody td:last-child {
+            border-right: 1px solid var(--border);
+            border-radius: 0 12px 12px 0;
+        }
+
+        .modal-content {
+            border: none;
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            background: white;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            background: #f8fafc;
+        }
+
+        .form-control-modern {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .form-control-modern:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+            outline: none;
+        }
+
+        .status-pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
         
+        .status-pill.approved { background: #dcfce7; color: #166534; }
+        .status-pill.pending { background: #fef9c3; color: #854d0e; }
+        .status-pill.rejected { background: #fee2e2; color: #991b1b; }
+
+        #toastContainer { position: fixed; bottom: 2rem; right: 2rem; z-index: 10000; }
+        .gup-toast {
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-top: 0.75rem;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(8px);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header Section -->
+        <div class="header-section">
+            <div class="app-logo">
+                <i class="fab fa-whatsapp"></i>
+                <span>KEEN WABA</span>
+            </div>
+            <?php if (!$errorMessage): ?>
+                <div class="badge-active">
+                    <span class="d-inline-block" style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;"></span>
+                    Integration Active
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Alerts Section -->
         <?php if ($errorMessage): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle"></i> <?= $errorMessage ?>
+            <div class="glass-card border-left border-danger" style="border-left-width: 4px !important;">
+                <div class="d-flex align-items-center text-danger">
+                    <i class="fas fa-exclamation-circle fa-2x mr-3"></i>
+                    <div>
+                        <h5 class="mb-1 font-weight-bold">Initialization Error</h5>
+                        <p class="mb-0 small opacity-75"><?= $errorMessage ?></p>
+                    </div>
+                </div>
             </div>
-        <?php elseif (!$isRegistered): ?>
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-circle"></i> WhatsApp connector is not registered yet. Please set up the connector from your Bitrix24 Contact Center.
-            </div>
-            <form method="post">
-                <input type="hidden" name="action" value="register">
-                <button type="submit" class="btn btn-success btn-lg"><i class="fab fa-whatsapp"></i> Register WhatsApp Connector</button>
-            </form>
         <?php else: ?>
-            <div class="alert alert-success mb-4">
-                <h5 class="mb-1"><i class="fas fa-check-circle"></i> WhatsApp Connector is Active</h5>
-                <small class="text-muted">Connected and ready to send messages.</small>
+            <div class="glass-card border-left border-success mb-4" style="border-left-width: 4px !important;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center text-primary">
+                        <div class="bg-success text-white p-3 rounded-circle mr-3 shadow-sm">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">System Online</h5>
+                            <p class="mb-0 text-muted small">WhatsApp Business API is connected and ready.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         <?php endif; ?>
 
         <?php if ($isRegistered): ?>
-            <!-- WhatsApp Templates Section -->
-            <div class="mt-5">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3>WhatsApp Templates</h3>
+            <!-- Main Content Section -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-end mb-4">
                     <div>
-                        <button id="createTemplateBtn" class="btn btn-sm btn-success mr-2" data-toggle="modal" data-target="#createTemplateModal">+ Create New Template</button>
-                        <button id="sendCampaignBtn" class="btn btn-sm btn-info mr-2" data-toggle="modal" data-target="#campaignModal"><i class="fas fa-paper-plane"></i> Send Bulk Campaign</button>
-                        <button id="campaignAnalysisBtn" class="btn btn-sm btn-secondary mr-2" data-toggle="modal" data-target="#campaignAnalysisModal"><i class="fas fa-chart-bar"></i> Campaign Analysis</button>
-                        <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
+                        <h3 class="mb-1">Message Templates</h3>
+                        <p class="text-muted small mb-0">Manage your WhatsApp approved message templates</p>
+                    </div>
+                    <div class="d-flex gap-2" style="gap: 8px;">
+                        <button id="refreshTemplates" class="btn btn-modern btn-outline-modern" title="Refresh List">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
+                            <i class="fas fa-chart-line"></i> Insights
+                        </button>
+                        <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
+                            <i class="fas fa-paper-plane"></i> Send Bulk
+                        </button>
+                        <button id="createTemplateBtn" class="btn btn-modern btn-primary-modern" data-toggle="modal" data-target="#createTemplateModal">
+                            <i class="fas fa-plus"></i> Create Template
+                        </button>
                     </div>
                 </div>
 
+                <div id="templatesLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <p class="text-muted small">Synchronizing with Gupshup...</p>
+                </div>
+                
+                <div id="templatesError" class="alert alert-danger" style="display:none; border-radius: 12px;"></div>
+                
+                <div id="templatesContainer" class="table-responsive" style="overflow: visible;">
+                    <table class="table-modern">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Language</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templatesList">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- API Response Banner -->
+                <div id="apiResponseBanner" class="mt-4" style="display:none;">
+                    <div class="alert alert-dismissible shadow-sm border-0 py-3 d-flex align-items-center" id="apiResponseAlert" role="alert">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="apiResponseTitle" class="small flex-grow-1"></span>
+                        <button type="button" class="close" onclick="$('#apiResponseBanner').hide()">&times;</button>
+                    </div>
+                </div>
+            </div>
                 <!-- Campaign Modal -->
                 <div class="modal fade" id="campaignModal" tabindex="-1" data-backdrop="static">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
                             <form id="campaignForm">
-                                <div class="modal-header bg-info text-white">
-                                    <h5 class="modal-title"><i class="fas fa-paper-plane"></i> Send Bulk Campaign</h5>
-                                    <button type="button" class="close text-white" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
+                                <div class="modal-header">
+                                    <h5 class="modal-title text-info"><i class="fas fa-paper-plane mr-2"></i> Send Bulk Campaign</h5>
+                                    <button type="button" class="close" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
                                 </div>
                                 <div class="modal-body">
-
-                                    <div class="form-group">
-                                        <label>Select Template *</label>
-                                        <select name="templateId" id="campaignTemplateSelect" class="form-control" required>
-                                            <option value="">-- Select an approved template --</option>
+                                    <div class="form-group mb-4">
+                                        <label class="font-weight-600 small text-muted text-uppercase">Select Template *</label>
+                                        <select name="templateId" id="campaignTemplateSelect" class="form-control form-control-modern" required>
+                                            <option value="">-- Choose an approved template --</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" id="campaignMediaUrlGroup" style="display:none;">
-                                        <label>Media Header URL (Required for this template) *</label>
-                                        <input type="url" name="mediaUrl" id="campaignMediaUrl" class="form-control" placeholder="https://example.com/image.jpg">
-                                        <small class="text-muted">Direct link to the IMAGE, VIDEO, or DOCUMENT file.</small>
+                                    <div class="form-group mb-4" id="campaignMediaUrlGroup" style="display:none;">
+                                        <label class="font-weight-600 small text-muted text-uppercase">Media Header URL *</label>
+                                        <input type="url" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://example.com/image.jpg">
+                                        <small class="text-muted">Direct link to the media file required for this template.</small>
                                     </div>
                                     
-                                    <div class="form-group mt-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <label class="mb-0">Target Phone Numbers (One per line) *</label>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" id="toggleContactSelector"><i class="fas fa-users"></i> Add from Bitrix24 Contacts</button>
+                                    <div class="form-group">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="font-weight-600 small text-muted text-uppercase mb-0">Target Numbers (One per line) *</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="toggleContactSelector">
+                                                <i class="fas fa-user-plus mr-1"></i> Add from Bitrix24
+                                            </button>
                                         </div>
                                         
-                                        <!-- Contact Selector Section (Hidden by default) -->
-                                        <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded">
-                                            <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center">
-                                                <input type="text" id="contactSearchInput" class="form-control form-control-sm" style="width: 200px;" placeholder="Search contacts...">
-                                                <div>
-                                                    <div class="custom-control custom-checkbox custom-control-inline mr-2">
+                                        <!-- Contact Selector -->
+                                        <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded-lg bg-light overflow-hidden">
+                                            <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                                                <input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" style="width: 200px;" placeholder="Search names...">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="custom-control custom-checkbox mr-3">
                                                         <input type="checkbox" class="custom-control-input" id="selectAllContacts">
                                                         <label class="custom-control-label small" for="selectAllContacts">Select All</label>
                                                     </div>
-                                                    <button type="button" class="btn btn-sm btn-primary" id="applyContacts">Add Selected</button>
+                                                    <button type="button" class="btn btn-sm btn-primary-modern py-1" id="applyContacts">Apply</button>
                                                 </div>
                                             </div>
-                                            <div class="contact-list-container" id="contactListContainer">
-                                                <div class="text-center p-4" id="contactsLoading">
-                                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                                                    <span class="ml-2">Loading contacts...</span>
+                                            <div class="contact-list-container px-3" id="contactListContainer">
+                                                <div class="text-center p-4 text-muted small" id="contactsLoading">
+                                                    <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching your Bitrix24 contacts...
                                                 </div>
                                                 <div id="contactList"></div>
                                                 <div class="text-center p-2" id="loadMoreContactsContainer" style="display:none;">
-                                                    <button type="button" class="btn btn-sm btn-link" id="loadMoreContacts">Load More Contacts...</button>
+                                                    <button type="button" class="btn btn-sm btn-link" id="loadMoreContacts">Load more...</button>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <textarea name="numbers" id="campaignNumbersArea" class="form-control" rows="8" placeholder="918286836XXX&#10;919876543XXX" required></textarea>
-                                        <small class="text-muted" id="campaignNumberCount">0 numbers</small>
+                                        <textarea name="numbers" id="campaignNumbersArea" class="form-control form-control-modern" rows="6" placeholder="Format: 20100XXXXXXX" required></textarea>
+                                        <div class="text-right mt-1"><small id="campaignNumberCount" class="badge badge-light text-muted">0 numbers detected</small></div>
                                     </div>
 
-                                    <!-- Progress/Status Area (Hidden initially) -->
-                                    <div id="campaignStatusArea" style="display:none;" class="mt-4 p-3 border rounded bg-light">
-                                        <h6>Campaign Progress</h6>
-                                        <p id="campaignStatusText" class="mb-1 text-primary">Starting...</p>
-                                        <div class="progress mb-2" style="height: 20px;">
-                                            <div id="campaignProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                    <!-- Progress Area -->
+                                    <div id="campaignStatusArea" style="display:none;" class="mt-4 p-4 border rounded-lg bg-white shadow-sm">
+                                        <h6 class="font-weight-bold mb-3">Campaign Execution</h6>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span id="campaignStatusText" class="small text-primary font-weight-600">Initializing...</span>
+                                            <span id="campaignStatTotal" class="small text-muted font-weight-600">0 / 0</span>
                                         </div>
-                                        <div class="d-flex justify-content-between text-muted small">
-                                            <span id="campaignStatSuccess" class="text-success">Success: 0</span>
-                                            <span id="campaignStatFailed" class="text-danger">Failed: 0</span>
-                                            <span id="campaignStatTotal">Total: 0</span>
+                                        <div class="progress mb-3" style="height: 12px; border-radius: 6px; background: #f1f5f9;">
+                                            <div id="campaignProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%;"></div>
                                         </div>
-                                        <div class="mt-3 text-center" id="campaignControls">
-                                            <button type="button" class="btn btn-sm btn-warning" id="pauseCampaignBtn" style="display:none;"><i class="fas fa-pause"></i> Pause</button>
-                                            <button type="button" class="btn btn-sm btn-success" id="resumeCampaignBtn" style="display:none;"><i class="fas fa-play"></i> Resume</button>
+                                        <div class="row text-center no-gutters">
+                                            <div class="col-6 border-right py-2">
+                                                <div id="campaignStatSuccess" class="h5 font-weight-bold text-success mb-0">0</div>
+                                                <div class="small text-muted text-uppercase font-weight-600" style="font-size: 10px;">Sent</div>
+                                            </div>
+                                            <div class="col-6 py-2">
+                                                <div id="campaignStatFailed" class="h5 font-weight-bold text-danger mb-0">0</div>
+                                                <div class="small text-muted text-uppercase font-weight-600" style="font-size: 10px;">Failed</div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 text-center" id="campaignControls">
+                                            <button type="button" class="btn btn-sm btn-warning rounded-pill px-4" id="pauseCampaignBtn" style="display:none;"><i class="fas fa-pause mr-1"></i> Pause</button>
+                                            <button type="button" class="btn btn-sm btn-success rounded-pill px-4" id="resumeCampaignBtn" style="display:none;"><i class="fas fa-play mr-1"></i> Resume</button>
                                         </div>
                                     </div>
                                     <input type="hidden" id="currentCampaignJobId" value="">
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal" id="campaignCancelBtn">Close</button>
-                                    <button type="submit" id="startCampaignBtn" class="btn btn-info">Start Campaign</button>
+                                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Cancel</button>
+                                    <button type="submit" id="startCampaignBtn" class="btn btn-modern btn-info-modern">Start Campaign</button>
                                 </div>
                             </form>
                         </div>
@@ -275,57 +534,57 @@ if ($b24Service !== null) {
                 <div class="modal fade" id="campaignAnalysisModal" tabindex="-1">
                     <div class="modal-dialog modal-xl">
                         <div class="modal-content">
-                            <div class="modal-header bg-secondary text-white">
-                                <h5 class="modal-title"><i class="fas fa-chart-bar"></i> Campaign Analysis</h5>
-                                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                            <div class="modal-header">
+                                <h5 class="modal-title text-secondary"><i class="fas fa-chart-bar mr-2"></i> Performance Analysis</h5>
+                                <button type="button" class="close" data-dismiss="modal">&times;</button>
                             </div>
-                            <div class="modal-body">
-                                <ul class="nav nav-tabs mb-3" id="analysisTabs" role="tablist">
-                                    <li class="nav-item">
-                                        <a class="nav-link active" id="campaigns-tab" data-toggle="tab" href="#campaigns-pane" role="tab">Campaign Analysis</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" id="templates-tab" data-toggle="tab" href="#templates-pane" role="tab">Template Status Logs</a>
-                                    </li>
-                                </ul>
-                                <div class="tab-content" id="analysisTabContent">
-                                    <!-- Campaigns Tab -->
+                            <div class="modal-body p-0">
+                                <div class="bg-light px-4 pt-3 border-bottom">
+                                    <ul class="nav nav-pills mb-3" id="analysisTabs" role="tablist">
+                                        <li class="nav-item">
+                                            <a class="nav-link active rounded-pill px-4" id="campaigns-tab" data-toggle="tab" href="#campaigns-pane" role="tab">Bulk Campaigns</a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link rounded-pill px-4" id="templates-tab" data-toggle="tab" href="#templates-pane" role="tab">Approval Logs</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="tab-content px-4 py-4" id="analysisTabContent">
                                     <div class="tab-pane fade show active" id="campaigns-pane" role="tabpanel">
                                         <div class="table-responsive">
-                                            <table class="table table-sm table-bordered table-hover">
-                                                <thead class="thead-light">
+                                            <table class="table-modern">
+                                                <thead>
                                                     <tr>
-                                                        <th>Date &amp; Time</th>
-                                                        <th>Template / Campaign</th>
-                                                        <th>Total Targets</th>
-                                                        <th>Sent (API)</th>
-                                                        <th class="text-success">Delivered</th>
-                                                        <th class="text-primary">Read</th>
-                                                        <th class="text-danger">Failed</th>
-                                                        <th>Action</th>
+                                                        <th>Executed</th>
+                                                        <th>Template</th>
+                                                        <th>Targets</th>
+                                                        <th>Sent</th>
+                                                        <th>Delivered</th>
+                                                        <th>Read</th>
+                                                        <th>Failed</th>
+                                                        <th class="text-right">Manage</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="campaignAnalysisList">
-                                                    <tr><td colspan="8" class="text-center">Loading campaign data...</td></tr>
+                                                    <tr><td colspan="8" class="text-center py-5 text-muted small">Loading insights data...</td></tr>
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
-                                    <!-- Templates Tab -->
                                     <div class="tab-pane fade" id="templates-pane" role="tabpanel">
                                         <div class="table-responsive">
-                                            <table class="table table-sm table-bordered table-hover">
-                                                <thead class="thead-light">
+                                            <table class="table-modern">
+                                                <thead>
                                                     <tr>
-                                                        <th>Timestamp</th>
+                                                        <th>Timeline</th>
                                                         <th>Template Name</th>
-                                                        <th>Event</th>
+                                                        <th>Event Type</th>
                                                         <th>Language</th>
-                                                        <th>Reason / Details</th>
+                                                        <th>Status Details</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="templateStatusList">
-                                                    <tr><td colspan="5" class="text-center">Loading template updates...</td></tr>
+                                                    <tr><td colspan="5" class="text-center py-5 text-muted small">Loading status histories...</td></tr>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -333,8 +592,8 @@ if ($b24Service !== null) {
                                 </div>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" id="refreshAnalysisBtn">Refresh Data</button>
-                                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-modern btn-outline-modern" id="refreshAnalysisBtn"><i class="fas fa-sync mr-1"></i> Sync Data</button>
+                                <button type="button" class="btn btn-modern btn-primary-modern" data-dismiss="modal">Done</button>
                             </div>
                         </div>
                     </div>
@@ -365,103 +624,87 @@ if ($b24Service !== null) {
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
                             <form id="createTemplateForm">
-                                <div class="modal-header bg-success text-white">
-                                    <h5 class="modal-title">Create New WhatsApp Template</h5>
-                                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                                <div class="modal-header">
+                                    <h5 class="modal-title text-success"><i class="fas fa-plus-circle mr-2"></i> Create WhatsApp Template</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                                 </div>
                                 <div class="modal-body">
                                     <div class="row">
                                         <div class="col-md-6 form-group">
-                                            <label>Template Name (Element Name) *</label>
-                                            <input type="text" name="elementName" class="form-control" placeholder="e.g. order_confirmation_01" required>
-                                            <small class="text-muted">Unique, lowercase, no spaces (use underscores).</small>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Template Name *</label>
+                                            <input type="text" name="elementName" class="form-control form-control-modern" placeholder="e.g. order_alert" required>
                                         </div>
                                         <div class="col-md-3 form-group">
-                                            <label>Category *</label>
-                                            <select name="category" class="form-control" required>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Category *</label>
+                                            <select name="category" class="form-control form-control-modern" required>
                                                 <option value="MARKETING">MARKETING</option>
                                                 <option value="UTILITY">UTILITY</option>
                                                 <option value="AUTHENTICATION">AUTHENTICATION</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3 form-group">
-                                            <label>Language *</label>
-                                            <input type="text" name="languageCode" class="form-control" value="en_US" placeholder="en_US" required>
-                                        </div>
-                                        <div class="col-md-3 form-group">
-                                            <label>Vertical *</label>
-                                            <input type="text" name="vertical" class="form-control" value="TEXT" placeholder="e.g. Ticket Update" required>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Language *</label>
+                                            <input type="text" name="languageCode" class="form-control form-control-modern" value="en_US" required>
                                         </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-6 form-group">
-                                            <label>Template Type *</label>
-                                            <select name="templateType" id="templateType" class="form-control" required>
-                                                <option value="TEXT">TEXT</option>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Template Type *</label>
+                                            <select name="templateType" id="templateType" class="form-control form-control-modern" required>
+                                                <option value="TEXT" selected>TEXT</option>
                                                 <option value="IMAGE">IMAGE</option>
                                                 <option value="VIDEO">VIDEO</option>
                                                 <option value="DOCUMENT">DOCUMENT</option>
                                             </select>
                                         </div>
                                         <div class="col-md-6 form-group">
-                                            <label>Header (Optional)</label>
-                                            <input type="text" name="header" id="headerField" class="form-control" placeholder="60 characters max">
+                                            <label class="font-weight-600 small text-muted text-uppercase">Header (Optional)</label>
+                                            <input type="text" name="header" id="headerField" class="form-control form-control-modern" placeholder="Max 60 chars">
                                         </div>
                                     </div>
 
-                                    <!-- Media Example Section -->
-                                    <div id="mediaExampleSection" class="p-3 mb-3 border rounded bg-light" style="display:none;">
-                                        <h6 class="text-info"><i class="fas fa-photo-video"></i> Media Configuration</h6>
-                                        <div class="form-group">
-                                            <label>Sample Media URL/Handle *</label>
-                                            <input type="text" name="exampleMedia" class="form-control" placeholder="URL to a sample image/file or Gupshup Media ID">
-                                            <small class="text-muted">Required for Meta approval of media templates.</small>
-                                        </div>
-                                        <div class="form-group" id="exampleHeaderGroup">
-                                            <label>Example Header Text (Sample)</label>
-                                            <input type="text" name="exampleHeader" class="form-control" placeholder="Sample text for header variable">
+                                    <div id="mediaExampleSection" class="p-4 mb-4 border rounded-lg bg-light" style="display:none;">
+                                        <h6 class="font-weight-bold text-info small text-uppercase mb-3"><i class="fas fa-photo-video mr-2"></i> Media Requirements</h6>
+                                        <div class="form-group mb-0">
+                                            <label class="small font-weight-bold">Sample Media URL / Property *</label>
+                                            <input type="text" name="exampleMedia" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
                                         </div>
                                     </div>
 
                                     <div class="form-group">
-                                        <label>Content (Body) *</label>
-                                        <textarea name="content" class="form-control" rows="3" placeholder="Hi {{1}}, your order {{2}} is ready." required></textarea>
-                                        <small class="text-muted">Use {{1}}, {{2}} for variables.</small>
+                                        <label class="font-weight-600 small text-muted text-uppercase">Message Content (Body) *</label>
+                                        <textarea name="content" class="form-control form-control-modern" rows="4" placeholder="Hello {{1}}, how are you?" required></textarea>
+                                        <small class="text-muted">Use {{1}}, {{2}}, etc. for variables.</small>
                                     </div>
 
-                                    <!-- Interactive Buttons Section -->
-                                    <div class="p-3 mb-3 border rounded bg-light">
-                                        <h6 class="text-primary"><i class="fas fa-mouse-pointer"></i> Interactive Buttons (Optional)</h6>
-                                        <div id="buttonsContainer">
-                                            <!-- Buttons will be added here -->
+                                    <div class="bg-light p-4 rounded-lg mb-4 border">
+                                        <h6 class="font-weight-bold small text-uppercase mb-3 text-primary"><i class="fas fa-magic mr-2"></i> Dynamic Variables Example</h6>
+                                        <textarea name="example" class="form-control form-control-modern" rows="2" placeholder="Hello John, how are you?" required></textarea>
+                                    </div>
+
+                                    <!-- Buttons Section -->
+                                    <div class="border rounded-lg p-4 mb-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 class="font-weight-bold small text-uppercase mb-0"><i class="fas fa-plus mr-2"></i> Interactive Buttons</h6>
+                                            <button type="button" id="addButton" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ Add</button>
                                         </div>
-                                        <button type="button" id="addButton" class="btn btn-outline-primary btn-sm mt-2 border-dashed">+ Add Button</button>
+                                        <div id="buttonsContainer"></div>
                                         <input type="hidden" name="buttons" id="buttonsJson">
                                     </div>
 
-                                    <div class="form-group">
-                                        <label>Example (Sample Value) *</label>
-                                        <textarea name="example" class="form-control" rows="2" placeholder="Hi John, your order #123 is ready." required></textarea>
-                                        <small class="text-muted">Gupshup requires a real example for approval.</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Footer (Optional)</label>
-                                        <input type="text" name="footer" class="form-control" placeholder="60 characters max">
-                                    </div>
-                                    <div class="form-group">
-                                        <div class="custom-control custom-checkbox">
+                                    <div class="form-group mb-0">
+                                        <div class="custom-control custom-switch">
                                             <input type="checkbox" class="custom-control-input" id="allowCategoryChange" name="allowTemplateCategoryChange" value="true">
-                                            <label class="custom-control-label" for="allowCategoryChange">
-                                                Allow Meta to automatically update template category
-                                                <i class="fas fa-info-circle text-muted" title="If True, Meta will automatically update the category of the template as per the template content."></i>
+                                            <label class="custom-control-label small font-weight-600" for="allowCategoryChange">
+                                                Allow Meta to auto-update template category based on content
                                             </label>
                                         </div>
                                     </div>
-                                    <div id="createError" class="alert alert-danger" style="display:none;"></div>
+                                    <div id="createError" class="alert alert-danger mt-3 small" style="display:none;"></div>
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                    <button type="submit" id="submitTemplateBtn" class="btn btn-success">Submit for Approval</button>
+                                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Cancel</button>
+                                    <button type="submit" id="submitTemplateBtn" class="btn btn-modern btn-primary-modern">Submit to Meta</button>
                                 </div>
                             </form>
                         </div>
@@ -471,88 +714,57 @@ if ($b24Service !== null) {
                 <!-- Edit Template Modal -->
                 <div class="modal fade" id="editTemplateModal" tabindex="-1">
                     <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
+                        <div class="modal-content border-top border-primary" style="border-top-width: 4px !important;">
                             <form id="editTemplateForm">
                                 <input type="hidden" name="templateId">
-                                <div class="modal-header bg-primary text-white">
-                                    <h5 class="modal-title">Edit WhatsApp Template</h5>
-                                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                                <div class="modal-header">
+                                    <h5 class="modal-title text-primary"><i class="fas fa-edit mr-2"></i> Modify Template</h5>
+                                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                                 </div>
                                 <div class="modal-body">
-                                    <div id="editError" class="alert alert-danger" style="display:none; white-space: pre-wrap;"></div>
+                                    <div id="editError" class="alert alert-danger small mb-4" style="display:none;"></div>
                                     <div class="row">
                                         <div class="col-md-6 form-group">
-                                            <label>Template Name (Element Name)</label>
-                                            <input type="text" name="elementName" class="form-control" readonly>
-                                            <small class="text-muted">Element name cannot be changed.</small>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Element Name</label>
+                                            <input type="text" name="elementName" class="form-control form-control-modern bg-light" readonly>
                                         </div>
                                         <div class="col-md-3 form-group">
-                                            <label>Category *</label>
-                                            <select name="category" class="form-control" required>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Category</label>
+                                            <select name="category" class="form-control form-control-modern" required>
                                                 <option value="MARKETING">MARKETING</option>
                                                 <option value="UTILITY">UTILITY</option>
                                                 <option value="AUTHENTICATION">AUTHENTICATION</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3 form-group">
-                                            <label>Language *</label>
-                                            <input type="text" name="languageCode" class="form-control" required>
+                                            <label class="font-weight-600 small text-muted text-uppercase">Language</label>
+                                            <input type="text" name="languageCode" class="form-control form-control-modern" required>
                                         </div>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-md-6 form-group">
-                                            <label>Template Type *</label>
-                                            <select name="templateType" class="form-control" required>
-                                                <option value="TEXT">TEXT</option>
-                                                <option value="IMAGE">IMAGE</option>
-                                                <option value="VIDEO">VIDEO</option>
-                                                <option value="DOCUMENT">DOCUMENT</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-6 form-group">
-                                            <label>Header (Optional)</label>
-                                            <input type="text" name="header" class="form-control" placeholder="60 characters max">
-                                        </div>
+                                    
+                                    <div class="form-group mt-3">
+                                        <label class="font-weight-600 small text-muted text-uppercase">Template Body</label>
+                                        <textarea name="content" class="form-control form-control-modern" rows="4" required></textarea>
                                     </div>
-
-                                    <!-- Media Example Section -->
-                                    <div id="editMediaExampleSection" class="p-3 mb-3 border rounded bg-light" style="display:none;">
-                                        <h6 class="text-info"><i class="fas fa-photo-video"></i> Media Configuration</h6>
-                                        <div class="form-group">
-                                            <label>Sample Media URL/Handle *</label>
-                                            <input type="text" name="exampleMedia" class="form-control" placeholder="URL or Handle ID">
+                                    
+                                    <!-- Buttons for Edit -->
+                                    <div class="border rounded-lg p-4 mb-4 bg-light">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 class="font-weight-bold small text-uppercase mb-0 text-primary">Template Buttons</h6>
+                                            <button type="button" id="addEditButton" class="btn btn-sm btn-primary py-1 px-3 rounded-pill">+ Add</button>
                                         </div>
-                                        <div class="form-group">
-                                            <label>Example Header Text (Sample)</label>
-                                            <input type="text" name="exampleHeader" class="form-control">
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label>Content (Body) *</label>
-                                        <textarea name="content" class="form-control" rows="3" required></textarea>
-                                    </div>
-
-                                    <!-- Interactive Buttons Section -->
-                                    <div class="p-3 mb-3 border rounded bg-light">
-                                        <h6 class="text-primary"><i class="fas fa-mouse-pointer"></i> Interactive Buttons (Optional)</h6>
                                         <div id="editButtonsContainer"></div>
-                                        <button type="button" id="addEditButton" class="btn btn-outline-primary btn-sm mt-2">+ Add Button</button>
                                         <input type="hidden" name="buttons" id="editButtonsJson">
                                     </div>
 
-                                    <div class="form-group">
-                                        <label>Footer (Optional)</label>
-                                        <input type="text" name="footer" class="form-control" placeholder="60 characters max">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Example (Sample Value) *</label>
-                                        <textarea name="example" class="form-control" rows="3" required placeholder="Full content with variables replaced by sample text"></textarea>
+                                    <div class="form-group mb-0">
+                                        <label class="font-weight-600 small text-muted text-uppercase">Sample Content</label>
+                                        <textarea name="example" class="form-control form-control-modern" rows="2" required></textarea>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                                    <button type="submit" id="submitEditBtn" class="btn btn-primary">Save Changes</button>
+                                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Discard</button>
+                                    <button type="submit" id="submitEditBtn" class="btn btn-modern btn-primary-modern">Update Template</button>
                                 </div>
                             </form>
                         </div>
@@ -594,41 +806,62 @@ if ($b24Service !== null) {
                 </div>
             </div>
 
-            <!-- Template Preview Modal -->
-            <div class="modal fade" id="templateModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="tName">Template Details</h5>
-                            <button type="button" class="close" data-dismiss="modal">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            <div id="tReasonAlert" class="alert alert-danger mb-3" style="display:none;">
-                                <strong>Rejection/Failure Reason:</strong> <span id="tReason"></span>
+                <!-- Template Preview Modal -->
+                <div class="modal fade" id="templateModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="tName">Preview Template</h5>
+                                <button type="button" class="close" data-dismiss="modal">&times;</button>
                             </div>
-                            <div class="p-3 bg-light rounded border mb-3">
-                                <strong>Category:</strong> <span id="tCategory"></span><br>
-                                <strong>Status:</strong> <span id="tStatus"></span><br>
-                                <strong>Type:</strong> <span id="tType"></span><br>
-                                <strong>Language:</strong> <span id="tLang"></span>
+                            <div class="modal-body">
+                                <div id="tReasonAlert" class="alert alert-danger mb-4 rounded-lg d-flex align-items-center" style="display:none;">
+                                    <i class="fas fa-exclamation-triangle mr-3 fa-lg"></i>
+                                    <div>
+                                        <strong class="small text-uppercase">Meta Rejection Reason:</strong><br>
+                                        <span id="tReason" class="small"></span>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-4">
+                                    <div class="col-sm-3 mb-2">
+                                        <div class="small text-muted text-uppercase font-weight-600 mb-1">Category</div>
+                                        <div id="tCategory" class="font-weight-bold"></div>
+                                    </div>
+                                    <div class="col-sm-3 mb-2">
+                                        <div class="small text-muted text-uppercase font-weight-600 mb-1">Status</div>
+                                        <div id="tStatus"></div>
+                                    </div>
+                                    <div class="col-sm-3 mb-2">
+                                        <div class="small text-muted text-uppercase font-weight-600 mb-1">Media</div>
+                                        <div id="tType" class="font-weight-bold"></div>
+                                    </div>
+                                    <div class="col-sm-3 mb-2">
+                                        <div class="small text-muted text-uppercase font-weight-600 mb-1">Language</div>
+                                        <div id="tLang" class="font-weight-bold"></div>
+                                    </div>
+                                </div>
+
+                                <div id="tMediaSection" class="mb-4 text-center p-3 bg-light rounded-lg border" style="display:none;">
+                                    <div id="tMediaPreview"></div>
+                                </div>
+
+                                <div class="message-preview-bubble mb-4">
+                                    <div class="small text-muted text-uppercase font-weight-600 mb-2">Message Content</div>
+                                    <pre id="tData" class="p-4 bg-white border rounded-lg shadow-sm mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; line-height: 1.5;"></pre>
+                                </div>
+
+                                <div id="tButtonsSection" class="mt-4" style="display:none;">
+                                    <div class="small text-muted text-uppercase font-weight-600 mb-2">Interactive Buttons</div>
+                                    <div id="tButtonsList" class="d-flex flex-wrap" style="gap: 8px;"></div>
+                                </div>
                             </div>
-
-                            <div id="tMediaSection" class="mb-3" style="display:none;">
-                                <h6>Media Preview:</h6>
-                                <div id="tMediaPreview" class="p-2 border rounded text-center bg-white"></div>
-                            </div>
-
-                            <h6>Content Preview:</h6>
-                            <pre id="tData" class="p-3 bg-dark text-white rounded" style="white-space: pre-wrap; mb-3"></pre>
-
-                            <div id="tButtonsSection" class="mb-3" style="display:none;">
-                                <h6>Interactive Buttons:</h6>
-                                <div id="tButtonsList" class="d-flex flex-wrap"></div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-modern btn-primary-modern" data-dismiss="modal">Close Preview</button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
             <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
             <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
@@ -650,20 +883,30 @@ if ($b24Service !== null) {
                 function showToast(msg, type, duration) {
                     type = type || 'info';
                     duration = duration || 3000;
-                    var $t = $('<div class="gup-toast ' + type + '">' + msg + '</div>');
+                    var icon = 'fa-info-circle';
+                    if (type === 'success') icon = 'fa-check-circle';
+                    if (type === 'error') icon = 'fa-times-circle';
+                    
+                    var $t = $('<div class="gup-toast shadow-lg border-left border-' + (type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info') + '" style="border-left-width: 4px !important;">' +
+                        '<i class="fas ' + icon + ' ' + (type === 'error' ? 'text-danger' : type === 'success' ? 'text-success' : 'text-info') + '"></i>' +
+                        '<span>' + msg + '</span>' +
+                        '</div>');
                     $('#toastContainer').append($t);
                     setTimeout(function() {
-                        $t.css('opacity', 0);
-                        setTimeout(function() { $t.remove(); }, 500);
+                        $t.css({ 'opacity': 0, 'transform': 'translateX(20px)' });
+                        setTimeout(function() { $t.remove(); }, 400);
                     }, duration);
                 }
 
                 function showApiResponse(type, title, body) {
                     var colorClass = type === 'success' ? 'alert-success' : 'alert-danger';
+                    var icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+                    
                     $('#apiResponseAlert').removeClass('alert-success alert-danger').addClass(colorClass);
-                    $('#apiResponseTitle').text(title);
-                    $('#apiResponseBanner').show();
-                    $('html, body').animate({ scrollTop: $('#apiResponseBanner').offset().top - 80 }, 400);
+                    $('#apiResponseAlert').find('i').removeClass().addClass('fas ' + icon + ' mr-2');
+                    $('#apiResponseTitle').html('<strong>' + title + '</strong> ' + body);
+                    $('#apiResponseBanner').fadeIn();
+                    $('html, body').animate({ scrollTop: $('#apiResponseBanner').offset().top - 120 }, 400);
                 }
 
                 $(document).ready(function() {
@@ -776,28 +1019,28 @@ if ($b24Service !== null) {
                                 catch(ex) { $('#templatesError').text('Invalid response from server: ' + rawData).show(); return; }
 
                                 var html = '';
-                                if (response.status === 'success' && response.templates && response.templates.length > 0) {
+                                 if (response.status === 'success' && response.templates && response.templates.length > 0) {
                                     response.templates.forEach(function(t) {
-                                        var statusClass = 'badge-secondary';
-                                        if (t.status === 'APPROVED') statusClass = 'badge-success';
-                                        if (t.status === 'REJECTED' || t.status === 'FAILED') statusClass = 'badge-danger';
-                                        if (t.status === 'PENDING') statusClass = 'badge-warning';
-                                        var reasonHtml = t.reason ? '<div class="small text-danger mt-1"><i>' + t.reason + '</i></div>' : '';
+                                        var statusPill = 'status-pill pending';
+                                        if (t.status === 'APPROVED') statusPill = 'status-pill approved';
+                                        if (t.status === 'REJECTED' || t.status === 'FAILED') statusPill = 'status-pill rejected';
+                                        
+                                        var reasonHtml = t.reason ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
+                                        
                                         html += '<tr>';
-                                        html += '<td><strong>' + t.elementName + '</strong></td>';
-                                        html += '<td>' + t.category + ' <span class="badge badge-light border">' + t.templateType + '</span></td>';
-                                        html += '<td>' + t.languageCode + '</td>';
-                                        html += '<td><span class="badge ' + statusClass + '">' + t.status + '</span>' + reasonHtml + '</td>';
-                                        html += '<td><div class="btn-group">';
-                                        html += '<button class="btn btn-outline-info btn-sm view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View details"><i class="fas fa-eye"></i></button>';
-                                        html += '<button class="btn btn-outline-primary btn-sm edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit template"><i class="fas fa-edit"></i></button>';
-                                        html += '<button class="btn btn-outline-danger btn-sm delete-btn" data-name="' + t.elementName + '" title="Delete template"><i class="fas fa-trash"></i></button>';
+                                        html += '<td><div class="font-weight-bold text-primary">' + t.elementName + '</div><div class="small text-muted">' + t.templateType + '</div></td>';
+                                        html += '<td><span class="badge badge-light px-2 py-1">' + t.category + '</span></td>';
+                                        html += '<td><span class="text-uppercase font-weight-600 small">' + t.languageCode + '</span></td>';
+                                        html += '<td><span class="' + statusPill + '">' + t.status + '</span>' + reasonHtml + '</td>';
+                                        html += '<td class="text-right"><div class="btn-group">';
+                                        html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View"><i class="fas fa-eye"></i></button>';
+                                        html += '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 px-2 edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit"><i class="fas fa-edit"></i></button>';
+                                        html += '<button class="btn btn-sm btn-outline-danger rounded-circle px-2 delete-btn" data-name="' + t.elementName + '" title="Delete"><i class="fas fa-trash"></i></button>';
                                         html += '</div></td></tr>';
                                     });
                                     window.allTemplatesData = response.templates;
-                                    console.log('Templates loaded successfully:', response.templates.length);
                                 } else {
-                                    html = '<tr><td colspan="5" class="text-center py-4">No templates found or API returned an empty list.</td></tr>';
+                                    html = '<tr><td colspan="5" class="text-center py-5 text-muted">No templates available. Create one to get started!</td></tr>';
                                 }
                                 $('#templatesList').html(html);
                             },
@@ -1324,20 +1567,20 @@ if ($b24Service !== null) {
                             success: function(res) {
                                 if (res.status === 'success' && res.data && res.data.length > 0) {
                                     var html = '';
-                                    res.data.forEach(function(job) {
+                                     res.data.forEach(function(job) {
                                         var d = job.delivered || 0;
                                         var r = job.read || 0;
                                         var f = (job.failed || 0) + (job.webhook_failed || 0);
                                         var sent = job.success || 0;
                                         html += '<tr>' +
-                                                '<td>' + (job.created_at || '-') + '</td>' +
-                                                '<td><strong>' + (job.template_name || 'Unknown') + '</strong></td>' +
-                                                '<td>' + job.total + '</td>' +
+                                                '<td class="small">' + (job.created_at || '-') + '</td>' +
+                                                '<td><div class="font-weight-bold text-primary">' + (job.template_name || 'Unknown') + '</div><div class="small text-muted">' + job.job_id + '</div></td>' +
+                                                '<td class="font-weight-bold">' + job.total + '</td>' +
                                                 '<td>' + sent + '</td>' +
-                                                '<td class="text-success font-weight-bold">' + d + '</td>' +
-                                                '<td class="text-primary font-weight-bold">' + r + '</td>' +
-                                                '<td class="text-danger font-weight-bold">' + f + '</td>' +
-                                                '<td><button class="btn btn-sm btn-outline-info" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-eye"></i> Details</button></td>' +
+                                                '<td><span class="text-success font-weight-bold">' + d + '</span></td>' +
+                                                '<td><span class="text-primary font-weight-bold">' + r + '</span></td>' +
+                                                '<td><span class="text-danger font-weight-bold">' + f + '</span></td>' +
+                                                '<td class="text-right"><button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-search-plus mr-1"></i> Details</button></td>' +
                                                 '</tr>';
                                     });
                                     $('#campaignAnalysisList').html(html);
@@ -1361,17 +1604,16 @@ if ($b24Service !== null) {
                                 if (res.status === 'success' && res.data && res.data.length > 0) {
                                     var html = '';
                                     res.data.forEach(function(item) {
-                                        var badgeClass = 'badge-secondary';
-                                        if (item.event === 'APPROVED') badgeClass = 'badge-success';
-                                        if (item.event === 'FAILED' || item.event === 'REJECTED') badgeClass = 'badge-danger';
-                                        if (item.event === 'PENDING') badgeClass = 'badge-warning';
+                                        var statusPill = 'status-pill pending';
+                                        if (item.event === 'APPROVED') statusPill = 'status-pill approved';
+                                        if (item.event === 'FAILED' || item.event === 'REJECTED') statusPill = 'status-pill rejected';
 
                                         html += '<tr>' +
-                                                '<td>' + (item.timestamp || '-') + '</td>' +
+                                                '<td class="small">' + (item.timestamp || '-') + '</td>' +
                                                 '<td><strong>' + (item.template_name || '-') + '</strong></td>' +
-                                                '<td><span class="badge ' + badgeClass + '">' + (item.event || 'UNKNOWN') + '</span></td>' +
-                                                '<td>' + (item.language || '-') + '</td>' +
-                                                '<td><small>' + (item.reason || '-') + '</small></td>' +
+                                                '<td><span class="' + statusPill + '">' + (item.event || 'UNKNOWN') + '</span></td>' +
+                                                '<td><span class="text-uppercase small">' + (item.language || '-') + '</span></td>' +
+                                                '<td><div class="small text-muted" style="max-width:200px">' + (item.reason || '-') + '</div></td>' +
                                                 '</tr>';
                                     });
                                     $('#templateStatusList').html(html);
@@ -1402,16 +1644,16 @@ if ($b24Service !== null) {
                                     
                                     if (job.targets && job.targets.length > 0) {
                                         job.targets.forEach(function(t) {
-                                            var badge = 'badge-secondary';
-                                            if (t.status === 'sent' || t.status === 'success') badge = 'badge-info';
-                                            if (t.status === 'delivered') badge = 'badge-success';
-                                            if (t.status === 'read') badge = 'badge-primary';
-                                            if (t.status === 'failed' || t.status === 'webhook_failed') badge = 'badge-danger';
+                                            var statusPill = 'status-pill pending';
+                                            if (t.status === 'sent' || t.status === 'success') statusPill = 'status-pill pending'; // essentially in progress
+                                            if (t.status === 'delivered') statusPill = 'status-pill approved'; // using approved green for delivery
+                                            if (t.status === 'read') statusPill = 'status-pill approved'; 
+                                            if (t.status === 'failed' || t.status === 'webhook_failed') statusPill = 'status-pill rejected';
 
                                             html += '<tr>' +
-                                                    '<td>' + t.phone + '</td>' +
-                                                    '<td><span class="badge ' + badge + '">' + t.status + '</span></td>' +
-                                                    '<td class="text-danger"><small>' + (t.error || '-') + '</small></td>' +
+                                                    '<td class="font-weight-bold">' + t.phone + '</td>' +
+                                                    '<td><span class="' + statusPill + '">' + t.status.toUpperCase() + '</span></td>' +
+                                                    '<td><div class="small text-danger">' + (t.error || '-') + '</div></td>' +
                                                     '</tr>';
                                         });
                                     } else {

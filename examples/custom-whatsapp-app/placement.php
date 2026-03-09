@@ -8,28 +8,31 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 <html>
 <head>
 	<meta charset="utf-8">
-    <title>WhatsApp Business Chat</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>KEEN WABA - Business Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script src="//api.bitrix24.com/api/v1/"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         :root {
-            --primary-color: #25D366;
-            --primary-dark: #128C7E;
-            --secondary-color: #34B7F1;
-            --bg-color: #f0f2f5;
-            --text-main: #111b21;
-            --text-muted: #667781;
-            --glass-bg: rgba(255, 255, 255, 0.9);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --primary-color: #4361ee;
+            --primary-dark: #3a0ca3;
+            --accent-color: #4895ef;
+            --bg-color: #f8f9fa;
+            --text-main: #2b2d42;
+            --text-muted: #8d99ae;
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.8);
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 25px 50px -12px rgba(67, 97, 238, 0.15);
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', 'Outfit', sans-serif;
             background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(67, 97, 238, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(72, 149, 239, 0.05) 0px, transparent 50%);
             color: var(--text-main);
             margin: 0;
             padding: 20px;
@@ -43,21 +46,33 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
             width: 100%;
             max-width: 600px;
             background: var(--glass-bg);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
+            border-radius: 24px;
             box-shadow: var(--shadow-lg);
             overflow: hidden;
-            transition: transform 0.3s ease;
+            transition: all 0.3s ease;
         }
 
         .chat-header {
-            background: var(--primary-color);
-            padding: 24px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            padding: 24px 30px;
             color: white;
             display: flex;
             align-items: center;
             gap: 16px;
+            position: relative;
+        }
+
+        .chat-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .chat-header svg {
@@ -68,8 +83,10 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 
         .chat-header h1 {
             margin: 0;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 700;
+            letter-spacing: -0.5px;
+            font-family: 'Outfit', sans-serif;
         }
 
         .chat-body {
@@ -182,15 +199,15 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
         }
 
         .status-success {
-            background: #dcf8c6;
-            color: #075e54;
-            border: 1px solid #c7e9af;
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid #d1fae5;
         }
 
         .status-error {
-            background: #ffebee;
-            color: #c62828;
-            border: 1px solid #ffcdd2;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fee2e2;
         }
 
         .spinner {
@@ -427,10 +444,13 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 </div>
 
 <div id="chatBox" class="chat-container box-chat" style="display: none;">
-    <div class="chat-header">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 .018 5.396.015 12.03c0 2.12.541 4.191 1.57 6.071L0 24l6.102-1.602a11.803 11.803 0 005.941 1.603h.005c6.634 0 12.032-5.396 12.035-12.03.001-3.218-1.252-6.244-3.528-8.52z"/></svg>
-        <h1>WhatsApp Business</h1>
-    </div>
+        <div class="chat-header">
+            <i class="fab fa-whatsapp fa-2x"></i>
+            <div>
+                <h1>KEEN WABA</h1>
+                <p style="margin:0; font-size:12px; opacity:0.8; font-weight:500;">Business Chat Integration</p>
+            </div>
+        </div>
 
     <div class="chat-body">
         <div class="contact-info">
