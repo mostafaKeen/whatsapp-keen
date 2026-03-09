@@ -306,24 +306,18 @@ if ($hasValidAuth) {
         }
 
         .status-pill {
-            padding: 0.25rem 0.75rem;
+            padding: 0.4rem 0.8rem;
             border-radius: 9999px;
             font-size: 0.75rem;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
         
         .status-pill.approved { background: #dcfce7; color: #166534; }
         .status-pill.pending { background: #fef9c3; color: #854d0e; }
         .status-pill.rejected { background: #fee2e2; color: #991b1b; }
 
-        #toastContainer { position: fixed; bottom: 2rem; right: 2rem; z-index: 10000; }
-        .gup-toast {
-            background: rgba(15, 23, 42, 0.9);
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 12px;
-            margin-top: 0.75rem;
-            box-shadow: var(--shadow-lg);
             display: flex;
             align-items: center;
             gap: 12px;
@@ -797,13 +791,6 @@ if ($hasValidAuth) {
                     </table>
                 </div>
 
-                <!-- API Response Banner (persistent, always visible after edit/delete) -->
-                <div id="apiResponseBanner" class="mt-3" style="display:none;">
-                    <div class="alert alert-dismissible mb-0" id="apiResponseAlert" role="alert">
-                        <button type="button" class="close" onclick="$('#apiResponseBanner').hide()">&times;</button>
-                        <span id="apiResponseTitle"></span>
-                    </div>
-                </div>
             </div>
 
                 <!-- Template Preview Modal -->
@@ -863,50 +850,41 @@ if ($hasValidAuth) {
                     </div>
                 </div>
 
+            <div id="toastContainer"></div>
             <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
             <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-            <style>
-                #toastContainer { position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 280px; }
-                .gup-toast { padding: 12px 18px; margin-bottom: 10px; border-radius: 8px; color: #fff; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.2); opacity: 1; transition: opacity 0.5s; }
-                .gup-toast.success { background: #28a745; }
-                .gup-toast.error { background: #dc3545; }
-                .gup-toast.info { background: #007bff; }
-                
-                .contact-list-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-top: none; padding: 10px; border-radius: 0 0 5px 5px; }
-                .contact-item { border-bottom: 1px solid #f1f1f1; padding: 5px 0; }
-                .contact-item:last-child { border-bottom: none; }
-                .contact-item label { margin-bottom: 0; cursor: pointer; display: block; }
-                #contactSearchInput { border-radius: 5px 5px 0 0; }
-            </style>
-            <div id="toastContainer"></div>
             <script>
-                function showToast(msg, type, duration) {
+                // Global Notification Helpers
+                window.showToast = function(msg, type, duration) {
                     type = type || 'info';
-                    duration = duration || 3000;
-                    var icon = 'fa-info-circle';
-                    if (type === 'success') icon = 'fa-check-circle';
-                    if (type === 'error') icon = 'fa-times-circle';
-                    
-                    var $t = $('<div class="gup-toast shadow-lg border-left border-' + (type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info') + '" style="border-left-width: 4px !important;">' +
-                        '<i class="fas ' + icon + ' ' + (type === 'error' ? 'text-danger' : type === 'success' ? 'text-success' : 'text-info') + '"></i>' +
-                        '<span>' + msg + '</span>' +
-                        '</div>');
-                    $('#toastContainer').append($t);
-                    setTimeout(function() {
-                        $t.css({ 'opacity': 0, 'transform': 'translateX(20px)' });
-                        setTimeout(function() { $t.remove(); }, 400);
+                    duration = duration || 4000;
+                    var icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+                    var toast = $('<div class="gup-toast ' + type + '"><i class="fas ' + icon + '"></i><span>' + msg + '</span></div>');
+                    $('#toastContainer').append(toast);
+                    setTimeout(function(){ 
+                        toast.css({'opacity': '0', 'transform': 'translateX(20px)'}); 
+                        setTimeout(function(){ toast.remove(); }, 500); 
                     }, duration);
-                }
+                };
 
-                function showApiResponse(type, title, body) {
-                    var colorClass = type === 'success' ? 'alert-success' : 'alert-danger';
-                    var icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-                    
-                    $('#apiResponseAlert').removeClass('alert-success alert-danger').addClass(colorClass);
-                    $('#apiResponseAlert').find('i').removeClass().addClass('fas ' + icon + ' mr-2');
-                    $('#apiResponseTitle').html('<strong>' + title + '</strong> ' + body);
-                    $('#apiResponseBanner').fadeIn();
-                    $('html, body').animate({ scrollTop: $('#apiResponseBanner').offset().top - 120 }, 400);
+                window.showApiResponse = function(msg, type) {
+                    var banner = $('#apiResponseBanner');
+                    var alert = $('#apiResponseAlert');
+                    alert.removeClass('alert-success alert-danger alert-info');
+                    var bsType = type === 'success' ? 'alert-success' : (type === 'error' ? 'alert-danger' : 'alert-info');
+                    alert.addClass(bsType);
+                    $('#apiResponseTitle').html(msg);
+                    banner.fadeIn();
+                    // Scroll to banner if not in view
+                    if (!isInViewport(banner[0])) {
+                        $('html, body').animate({ scrollTop: banner.offset().top - 120 }, 500);
+                    }
+                };
+
+                function isInViewport(element) {
+                    if (!element) return true;
+                    var rect = element.getBoundingClientRect();
+                    return (rect.top >= 0 && rect.left >= 0 && rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && rect.right <= (window.innerWidth || document.documentElement.clientWidth));
                 }
 
                 $(document).ready(function() {
