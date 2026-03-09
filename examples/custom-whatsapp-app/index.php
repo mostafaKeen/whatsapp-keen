@@ -1179,13 +1179,43 @@ if ($b24Service !== null) {
                             return (t.id || t.templateId || t.externalId) === templateId;
                         });
                         
+                        var autoMediaUrl = '';
+                        if (selectedTemplate) {
+                            try {
+                                var meta = {};
+                                // Try containerMeta first
+                                if (selectedTemplate.containerMeta) {
+                                    meta = typeof selectedTemplate.containerMeta === 'string' ? JSON.parse(selectedTemplate.containerMeta) : selectedTemplate.containerMeta;
+                                }
+                                if (meta.mediaUrl || meta.sampleMedia) {
+                                    autoMediaUrl = meta.mediaUrl || meta.sampleMedia;
+                                } else if (selectedTemplate.meta) {
+                                    // Try meta second
+                                    var metaObj = typeof selectedTemplate.meta === 'string' ? JSON.parse(selectedTemplate.meta) : selectedTemplate.meta;
+                                    if (metaObj && (metaObj.mediaUrl || metaObj.sampleMedia)) {
+                                        autoMediaUrl = metaObj.mediaUrl || metaObj.sampleMedia;
+                                    }
+                                }
+                            } catch(e) {
+                                console.warn('Meta parsing failed:', e);
+                            }
+                        }
+
                         // Check if template type requires media (IMAGE, VIDEO, DOCUMENT)
                         if (selectedTemplate && ['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(selectedTemplate.templateType) !== -1) {
-                            $('#campaignMediaUrlGroup').slideDown();
-                            $('#campaignMediaUrl').prop('required', true);
+                            $('#campaignMediaUrl').val(autoMediaUrl);
+                            if (autoMediaUrl) {
+                                // If found in template data, no need to ask user
+                                $('#campaignMediaUrlGroup').slideUp();
+                                $('#campaignMediaUrl').prop('required', false);
+                            } else {
+                                // Not found, ask user to provide it
+                                $('#campaignMediaUrlGroup').slideDown();
+                                $('#campaignMediaUrl').prop('required', true);
+                            }
                         } else {
                             $('#campaignMediaUrlGroup').slideUp();
-                            $('#campaignMediaUrl').prop('required', false);
+                            $('#campaignMediaUrl').val('').prop('required', false);
                         }
                     });
 
