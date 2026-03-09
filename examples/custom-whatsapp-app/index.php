@@ -195,6 +195,7 @@ if ($b24Service !== null) {
                     <div>
                         <button id="createTemplateBtn" class="btn btn-sm btn-success mr-2" data-toggle="modal" data-target="#createTemplateModal">+ Create New Template</button>
                         <button id="sendCampaignBtn" class="btn btn-sm btn-info mr-2" data-toggle="modal" data-target="#campaignModal"><i class="fas fa-paper-plane"></i> Send Bulk Campaign</button>
+                        <button id="campaignAnalysisBtn" class="btn btn-sm btn-secondary mr-2" data-toggle="modal" data-target="#campaignAnalysisModal"><i class="fas fa-chart-bar"></i> Campaign Analysis</button>
                         <button id="refreshTemplates" class="btn btn-sm btn-primary">Refresh List</button>
                     </div>
                 </div>
@@ -277,6 +278,42 @@ if ($b24Service !== null) {
                                     <button type="submit" id="startCampaignBtn" class="btn btn-info">Start Campaign</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Analysis Modal -->
+                <div class="modal fade" id="campaignAnalysisModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header bg-secondary text-white">
+                                <h5 class="modal-title"><i class="fas fa-chart-bar"></i> Campaign Analysis</h5>
+                                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered table-hover">
+                                        <thead class="thead-light">
+                                            <tr>
+                                                <th>Date &amp; Time</th>
+                                                <th>Template / Campaign</th>
+                                                <th>Total Targets</th>
+                                                <th>Sent (API)</th>
+                                                <th class="text-success">Delivered (Webhook)</th>
+                                                <th class="text-primary">Read (Webhook)</th>
+                                                <th class="text-danger">Failed (Both)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="campaignAnalysisList">
+                                            <tr><td colspan="7" class="text-center">Loading campaign data...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="refreshAnalysisBtn">Refresh Data</button>
+                                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1186,6 +1223,49 @@ if ($b24Service !== null) {
                         $('#pauseCampaignBtn').show();
                         $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
                         processNextCampaignBatch();
+                    });
+
+                    // --- Campaign Analysis Logic ---
+                    function loadCampaignAnalysis() {
+                        $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
+                        $.ajax({
+                            url: 'get_campaign_analysis.php?' + new Date().getTime(),
+                            method: 'GET',
+                            success: function(res) {
+                                if (res.status === 'success' && res.data && res.data.length > 0) {
+                                    var html = '';
+                                    res.data.forEach(function(job) {
+                                        var d = job.delivered || 0;
+                                        var r = job.read || 0;
+                                        var f = (job.failed || 0) + (job.webhook_failed || 0);
+                                        var sent = job.success || 0;
+                                        html += '<tr>' +
+                                                '<td>' + (job.created_at || '-') + '</td>' +
+                                                '<td><strong>' + (job.template_name || 'Unknown') + '</strong><br><small class="text-muted">' + job.job_id + '</small></td>' +
+                                                '<td>' + job.total + '</td>' +
+                                                '<td>' + sent + '</td>' +
+                                                '<td class="text-success font-weight-bold">' + d + '</td>' +
+                                                '<td class="text-primary font-weight-bold">' + r + '</td>' +
+                                                '<td class="text-danger font-weight-bold">' + f + '</td>' +
+                                                '</tr>';
+                                    });
+                                    $('#campaignAnalysisList').html(html);
+                                } else {
+                                    $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center text-muted">No campaigns found.</td></tr>');
+                                }
+                            },
+                            error: function() {
+                                $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center text-danger">Failed to load analysis data.</td></tr>');
+                            }
+                        });
+                    }
+
+                    $('#campaignAnalysisModal').on('show.bs.modal', function() {
+                        loadCampaignAnalysis();
+                    });
+                    
+                    $('#refreshAnalysisBtn').off('click').on('click', function() {
+                        loadCampaignAnalysis();
                     });
                 });
             </script>

@@ -80,6 +80,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     if (!$found && $recipientPhone) {
                         updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
                     }
+                    updateCampaignJobStatus($JOB_DIR, $gsId ?? $id ?? $metaId, $status);
                 }
                 error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
             }

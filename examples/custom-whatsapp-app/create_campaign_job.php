@@ -46,10 +46,14 @@ $jobData = [
     'template_name' => $templateName,
     'source' => $source,
     'app_name' => $appName,
+    'created_at' => date('Y-m-d H:i:s'),
     'total' => 0,
     'processed' => 0,
     'success' => 0,
     'failed' => 0,
+    'delivered' => 0,
+    'read' => 0,
+    'webhook_failed' => 0,
     'status' => 'queued',
     'targets' => []
 ];
