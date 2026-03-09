@@ -88,12 +88,18 @@ require_once __DIR__ . '/../../vendor/autoload.php';
             var completedCount = 0;
 
             placements.forEach(function(pCode) {
-                // 1. Get ALL currently bound handlers for this placement
                 BX24.callMethod('placement.get', { PLACEMENT: pCode }, function(res) {
+                    if (res.error()) {
+                        console.error('Error fetching placement ' + pCode, res.error());
+                        // If error is 'access_denied', it means scope is missing
+                        if (res.error().error === 'access_denied') {
+                             alert('Access Denied: Please ensure "Placement" scope is enabled in your Bitrix24 Local App settings.');
+                        }
+                    }
+
                     if (res.data()) {
                         var existing = res.data();
                         existing.forEach(function(item) {
-                            // 2. Unbind every single one found
                             BX24.callMethod('placement.unbind', {
                                 PLACEMENT: pCode,
                                 HANDLER: item.handler
@@ -101,22 +107,20 @@ require_once __DIR__ . '/../../vendor/autoload.php';
                         });
                     }
                     
-                    // 3. Bind the new one
                     BX24.callMethod('placement.bind', {
                         PLACEMENT: pCode,
                         HANDLER: placementUrl,
                         TITLE: 'KEEN WABA'
                     }, function(bindRes) {
-                        completedCount++;
-                        console.log('Finished binding ' + pCode, bindRes.data());
-                        
-                        // 4. Once both are done, finish installation
-                        if (completedCount >= placements.length) {
-                            console.log('Placements registered. Finishing installation...');
-                            BX24.installFinish();
-                            
-                            document.getElementById('status').style.display = 'none';
-                            document.getElementById('nextSteps').style.display = 'block';
+                        if (bindRes.error()) {
+                            alert('Failed to bind ' + pCode + ': ' + bindRes.error());
+                        } else {
+                            completedCount++;
+                            if (completedCount >= placements.length) {
+                                BX24.installFinish();
+                                document.getElementById('status').style.display = 'none';
+                                document.getElementById('nextSteps').style.display = 'block';
+                            }
                         }
                     });
                 });
