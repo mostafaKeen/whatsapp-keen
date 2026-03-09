@@ -99,21 +99,29 @@ $curls = [];
 $responses = [];
 
 // Prepare requests
+$postDataMap = []; // Store payload per index for error logging
 foreach ($batch as $i => &$t) {
-    // Setup params based on template type
+    // Setup params and message based on template type
     $params = [];
+    $messageData = null;
     $mediaUrl = $jobData['media_url'] ?? '';
     $tempType = strtoupper($jobData['template_type'] ?? 'TEXT');
 
     if (!empty($mediaUrl)) {
         if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT') {
-            $params[] = [
-                'type' => strtolower($tempType),
-                'originalUrl' => $mediaUrl,
-                'previewUrl' => $mediaUrl
+            $typeLower = strtolower($tempType);
+            // Format for Gupshup Partner API media header
+            $messageData = [
+                'type' => $typeLower,
+                $typeLower => [
+                    'link' => $mediaUrl
+                ]
             ];
+            // If the template has an image header, 'params' should only contain body vars.
+            // For now, we don't support body vars, so we leave it empty.
         } else {
-            // Probably a body variable if user pasted a URL where a text param was expected
+            // If it's a TEXT template but user provided a media URL, 
+            // treat it as the first body variable (fallback).
             $params[] = $mediaUrl;
         }
     }
@@ -129,6 +137,11 @@ foreach ($batch as $i => &$t) {
         ]),
         'src.name' => $jobData['app_name']
     ];
+
+    if ($messageData) {
+        $postData['message'] = json_encode($messageData);
+    }
+    $postDataMap[$i] = $postData;
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -166,8 +179,9 @@ foreach ($curls as $i => $ch) {
 
     $jobData['processed']++;
     $decoded = json_decode($response, true);
+    $respStatus = strtolower($decoded['status'] ?? '');
 
-    if ($httpCode >= 200 && $httpCode < 300 && ($decoded['status'] ?? '') === 'success') {
+    if ($httpCode >= 200 && $httpCode < 300 && in_array($respStatus, ['success', 'submitted'])) {
         $batch[$i]['status'] = 'sent';
         $batch[$i]['message_id'] = $decoded['messageId'] ?? null;
         $jobData['success']++;
@@ -180,8 +194,8 @@ foreach ($curls as $i => $ch) {
         $batch[$i]['error'] = $error ?: ($decoded['message'] ?? 'HTTP ' . $httpCode);
         $jobData['failed']++;
         
-        // Log for Step 7
-        logDetailedError($jobId, $t, $postData, $response, $httpCode, $error);
+        // Log for debugging
+        logDetailedError($jobId, $batch[$i], $postDataMap[$i] ?? [], $response, $httpCode, $error);
     }
 }
 
