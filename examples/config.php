@@ -1,6 +1,6 @@
 <?php
 return [
-    'webhook_url' => 'https://westgate.bitrix24.com/rest/9034/qhl2j2p7gdbsftn1/',
+    'webhook_url' => 'https://westgate.bitrix24.com/rest/9034/i0r11egmkpnww9em/',
     'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => 'local.69aecae8e7cd90.22555231',
     'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => 'ttdvoiSOtXs6CojVlDbUqR6wD981YsLTOnMvD3yVDL9Nm6qyIA',
     'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => 'imconnector,im,crm,placement',
