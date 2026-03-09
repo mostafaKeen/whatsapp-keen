@@ -1,6 +1,51 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../../vendor/autoload.php';
+
+// If Bitrix24 sends installation POST data, handle the placement binding immediately.
+$is_installed = false;
+$error_message = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['AUTH_ID'])) {
+    
+    // Construct the handler URL dynamically
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+    $host = $_SERVER['HTTP_HOST'];
+    $path = str_replace('install.php', 'placement.php', $_SERVER['REQUEST_URI']);
+    // Remove query params if any
+    $path = explode('?', $path)[0];
+    
+    $handlerBackUrl = $protocol . $host . $path;
+    
+    $domain = $_POST['DOMAIN'] ?? '';
+    $auth_id = $_POST['AUTH_ID'] ?? '';
+    
+    if ($domain && $auth_id) {
+        $baseUrl = 'https://' . $domain . '/rest/';
+        
+        $placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
+        
+        foreach ($placements as $pCode) {
+            $bindUrl = $baseUrl . 'placement.bind.json?auth=' . $auth_id;
+            
+            $postData = [
+                'PLACEMENT' => $pCode,
+                'HANDLER' => $handlerBackUrl,
+                'TITLE' => 'KEEN WABA'
+            ];
+            
+            $ch = curl_init($bindUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+            $response = curl_exec($ch);
+            curl_close($ch);
+        }
+        $is_installed = true;
+    } else {
+        $error_message = 'Missing domain or auth token during installation.';
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -76,55 +121,23 @@ require_once __DIR__ . '/../../vendor/autoload.php';
     <script>
         BX24.init(function() {
             console.log("BX24 Initialized");
+            
+            <?php if ($is_installed): ?>
+                // If PHP handled the binding, we just finish the install process right away.
+                BX24.installFinish();
+                document.getElementById('finishBtn').style.display = 'none';
+                document.getElementById('nextSteps').style.display = 'block';
+            <?php endif; ?>
         });
 
         document.getElementById('finishBtn').addEventListener('click', function() {
-            document.getElementById('status').style.display = 'block';
-            this.disabled = true;
-            
-            // Register Placements
-            var placementUrl = window.location.href.replace('install.php', 'placement.php');
-            var placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
-            var completedCount = 0;
-
-            placements.forEach(function(pCode) {
-                BX24.callMethod('placement.get', { PLACEMENT: pCode }, function(res) {
-                    if (res.error()) {
-                        console.error('Error fetching placement ' + pCode, res.error());
-                        // If error is 'access_denied', it means scope is missing
-                        if (res.error().error === 'access_denied') {
-                             alert('Access Denied: Please ensure "Placement" scope is enabled in your Bitrix24 Local App settings.');
-                        }
-                    }
-
-                    if (res.data()) {
-                        var existing = res.data();
-                        existing.forEach(function(item) {
-                            BX24.callMethod('placement.unbind', {
-                                PLACEMENT: pCode,
-                                HANDLER: item.handler
-                            });
-                        });
-                    }
-                    
-                    BX24.callMethod('placement.bind', {
-                        PLACEMENT: pCode,
-                        HANDLER: placementUrl,
-                        TITLE: 'KEEN WABA'
-                    }, function(bindRes) {
-                        if (bindRes.error()) {
-                            alert('Failed to bind ' + pCode + ': ' + bindRes.error());
-                        } else {
-                            completedCount++;
-                            if (completedCount >= placements.length) {
-                                BX24.installFinish();
-                                document.getElementById('status').style.display = 'none';
-                                document.getElementById('nextSteps').style.display = 'block';
-                            }
-                        }
-                    });
-                });
-            });
+            // Because Bitrix24 loads the iframe with POST data, and this page is install.php,
+            // we should have already triggered the PHP block above on load.
+            // If the user manually clicks "Complete Setup" without the POST data, 
+            // we fallback to finishing the install here, but bindings might fail.
+            BX24.installFinish();
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('nextSteps').style.display = 'block';
         });
     </script>
 </body>
