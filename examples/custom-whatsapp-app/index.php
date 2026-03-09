@@ -50,7 +50,7 @@ if (isset($_GET['clear_cache'])) {
 }
 
 // Debug logs
-error_log('=== Bitrix24 WhatsApp Direct Index.php Debug ===');
+// Debug logging removed for production
 
 // Use $_REQUEST which includes both GET and POST
 $hasAuthData = isset($_REQUEST['AUTH_ID']) && !empty($_REQUEST['AUTH_ID']);
@@ -140,7 +140,7 @@ if ($b24Service !== null) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WhatsApp Direct Settings</title>
+    <title>KEEN WABA</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -150,40 +150,26 @@ if ($b24Service !== null) {
 <body class="p-4">
     <div class="container">
         <div class="d-flex justify-content-between align-items-center">
-            <h1>WhatsApp Direct Integration</h1>
-            <a href="?clear_cache=1" class="btn btn-sm btn-outline-secondary">Clear Cache</a>
+            <h1><i class="fab fa-whatsapp text-success"></i> KEEN WABA</h1>
         </div>
         <hr>
         
         <?php if ($errorMessage): ?>
             <div class="alert alert-danger">
-                <?= $errorMessage ?>
+                <i class="fas fa-exclamation-triangle"></i> <?= $errorMessage ?>
             </div>
         <?php elseif (!$isRegistered): ?>
             <div class="alert alert-warning">
-                Connector <b>WhatsApp Direct</b> is not registered yet.<br>
-                <b>Debug:</b> Registration may have failed or Bitrix24 did not return the connector.<br>
-                <b>Connector ID:</b> <?= htmlspecialchars($connectorId) ?><br>
-                <b>Session ID:</b> <?= htmlspecialchars($sessionManager->getSessionId()) ?><br>
-                <b>Connectors returned:</b> <?= htmlspecialchars(implode(', ', array_map(function($c){return $c->id;}, $allConnectors))) ?><br>
+                <i class="fas fa-exclamation-circle"></i> WhatsApp connector is not registered yet. Please set up the connector from your Bitrix24 Contact Center.
             </div>
             <form method="post">
                 <input type="hidden" name="action" value="register">
-                <button type="submit" class="btn btn-success btn-lg">Register WhatsApp Direct</button>
+                <button type="submit" class="btn btn-success btn-lg"><i class="fab fa-whatsapp"></i> Register WhatsApp Connector</button>
             </form>
         <?php else: ?>
-            <div class="alert alert-success">
-                <h4>✓ WhatsApp Direct Connector is Active!</h4>
-                <p>Search for <b>"WhatsApp Direct"</b> in your Bitrix24 Contact Center.</p>
-                <b>Debug:</b> Connector found in Bitrix24 connector list.<br>
-                <b>Connector ID:</b> <?= htmlspecialchars($connectorId) ?><br>
-                <b>Session ID:</b> <?= htmlspecialchars($sessionManager->getSessionId()) ?><br>
-                <b>Connectors returned:</b> <?= htmlspecialchars(implode(', ', array_map(function($c){return $c->id;}, $allConnectors))) ?><br>
-            </div>
-            <div class="card bg-light mb-4">
-                <div class="card-body">
-                    <strong>Handler URL:</strong> <code><?= 'https://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/handler.php' ?></code>
-                </div>
+            <div class="alert alert-success mb-4">
+                <h5 class="mb-1"><i class="fas fa-check-circle"></i> WhatsApp Connector is Active</h5>
+                <small class="text-muted">Connected and ready to send messages.</small>
             </div>
         <?php endif; ?>
 
@@ -210,9 +196,7 @@ if ($b24Service !== null) {
                                     <button type="button" class="close text-white" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="alert alert-info border-info small mb-3">
-                                        <i class="fas fa-info-circle"></i> Using Gupshup App: <strong><?= htmlspecialchars($whatsappConfig['gupshup_app_id']) ?></strong>
-                                    </div>
+
                                     <div class="form-group">
                                         <label>Select Template *</label>
                                         <select name="templateId" id="campaignTemplateSelect" class="form-control" required>
@@ -605,8 +589,7 @@ if ($b24Service !== null) {
                 <div id="apiResponseBanner" class="mt-3" style="display:none;">
                     <div class="alert alert-dismissible mb-0" id="apiResponseAlert" role="alert">
                         <button type="button" class="close" onclick="$('#apiResponseBanner').hide()">&times;</button>
-                        <strong id="apiResponseTitle"></strong>
-                        <pre id="apiResponseBody" style="font-size:12px; white-space:pre-wrap; margin:6px 0 0 0;"></pre>
+                        <span id="apiResponseTitle"></span>
                     </div>
                 </div>
             </div>
@@ -627,8 +610,7 @@ if ($b24Service !== null) {
                                 <strong>Category:</strong> <span id="tCategory"></span><br>
                                 <strong>Status:</strong> <span id="tStatus"></span><br>
                                 <strong>Type:</strong> <span id="tType"></span><br>
-                                <strong>Language:</strong> <span id="tLang"></span><br>
-                                <strong>WABA ID:</strong> <span id="tWaba"></span>
+                                <strong>Language:</strong> <span id="tLang"></span>
                             </div>
 
                             <div id="tMediaSection" class="mb-3" style="display:none;">
@@ -680,7 +662,6 @@ if ($b24Service !== null) {
                     var colorClass = type === 'success' ? 'alert-success' : 'alert-danger';
                     $('#apiResponseAlert').removeClass('alert-success alert-danger').addClass(colorClass);
                     $('#apiResponseTitle').text(title);
-                    $('#apiResponseBody').text(body);
                     $('#apiResponseBanner').show();
                     $('html, body').animate({ scrollTop: $('#apiResponseBanner').offset().top - 80 }, 400);
                 }
@@ -763,14 +744,14 @@ if ($b24Service !== null) {
                                     loadTemplates();
                                     showToast('Template submitted for approval!', 'success');
                                 } else {
-                                    var detail = res.message || JSON.stringify(res, null, 2);
-                                    $('#createError').html('<strong>Error from Gupshup:</strong><br><pre style="font-size:11px;white-space:pre-wrap;">' + detail + '</pre>').show();
+                                    var detail = res.message || 'An error occurred while creating the template.';
+                                    $('#createError').html('<strong>Error:</strong> ' + detail).show();
                                 }
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             },
                             error: function(xhr) {
-                                var msg = 'HTTP ' + xhr.status + ': ' + (xhr.responseText || 'Unknown error');
-                                $('#createError').html('<strong>Request Failed:</strong><br><pre style="font-size:11px;white-space:pre-wrap;">' + msg + '</pre>').show();
+                                var msg = 'Request failed (HTTP ' + xhr.status + '). Please try again.';
+                                $('#createError').html('<strong>Error:</strong> ' + msg).show();
                                 $('#submitTemplateBtn').prop('disabled', false).text('Submit for Approval');
                             }
                         });
@@ -835,7 +816,6 @@ if ($b24Service !== null) {
                         $('#tStatus').text(t.status);
                         $('#tType').text(t.templateType);
                         $('#tLang').text(t.languageCode);
-                        $('#tWaba').text(t.wabaId);
                         $('#tData').text(t.data);
                         if (t.reason) { $('#tReason').text(t.reason); $('#tReasonAlert').show(); }
                         else { $('#tReasonAlert').hide(); }
@@ -975,30 +955,29 @@ if ($b24Service !== null) {
                                 try {
                                     res = (typeof rawData === 'object') ? rawData : JSON.parse(rawData);
                                 } catch(ex) {
-                                    showApiResponse('danger', 'Server returned non-JSON (possible PHP error):', rawData);
-                                    showToast('Server error — check result below table', 'error', 10000);
+                                    showApiResponse('danger', 'An unexpected server error occurred. Please try again.', '');
+                                    showToast('Server error', 'error', 5000);
                                     $('#editTemplateModal').modal('hide');
                                     return;
                                 }
                                 if (res.status === 'success' && !(res.message && res.message.toLowerCase().indexOf('error') !== -1)) {
-                                    showApiResponse('success', 'Template updated successfully!', JSON.stringify(res, null, 2));
+                                    showApiResponse('success', 'Template updated successfully!', '');
                                     showToast('Template updated successfully!', 'success');
                                     $('#editTemplateModal').modal('hide');
                                     loadTemplates();
                                 } else {
-                                    var detail = res.message || JSON.stringify(res, null, 2);
-                                    showApiResponse('danger', 'Error from Gupshup:', detail + '\n\nFull response:\n' + JSON.stringify(res, null, 2));
-                                    showToast('Error from Gupshup — check result below table', 'error', 10000);
+                                    var detail = res.message || 'An error occurred while updating the template.';
+                                    showApiResponse('danger', detail, '');
+                                    showToast('Error updating template', 'error', 5000);
                                     $('#editTemplateModal').modal('hide');
                                 }
                             },
                             error: function(xhr) {
                                 isEditSubmitting = false;
-                                var statusMsg = xhr.status === 429 ? 'Rate limit hit (429 Too Many Requests). Please wait a minute before trying again.' :
-                                               xhr.status === 400 ? 'Bad Request (400): Gupshup rejected this edit.' : 'HTTP ' + xhr.status;
-                                var body = statusMsg + '\n\nRaw response:\n' + (xhr.responseText || 'No response body');
-                                showApiResponse('danger', 'Edit request failed:', body);
-                                showToast('Edit failed — check result below table', 'error', 10000);
+                                var statusMsg = xhr.status === 429 ? 'Rate limit hit. Please wait a minute before trying again.' :
+                                               xhr.status === 400 ? 'This edit was rejected. Please check your template content.' : 'Request failed (HTTP ' + xhr.status + ')';
+                                showApiResponse('danger', statusMsg, '');
+                                showToast('Edit failed', 'error', 5000);
                                 $('#editTemplateModal').modal('hide');
                             }
                         });
@@ -1022,14 +1001,13 @@ if ($b24Service !== null) {
                                     loadTemplates();
                                 } else {
                                     var detail = res.message || JSON.stringify(res, null, 2);
-                                    showApiResponse('danger', 'Delete Error:', detail);
-                                    showToast('Delete failed - check banner', 'error', 6000);
+                                    showApiResponse('danger', detail, '');
+                                    showToast('Delete failed', 'error', 5000);
                                 }
                             },
                             error: function(xhr) {
-                                var msg = 'HTTP ' + xhr.status + '\n' + (xhr.responseText || 'No response body');
-                                showApiResponse('danger', 'Delete Request Failed:', msg);
-                                showToast('Delete failed: HTTP ' + xhr.status, 'error', 6000);
+                                showApiResponse('danger', 'Delete request failed (HTTP ' + xhr.status + ')', '');
+                                showToast('Delete failed', 'error', 5000);
                             }
                         });
                     });
@@ -1353,7 +1331,7 @@ if ($b24Service !== null) {
                                         var sent = job.success || 0;
                                         html += '<tr>' +
                                                 '<td>' + (job.created_at || '-') + '</td>' +
-                                                '<td><strong>' + (job.template_name || 'Unknown') + '</strong><br><small class="text-muted">' + job.job_id + '</small></td>' +
+                                                '<td><strong>' + (job.template_name || 'Unknown') + '</strong></td>' +
                                                 '<td>' + job.total + '</td>' +
                                                 '<td>' + sent + '</td>' +
                                                 '<td class="text-success font-weight-bold">' + d + '</td>' +
@@ -1459,24 +1437,7 @@ if ($b24Service !== null) {
             </script>
         <?php endif; ?>
 
-        <?php if (!empty($allConnectors)): ?>
-            <div class="mt-5 p-3 border rounded bg-light">
-                <h5>Registered Connectors:</h5>
-                <ul class="list-group mt-2">
-                    <?php foreach ($allConnectors as $conn): ?>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong><?= htmlspecialchars($conn->NAME ?? $conn->id) ?></strong><br>
-                                <small class="text-muted">ID: <?= htmlspecialchars($conn->id) ?></small>
-                            </div>
-                            <?php if ($conn->id === $connectorId): ?>
-                                <span class="badge badge-success">Active</span>
-                            <?php endif; ?>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
+
     </div>
 </body>
 </html>
