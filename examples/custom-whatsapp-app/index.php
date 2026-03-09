@@ -1544,29 +1544,39 @@ if ($hasValidAuth) {
                     // --- Campaign Analysis Logic ---
                     function loadCampaignAnalysis() {
                         $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
-                        $.ajax({
-                            url: 'get_campaign_analysis.php?' + new Date().getTime(),
-                            method: 'GET',
                             success: function(res) {
                                 if (res.status === 'success' && res.data && res.data.length > 0) {
-                                    var html = '';
-                                     res.data.forEach(function(job) {
-                                        var d = job.delivered || 0;
-                                        var r = job.read || 0;
-                                        var f = (job.failed || 0) + (job.webhook_failed || 0);
-                                        var sent = job.success || 0;
-                                        html += '<tr>' +
-                                                '<td class="small">' + (job.created_at || '-') + '</td>' +
-                                                '<td><div class="font-weight-bold text-primary">' + (job.template_name || 'Unknown') + '</div><div class="small text-muted">' + job.job_id + '</div></td>' +
-                                                '<td class="font-weight-bold">' + job.total + '</td>' +
-                                                '<td>' + sent + '</td>' +
-                                                '<td><span class="text-success font-weight-bold">' + d + '</span></td>' +
-                                                '<td><span class="text-primary font-weight-bold">' + r + '</span></td>' +
-                                                '<td><span class="text-danger font-weight-bold">' + f + '</span></td>' +
-                                                '<td class="text-right"><button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-search-plus mr-1"></i> Details</button></td>' +
-                                                '</tr>';
-                                    });
-                                    $('#campaignAnalysisList').html(html);
+                                        var html = '<div class="table-responsive" style="max-height: 400px; overflow-y: auto;">' +
+                                            '<table class="table table-sm table-modern table-hover align-middle">' +
+                                            '<thead><tr>' +
+                                            '<th>Executed</th>' +
+                                            '<th>Template</th>' +
+                                            '<th>Targets</th>' +
+                                            '<th>Sent</th>' +
+                                            '<th>Delivered</th>' +
+                                            '<th>Read</th>' +
+                                            '<th>Failed</th>' +
+                                            '<th>Manage</th>' +
+                                            '</tr></thead><tbody>';
+
+                                        res.data.forEach(function(job) {
+                                            var d = job.delivered || 0;
+                                            var r = job.read || 0;
+                                            var f = (job.failed || 0) + (job.webhook_failed || 0);
+                                            var sent = job.success || 0;
+                                            html += '<tr>' +
+                                                    '<td class="small">' + (job.created_at || '-') + '</td>' +
+                                                    '<td><div class="font-weight-bold text-primary">' + (job.template_name || 'Unknown') + '</div><div class="small text-muted">' + job.job_id + '</div></td>' +
+                                                    '<td class="font-weight-bold">' + job.total + '</td>' +
+                                                    '<td>' + sent + '</td>' +
+                                                    '<td><span class="text-success font-weight-bold">' + d + '</span></td>' +
+                                                    '<td><span class="text-primary font-weight-bold">' + r + '</span></td>' +
+                                                    '<td><span class="text-danger font-weight-bold">' + f + '</span></td>' +
+                                                    '<td class="text-right"><button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-search-plus mr-1"></i> Details</button></td>' +
+                                                    '</tr>';
+                                        });
+                                        html += '</tbody></table></div>';
+                                        $('#campaignAnalysisList').html(html);
                                 } else {
                                     $('#campaignAnalysisList').html('<tr><td colspan="8" class="text-center text-muted">No campaigns found.</td></tr>');
                                 }

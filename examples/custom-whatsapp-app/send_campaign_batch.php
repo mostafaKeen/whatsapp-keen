@@ -71,6 +71,7 @@ foreach ($jobData['targets'] as $index => &$target) {
         }
     }
 }
+unset($target);
 
 if (empty($batch)) {
     $jobData['status'] = 'completed';
@@ -155,6 +156,7 @@ foreach ($batch as $i => &$t) {
 
     $curls[$i] = $ch;
 }
+unset($t);
 
 // We process sequentially so we can stop immediately if we hit 429
 $rateLimited = false;
@@ -205,8 +207,8 @@ if ($rateLimited) {
 
 // Check if everything is done
 $allDone = true;
-foreach ($jobData['targets'] as $t) {
-    if ($t['status'] === 'pending' || $t['status'] === 'rate_limited') {
+foreach ($jobData['targets'] as $chk) {
+    if ($chk['status'] === 'pending' || $chk['status'] === 'rate_limited') {
         $allDone = false;
         break;
     }
