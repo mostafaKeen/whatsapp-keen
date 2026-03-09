@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="//api.bitrix24.com/api/v1/"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
