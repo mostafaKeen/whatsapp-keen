@@ -105,7 +105,10 @@ foreach ($batch as $i => &$t) {
         'source' => $jobData['source'],
         'sandbox' => 'false',
         'destination' => $t['phone'],
-        'template' => json_encode(['id' => $jobData['template_id'], 'params' => []]),
+        'template' => json_encode([
+            'id' => $jobData['template_id'], 
+            'params' => !empty($jobData['media_url']) ? [$jobData['media_url']] : []
+        ]),
         'src.name' => $jobData['app_name']
     ];
 

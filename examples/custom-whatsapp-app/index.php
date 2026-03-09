@@ -219,6 +219,11 @@ if ($b24Service !== null) {
                                             <option value="">-- Select an approved template --</option>
                                         </select>
                                     </div>
+                                    <div class="form-group" id="campaignMediaUrlGroup" style="display:none;">
+                                        <label>Media Header URL (Required for this template) *</label>
+                                        <input type="url" name="mediaUrl" id="campaignMediaUrl" class="form-control" placeholder="https://example.com/image.jpg">
+                                        <small class="text-muted">Direct link to the IMAGE, VIDEO, or DOCUMENT file.</small>
+                                    </div>
                                     
                                     <div class="form-group mt-3">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -1165,6 +1170,22 @@ if ($b24Service !== null) {
                                     $sel.append('<option value="'+(t.id || t.templateId || t.externalId)+'">'+t.elementName+' ('+t.templateType+')</option>');
                                 }
                             });
+                        }
+                    });
+
+                    $('#campaignTemplateSelect').on('change', function() {
+                        var templateId = $(this).val();
+                        var selectedTemplate = (window.allTemplatesData || []).find(function(t) {
+                            return (t.id || t.templateId || t.externalId) === templateId;
+                        });
+                        
+                        // Check if template type requires media (IMAGE, VIDEO, DOCUMENT)
+                        if (selectedTemplate && ['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(selectedTemplate.templateType) !== -1) {
+                            $('#campaignMediaUrlGroup').slideDown();
+                            $('#campaignMediaUrl').prop('required', true);
+                        } else {
+                            $('#campaignMediaUrlGroup').slideUp();
+                            $('#campaignMediaUrl').prop('required', false);
                         }
                     });
 

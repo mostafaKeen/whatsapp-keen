@@ -12,6 +12,7 @@ $whatsappConfig = require __DIR__ . '/../config.php';
 $templateId = $_POST['templateId'] ?? '';
 $templateName = $_POST['templateName'] ?? '';
 $numbersRaw = $_POST['numbers'] ?? '';
+$mediaUrl = $_POST['mediaUrl'] ?? '';
 
 // Credentials from config
 $source = $whatsappConfig['gupshup_source'] ?? ''; 
@@ -55,6 +56,7 @@ $jobData = [
     'read' => 0,
     'webhook_failed' => 0,
     'status' => 'queued',
+    'media_url' => $mediaUrl,
     'targets' => []
 ];
 
