@@ -55,8 +55,22 @@ foreach ($decoded['entry'] ?? [] as $entry) {
         $field = $change['field'] ?? '';
         $value = $change['value'] ?? null;
 
-        if ($field === 'billing-event' || !is_array($value)) {
-            // Billing events - just log, no action needed
+        if (!is_array($value)) {
+            continue;
+        }
+
+        // ─── 0. BILLING EVENTS ───────────────────────────────────────────
+        if ($field === 'billing-event') {
+            $billing = $value['billing'] ?? null;
+            if ($billing) {
+                handleBillingEvent($BASE_VAR_DIR, $billing);
+            }
+            continue;
+        }
+
+        // ─── 0.5 TEMPLATE UPDATES ────────────────────────────────────────
+        if ($field === 'message_template_status_update') {
+            handleTemplateUpdate($BASE_VAR_DIR, $value);
             continue;
         }
 
@@ -69,6 +83,19 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $status  = $st['status']     ?? null;
                 $recipientPhone = preg_replace('/[^0-9]/', '', $st['recipient_id'] ?? '');
 
+                //Extract errors if exist
+                $errorMsg = null;
+                if (!empty($st['errors']) && is_array($st['errors'])) {
+                    $errParts = [];
+                    foreach ($st['errors'] as $err) {
+                        $code = isset($err['code']) ? "[Code: " . $err['code'] . "] " : "";
+                        $msg = $err['message'] ?? ($err['title'] ?? 'Unknown error');
+                        $detail = !empty($err['error_data']['details']) ? " - " . $err['error_data']['details'] : "";
+                        $errParts[] = $code . $msg . $detail;
+                    }
+                    $errorMsg = implode("; ", $errParts);
+                }
+
                 if (!$status) continue;
 
                 if ($status === 'enqueued' && ($gsId || $id) && $recipientPhone) {
@@ -80,7 +107,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     if (!$found && $recipientPhone) {
                         updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
                     }
-                    updateCampaignJobStatus($JOB_DIR, $gsId ?? $id ?? $metaId, $status);
+                    updateCampaignJobStatus($JOB_DIR, $gsId ?? $id ?? $metaId, $status, $errorMsg);
                 }
                 error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
             }
@@ -411,6 +438,160 @@ function updateStatusByPhone(string $dir, string $phone, ?string $gsId, ?string 
         }
         unset($entry);
 
+        if ($updated) {
+            file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+        }
+    }
+}
+
+/**
+ * Update campaign job target status by message ID for webhook analysis
+ */
+function updateCampaignJobStatus(string $jobDir, ?string $messageId, string $status, ?string $errorMsg = null): void {
+    if (!$messageId || !is_dir($jobDir)) return;
+
+    $files = glob($jobDir . '/*.json');
+    foreach ($files as $file) {
+        $fp = fopen($file, 'r+');
+        if (!$fp) continue;
+        if (!flock($fp, LOCK_EX)) {
+            fclose($fp);
+            continue;
+        }
+
+        $fileContent = stream_get_contents($fp);
+        $jobData = json_decode($fileContent, true);
+
+        if (!$jobData || !isset($jobData['targets'])) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            continue;
+        }
+
+        $updated = false;
+        foreach ($jobData['targets'] as &$target) {
+            $tMsgId = $target['message_id'] ?? null;
+            if ($tMsgId && $tMsgId === $messageId) {
+                // Determine actual status
+                $actualStatus = $status;
+                if ($status === 'failed') {
+                    $actualStatus = 'webhook_failed';
+                }
+                
+                $oldStatus = $target['status'] ?? '';
+                $statusOrder = ['sent' => 0, 'delivered' => 1, 'read' => 2, 'webhook_failed' => -1];
+                $oldRank = $statusOrder[$oldStatus] ?? 0;
+                $newRank = $statusOrder[$actualStatus] ?? 0;
+                
+                if ($newRank > $oldRank || $actualStatus === 'webhook_failed') {
+                    $target['status'] = $actualStatus;
+                    if ($errorMsg) {
+                        $target['error'] = $errorMsg;
+                    }
+                    $updated = true;
+                }
+                break;
+            }
+        }
+        unset($target);
+
+        if ($updated) {
+            $d = 0; $r = 0; $wf = 0;
+            foreach ($jobData['targets'] as $t) {
+                $s = $t['status'] ?? '';
+                if ($s === 'delivered') { $d++; }
+                elseif ($s === 'read') { $r++; $d++; } // read implicitly counts as delivered
+                elseif ($s === 'webhook_failed') { $wf++; }
+            }
+            $jobData['delivered'] = $d;
+            $jobData['read'] = $r;
+            $jobData['webhook_failed'] = $wf;
+
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, json_encode($jobData, JSON_PRETTY_PRINT));
+            
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            break; // Message ID found and updated, can stop searching
+        }
+
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+}
+
+/**
+ * Handle template status updates from Meta
+ */
+function handleTemplateUpdate(string $baseDir, array $data): void {
+    $file = $baseDir . '/template_updates.json';
+    $updates = file_exists($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+    
+    $entry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'event'     => $data['event'] ?? 'UNKNOWN',
+        'template_name' => $data['message_template_name'] ?? 'unknown',
+        'template_id'   => $data['message_template_id'] ?? null,
+        'reason'    => $data['reason'] ?? null,
+        'language'  => $data['message_template_language'] ?? null
+    ];
+    
+    // Prepend to show latest first
+    array_unshift($updates, $entry);
+    // Keep last 100 updates
+    $updates = array_slice($updates, 0, 100);
+    
+    file_put_contents($file, json_encode($updates, JSON_PRETTY_PRINT));
+}
+
+/**
+ * Handle billing events
+ */
+function handleBillingEvent(string $baseDir, array $billing): void {
+    $file = $baseDir . '/billing_history.json';
+    $history = file_exists($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+    
+    $deductions = $billing['deductions'] ?? [];
+    $refs = $billing['references'] ?? [];
+    
+    $entry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'destination' => $refs['destination'] ?? null,
+        'gs_id'       => $refs['gs_id'] ?? null,
+        'category'    => $deductions['category'] ?? null,
+        'type'        => $deductions['type'] ?? null,
+        'billable'    => $deductions['billable'] ?? null,
+        'model'       => $deductions['model'] ?? null
+    ];
+    
+    array_unshift($history, $entry);
+    $history = array_slice($history, 0, 500);
+    
+    file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+    
+    // Try to link billing to message history if possible
+    if (!empty($entry['gs_id'])) {
+        updateMessageBillingInLogs($baseDir . '/messages', $entry['gs_id'], $entry['category'], (bool)$entry['billable']);
+    }
+}
+
+/**
+ * Update message entry with billing info
+ */
+function updateMessageBillingInLogs(string $dir, string $gsId, ?string $category, bool $billable): void {
+    if (!is_dir($dir)) return;
+    $files = glob($dir . '/*.json');
+    foreach ($files as $file) {
+        $history = json_decode(file_get_contents($file), true) ?: [];
+        $updated = false;
+        foreach ($history as &$entry) {
+            if (($entry['id'] ?? null) === $gsId) {
+                $entry['billing_category'] = $category;
+                $entry['is_billable'] = $billable;
+                $updated = true;
+            }
+        }
         if ($updated) {
             file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
         }

@@ -291,28 +291,81 @@ if ($b24Service !== null) {
                                 <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                             </div>
                             <div class="modal-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered table-hover">
-                                        <thead class="thead-light">
-                                            <tr>
-                                                <th>Date &amp; Time</th>
-                                                <th>Template / Campaign</th>
-                                                <th>Total Targets</th>
-                                                <th>Sent (API)</th>
-                                                <th class="text-success">Delivered (Webhook)</th>
-                                                <th class="text-primary">Read (Webhook)</th>
-                                                <th class="text-danger">Failed (Both)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="campaignAnalysisList">
-                                            <tr><td colspan="7" class="text-center">Loading campaign data...</td></tr>
-                                        </tbody>
-                                    </table>
+                                <ul class="nav nav-tabs mb-3" id="analysisTabs" role="tablist">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="campaigns-tab" data-toggle="tab" href="#campaigns-pane" role="tab">Campaign Analysis</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="templates-tab" data-toggle="tab" href="#templates-pane" role="tab">Template Status Logs</a>
+                                    </li>
+                                </ul>
+                                <div class="tab-content" id="analysisTabContent">
+                                    <!-- Campaigns Tab -->
+                                    <div class="tab-pane fade show active" id="campaigns-pane" role="tabpanel">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered table-hover">
+                                                <thead class="thead-light">
+                                                    <tr>
+                                                        <th>Date &amp; Time</th>
+                                                        <th>Template / Campaign</th>
+                                                        <th>Total Targets</th>
+                                                        <th>Sent (API)</th>
+                                                        <th class="text-success">Delivered</th>
+                                                        <th class="text-primary">Read</th>
+                                                        <th class="text-danger">Failed</th>
+                                                        <th>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="campaignAnalysisList">
+                                                    <tr><td colspan="8" class="text-center">Loading campaign data...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <!-- Templates Tab -->
+                                    <div class="tab-pane fade" id="templates-pane" role="tabpanel">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered table-hover">
+                                                <thead class="thead-light">
+                                                    <tr>
+                                                        <th>Timestamp</th>
+                                                        <th>Template Name</th>
+                                                        <th>Event</th>
+                                                        <th>Language</th>
+                                                        <th>Reason / Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="templateStatusList">
+                                                    <tr><td colspan="5" class="text-center">Loading template updates...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" id="refreshAnalysisBtn">Refresh Data</button>
                                 <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Job Details Modal -->
+                <div class="modal fade" id="jobDetailsModal" tabindex="-1" style="z-index: 1060;">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content border-info">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title">Campaign Job Details</h5>
+                                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="jobDetailsContent">
+                                    <div class="text-center py-4"><div class="spinner-border text-info"></div> Loading details...</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                             </div>
                         </div>
                     </div>
@@ -1244,9 +1297,8 @@ if ($b24Service !== null) {
                                                 '<td><strong>' + (job.template_name || 'Unknown') + '</strong><br><small class="text-muted">' + job.job_id + '</small></td>' +
                                                 '<td>' + job.total + '</td>' +
                                                 '<td>' + sent + '</td>' +
-                                                '<td class="text-success font-weight-bold">' + d + '</td>' +
-                                                '<td class="text-primary font-weight-bold">' + r + '</td>' +
                                                 '<td class="text-danger font-weight-bold">' + f + '</td>' +
+                                                '<td><button class="btn btn-sm btn-outline-info" onclick="viewCampaignDetails(\'' + job.job_id + '\')"><i class="fas fa-eye"></i> Details</button></td>' +
                                                 '</tr>';
                                     });
                                     $('#campaignAnalysisList').html(html);
@@ -1258,7 +1310,82 @@ if ($b24Service !== null) {
                                 $('#campaignAnalysisList').html('<tr><td colspan="7" class="text-center text-danger">Failed to load analysis data.</td></tr>');
                             }
                         });
+                        loadTemplateUpdates();
                     }
+
+                    function loadTemplateUpdates() {
+                        $('#templateStatusList').html('<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
+                        $.ajax({
+                            url: 'get_template_updates.php?' + new Date().getTime(),
+                            method: 'GET',
+                            success: function(res) {
+                                if (res.status === 'success' && res.data && res.data.length > 0) {
+                                    var html = '';
+                                    res.data.forEach(function(item) {
+                                        var badgeClass = 'badge-secondary';
+                                        if (item.event === 'APPROVED') badgeClass = 'badge-success';
+                                        if (item.event === 'FAILED' || item.event === 'REJECTED') badgeClass = 'badge-danger';
+                                        if (item.event === 'PENDING') badgeClass = 'badge-warning';
+
+                                        html += '<tr>' +
+                                                '<td>' + (item.timestamp || '-') + '</td>' +
+                                                '<td><strong>' + (item.template_name || '-') + '</strong></td>' +
+                                                '<td><span class="badge ' + badgeClass + '">' + (item.event || 'UNKNOWN') + '</span></td>' +
+                                                '<td>' + (item.language || '-') + '</td>' +
+                                                '<td><small>' + (item.reason || '-') + '</small></td>' +
+                                                '</tr>';
+                                    });
+                                    $('#templateStatusList').html(html);
+                                } else {
+                                    $('#templateStatusList').html('<tr><td colspan="5" class="text-center text-muted">No template updates found.</td></tr>');
+                                }
+                            }
+                        });
+                    }
+
+                    window.viewCampaignDetails = function(jobId) {
+                        $('#jobDetailsModal').modal('show');
+                        $('#jobDetailsContent').html('<div class="text-center py-4"><div class="spinner-border text-info"></div> Loading job details...</div>');
+                        
+                        $.ajax({
+                            url: 'get_campaign_job_details.php?job_id=' + jobId,
+                            method: 'GET',
+                            success: function(res) {
+                                if (res.status === 'success' && res.data) {
+                                    var job = res.data;
+                                    var html = '<h6><strong>Campaign:</strong> ' + job.template_name + ' <small class="text-muted">(' + job.job_id + ')</small></h6>' +
+                                               '<p class="mb-3">Created: ' + job.created_at + ' | Total: ' + job.total + '</p>' +
+                                               '<div class="table-responsive" style="max-height: 400px; overflow-y: auto;">' +
+                                               '<table class="table table-sm table-striped">' +
+                                               '<thead class="thead-dark">' +
+                                               '<tr><th>Phone</th><th>Status</th><th>Error Details</th></tr>' +
+                                               '</thead><tbody>';
+                                    
+                                    if (job.targets && job.targets.length > 0) {
+                                        job.targets.forEach(function(t) {
+                                            var badge = 'badge-secondary';
+                                            if (t.status === 'sent' || t.status === 'success') badge = 'badge-info';
+                                            if (t.status === 'delivered') badge = 'badge-success';
+                                            if (t.status === 'read') badge = 'badge-primary';
+                                            if (t.status === 'failed' || t.status === 'webhook_failed') badge = 'badge-danger';
+
+                                            html += '<tr>' +
+                                                    '<td>' + t.phone + '</td>' +
+                                                    '<td><span class="badge ' + badge + '">' + t.status + '</span></td>' +
+                                                    '<td class="text-danger"><small>' + (t.error || '-') + '</small></td>' +
+                                                    '</tr>';
+                                        });
+                                    } else {
+                                        html += '<tr><td colspan="3" class="text-center">No targets found in job.</td></tr>';
+                                    }
+                                    html += '</tbody></table></div>';
+                                    $('#jobDetailsContent').html(html);
+                                } else {
+                                    $('#jobDetailsContent').html('<div class="alert alert-danger">Error: ' + (res.message || 'Could not load details') + '</div>');
+                                }
+                            }
+                        });
+                    };
 
                     $('#campaignAnalysisModal').on('show.bs.modal', function() {
                         loadCampaignAnalysis();
