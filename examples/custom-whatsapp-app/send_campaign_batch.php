@@ -100,6 +100,24 @@ $responses = [];
 
 // Prepare requests
 foreach ($batch as $i => &$t) {
+    // Setup params based on template type
+    $params = [];
+    $mediaUrl = $jobData['media_url'] ?? '';
+    $tempType = strtoupper($jobData['template_type'] ?? 'TEXT');
+
+    if (!empty($mediaUrl)) {
+        if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT') {
+            $params[] = [
+                'type' => strtolower($tempType),
+                'originalUrl' => $mediaUrl,
+                'previewUrl' => $mediaUrl
+            ];
+        } else {
+            // Probably a body variable if user pasted a URL where a text param was expected
+            $params[] = $mediaUrl;
+        }
+    }
+
     $postData = [
         'channel' => 'whatsapp',
         'source' => $jobData['source'],
@@ -107,7 +125,7 @@ foreach ($batch as $i => &$t) {
         'destination' => $t['phone'],
         'template' => json_encode([
             'id' => $jobData['template_id'], 
-            'params' => !empty($jobData['media_url']) ? [$jobData['media_url']] : []
+            'params' => $params
         ]),
         'src.name' => $jobData['app_name']
     ];
@@ -149,7 +167,7 @@ foreach ($curls as $i => $ch) {
     $jobData['processed']++;
     $decoded = json_decode($response, true);
 
-    if ($httpCode >= 200 && $httpCode < 300) {
+    if ($httpCode >= 200 && $httpCode < 300 && ($decoded['status'] ?? '') === 'success') {
         $batch[$i]['status'] = 'sent';
         $batch[$i]['message_id'] = $decoded['messageId'] ?? null;
         $jobData['success']++;
@@ -161,6 +179,9 @@ foreach ($curls as $i => $ch) {
         $batch[$i]['status'] = 'failed';
         $batch[$i]['error'] = $error ?: ($decoded['message'] ?? 'HTTP ' . $httpCode);
         $jobData['failed']++;
+        
+        // Log for Step 7
+        logDetailedError($jobId, $t, $postData, $response, $httpCode, $error);
     }
 }
 
@@ -217,4 +238,27 @@ function logToHistory($templateName, $phone, $msgId, $source) {
     }
     $history[] = $logEntry;
     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+}
+
+function logDetailedError($jobId, $target, $payload, $response, $httpCode, $curlError = null) {
+    global $whatsappConfig;
+    $logDir = ($whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/logs';
+    if (!is_dir($logDir)) mkdir($logDir, 0777, true);
+    
+    $file = $logDir . '/campaign_send_errors.json';
+    $entry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'job_id' => $jobId,
+        'phone' => $target['phone'],
+        'payload' => $payload,
+        'http_status' => $httpCode,
+        'response' => json_decode($response, true) ?: $response,
+        'curl_error' => $curlError
+    ];
+    
+    $logs = file_exists($file) ? json_decode(file_get_contents($file), true) : [];
+    if (!is_array($logs)) $logs = [];
+    array_unshift($logs, $entry);
+    if (count($logs) > 500) array_pop($logs); // Keep last 500
+    file_put_contents($file, json_encode($logs, JSON_PRETTY_PRINT));
 }

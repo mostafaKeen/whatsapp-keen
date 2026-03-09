@@ -1229,8 +1229,16 @@ if ($b24Service !== null) {
                         if (activeJobId) return; // Already running/paused
 
                         var formData = $(this).serializeArray();
+                        var templateId = $('#campaignTemplateSelect').val();
+                        var selectedTemplate = (window.allTemplatesData || []).find(function(t) {
+                            return (t.id || t.templateId || t.externalId) === templateId;
+                        });
+                        
                         var templateName = $('#campaignTemplateSelect option:selected').text();
                         formData.push({name: 'templateName', value: templateName});
+                        if (selectedTemplate) {
+                            formData.push({name: 'templateType', value: selectedTemplate.templateType});
+                        }
 
                         $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
                         $('#campaignStatusArea').slideDown();

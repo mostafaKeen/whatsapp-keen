@@ -11,6 +11,7 @@ $whatsappConfig = require __DIR__ . '/../config.php';
 
 $templateId = $_POST['templateId'] ?? '';
 $templateName = $_POST['templateName'] ?? '';
+$templateType = $_POST['templateType'] ?? 'TEXT';
 $numbersRaw = $_POST['numbers'] ?? '';
 $mediaUrl = $_POST['mediaUrl'] ?? '';
 
@@ -30,8 +31,37 @@ if (empty($templateId) || empty($numbers)) {
 
 if (empty($source) || empty($appName)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Source number and App Name are missing from config.php. Please add "gupshup_source" and "gupshup_app_name" to your config file.']);
+    echo json_encode(['status' => 'error', 'message' => 'Source number and App Name are missing from config.php.']);
     exit;
+}
+
+// Media URL Validation Helper (Step 3 & 6)
+function validateMediaUrl($url) {
+    if (empty($url)) return "Media URL is required for this template header.";
+    if (strpos($url, 'https://') !== 0) return "Media URL must be public HTTPS and accessible.";
+    if (strpos($url, 'localhost') !== false || strpos($url, '127.0.0.1') !== false) return "Localhost URLs are not allowed.";
+    
+    // Quick pre-flight check (Step 3)
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_NOBODY, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($code !== 200) return "Media URL is not reachable (HTTP $code). Please ensure it is publicly accessible.";
+    return true;
+}
+
+if (!empty($mediaUrl) || in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+    $v = validateMediaUrl($mediaUrl);
+    if ($v !== true) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => $v]);
+        exit;
+    }
 }
 
 $jobId = 'job_' . time() . '_' . bin2hex(random_bytes(4));
@@ -56,6 +86,7 @@ $jobData = [
     'read' => 0,
     'webhook_failed' => 0,
     'status' => 'queued',
+    'template_type' => $templateType,
     'media_url' => $mediaUrl,
     'targets' => []
 ];
