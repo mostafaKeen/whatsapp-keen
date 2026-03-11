@@ -47,16 +47,17 @@ if ($entityId) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         :root {
-            --primary-color: #4361ee;
-            --primary-dark: #3a0ca3;
-            --accent-color: #4895ef;
-            --bg-color: #f8f9fa;
-            --text-main: #2b2d42;
-            --text-muted: #8d99ae;
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --glass-border: rgba(255, 255, 255, 0.8);
-            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --shadow-lg: 0 25px 50px -12px rgba(67, 97, 238, 0.15);
+            --wa-teal: #075E54;
+            --wa-green: #25D366;
+            --wa-light-green: #dcf8c6;
+            --wa-blue: #34B7F1;
+            --bg-color: #f0f2f5;
+            --text-main: #111b21;
+            --text-muted: #667781;
+            --bubble-sent: #dcf8c6;
+            --bubble-received: #ffffff;
+            --shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+            --shadow-lg: 0 6px 18px rgba(0,0,0,0.06);
         }
 
         body {
@@ -77,23 +78,21 @@ if ($entityId) {
         .chat-container {
             width: 100%;
             max-width: 600px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
+            background: #fff;
+            border-radius: 12px;
             box-shadow: var(--shadow-lg);
             overflow: hidden;
-            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
         }
 
         .chat-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-            padding: 24px 30px;
+            background: var(--wa-teal);
+            padding: 14px 20px;
             color: white;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
             position: relative;
         }
 
@@ -122,31 +121,33 @@ if ($entityId) {
         }
 
         .chat-body {
-            padding: 24px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            background: #efe7de url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            min-height: 400px;
         }
 
         .contact-info {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 24px;
-            padding: 16px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 12px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 10px 16px;
+            background: #f0f2f5;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
         }
 
         .avatar {
-            width: 48px;
-            height: 48px;
+            width: 40px;
+            height: 40px;
             background: #dfe5e7;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            color: var(--text-muted);
-            font-size: 18px;
+            font-weight: 600;
+            color: #54656f;
+            font-size: 16px;
         }
 
         .contact-details h2 {
@@ -186,18 +187,17 @@ if ($entityId) {
         }
 
         .form-control:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+            border-color: var(--wa-green);
         }
 
         .btn-send {
             width: 100%;
-            padding: 14px;
-            background: var(--primary-color);
+            padding: 12px;
+            background: var(--wa-green);
             color: white;
             border: none;
-            border-radius: 12px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -208,8 +208,7 @@ if ($entityId) {
         }
 
         .btn-send:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
+            background: #1ebe5d;
         }
 
         .btn-send:active {
@@ -367,22 +366,18 @@ if ($entityId) {
 
         .history-item {
             max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 18px;
+            padding: 6px 10px 8px;
+            border-radius: 8px;
             position: relative;
-            background: #ffffff;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            align-self: flex-end; /* Sent messages on right */
-            border-bottom-right-radius: 4px;
-            border: 1px solid rgba(0, 71, 186, 0.1);
+            background: var(--bubble-sent);
+            box-shadow: var(--shadow);
+            align-self: flex-end; 
+            margin: 2px 16px;
         }
 
         .history-item.inbound {
-            align-self: flex-start; /* Received messages on left */
-            background: #e7ffdb; /* Light green/whatsapp-like receiver bubble */
-            border-bottom-right-radius: 18px;
-            border-bottom-left-radius: 4px;
-            border: 1px solid rgba(82, 183, 136, 0.2);
+            align-self: flex-start;
+            background: var(--bubble-received);
         }
 
         .history-meta {
@@ -476,15 +471,13 @@ if ($entityId) {
 </div>
 
 <div id="chatBox" class="chat-container box-chat" style="display: none;">
-        <div class="chat-header">
-            <i class="fab fa-whatsapp fa-2x"></i>
-            <div>
-            <i class="fab fa-whatsapp fa-2x"></i>
-            <div>
-                <h1>whatsapp</h1>
-                <p style="margin:0; font-size:12px; opacity:0.8; font-weight:500;">Business Chat Integration</p>
-            </div>
+    <div class="chat-header">
+        <i class="fab fa-whatsapp fa-lg"></i>
+        <div>
+            <h1 style="font-size: 16px; font-weight: 500;">whatsapp</h1>
+            <p style="margin:0; font-size:11px; opacity:0.8;">Online</p>
         </div>
+    </div>
 
     <div class="chat-body">
         <div class="contact-info">
@@ -500,28 +493,28 @@ if ($entityId) {
             <div class="history-list" id="historyList"></div>
         </div>
 
-        <div class="form-group">
-            <div class="attachment-wrapper">
-                <label for="messageText">Draft Message</label>
-                <button type="button" class="btn-attach" id="attachBtn">
-                    <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
-                    <span>Attach File</span>
-                </button>
-                <input type="file" id="fileInput" style="display: none;">
+        <div class="chat-input-area" style="padding: 12px 16px; background: #f0f2f5;">
+            <div class="form-group" style="margin-bottom: 8px;">
+                <div class="attachment-wrapper">
+                    <button type="button" class="btn-attach" id="attachBtn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <input type="file" id="fileInput" style="display: none;">
+                    <textarea class="form-control" id="messageText" rows="1" placeholder="Type a message" style="border-radius: 20px; border: none;"></textarea>
+                </div>
+                <div id="filePreview" style="margin-top: 8px;">
+                    <span class="file-name" id="fileName"></span>
+                    <button type="button" class="btn-remove" id="removeFile">&times;</button>
+                </div>
             </div>
-            <div id="filePreview">
-                <span class="file-name" id="fileName"></span>
-                <button type="button" class="btn-remove" id="removeFile">&times;</button>
-            </div>
-            <textarea class="form-control" id="messageText" rows="4" placeholder="Write your message..."></textarea>
+
+            <button class="btn-send" id="sendMessageBtn" style="border-radius: 50%; width: 40px; height: 40px; padding: 0; min-width: 40px; margin-left: auto;">
+                <i class="fas fa-paper-plane" id="btnText" style="font-size: 14px;"></i>
+                <span class="spinner" id="btnSpinner"></span>
+            </button>
         </div>
 
-        <button class="btn-send" id="sendMessageBtn">
-            <span class="spinner" id="btnSpinner"></span>
-            <span id="btnText">Send WhatsApp</span>
-        </button>
-
-        <div id="statusMessage"></div>
+        <div id="statusMessage" style="margin: 8px 16px;"></div>
     </div>
 </div>
 
