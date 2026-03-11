@@ -58,34 +58,31 @@ $handlerUrl = $protocol . '://' . $host . $selfDir . '/placement.php';
 
 echo "Handler URL: " . $handlerUrl . "\n\n";
 
-// --- Call using App Token
-$placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
+echo "--- Cleaning ALL existing placements for this app ---\n";
+// Call without PLACEMENT filter to see everything
+$allPlacements = callAppMethod($clientEndpoint, $accessToken, 'placement.get', []);
+if (!empty($allPlacements['result'])) {
+    foreach ($allPlacements['result'] as $binding) {
+        echo "Unbinding [" . $binding['placement'] . "] handler: " . $binding['handler'] . "...\n";
+        callAppMethod($clientEndpoint, $accessToken, 'placement.unbind', [
+            'PLACEMENT' => $binding['placement'],
+            'HANDLER'   => $binding['handler'],
+        ]);
+    }
+} else {
+    echo "No existing bindings found to clean.\n";
+}
 
-echo "--- Binding Placements ---\n";
+echo "\n--- Binding Placements ---\n";
 foreach ($placements as $placement) {
     echo "\nBinding: $placement\n";
-
-    // First unbind old entries if any
-    $existing = callAppMethod($clientEndpoint, $accessToken, 'placement.get', ['PLACEMENT' => $placement]);
-    if (!empty($existing['result'])) {
-        foreach ($existing['result'] as $binding) {
-            if ($binding['HANDLER'] === $handlerUrl) {
-                echo "Unbinding old duplicate...\n";
-                callAppMethod($clientEndpoint, $accessToken, 'placement.unbind', [
-                    'PLACEMENT' => $placement,
-                    'HANDLER'   => $handlerUrl,
-                ]);
-            }
-        }
-    }
-
-    $res = callAppMethod($clientEndpoint, $accessToken, 'placement.bind', [
+    $result = callAppMethod($clientEndpoint, $accessToken, 'placement.bind', [
         'PLACEMENT'   => $placement,
         'HANDLER'     => $handlerUrl,
         'TITLE'       => 'KEEN WABA',
         'DESCRIPTION' => 'WhatsApp Business Integration',
     ]);
-    echo json_encode($res, JSON_PRETTY_PRINT) . "\n";
+    echo json_encode($result, JSON_PRETTY_PRINT) . "\n";
 }
 
 echo "\n--- Verify Bindings ---\n";

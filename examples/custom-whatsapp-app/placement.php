@@ -1,5 +1,8 @@
 require_once (__DIR__.'/crest.php');
 
+// LOG ACCESS FOR DEBUGGING
+file_put_contents(__DIR__ . '/placement_access.log', date('[Y-m-d H:i:s] ') . json_encode($_REQUEST) . "\n", FILE_APPEND);
+
 $placement = $_REQUEST['PLACEMENT'] ?? '';
 $placementOptions = json_decode($_REQUEST['PLACEMENT_OPTIONS'] ?? '{}', true);
 $entityId = $placementOptions['ID'] ?? '';
