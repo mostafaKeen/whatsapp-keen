@@ -1,9 +1,9 @@
-<?php
+require_once (__DIR__.'/crest.php');
+
 $placement = $_REQUEST['PLACEMENT'] ?? '';
 $placementOptions = json_decode($_REQUEST['PLACEMENT_OPTIONS'] ?? '{}', true);
 $entityId = $placementOptions['ID'] ?? '';
 $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
-?>
 <!DOCTYPE html>
 <html>
 <head>

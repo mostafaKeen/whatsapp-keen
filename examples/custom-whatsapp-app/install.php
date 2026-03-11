@@ -5,52 +5,51 @@ ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../../vendor/autoload.php';
+require_once (__DIR__.'/crest.php');
+
+$install_result = CRest::installApp();
 
 // If Bitrix24 sends installation POST data, handle the placement binding immediately.
 $is_installed = false;
 $error_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['AUTH_ID'])) {
+// Construct the handler URL dynamically
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$host = $_SERVER['HTTP_HOST'];
+$path = str_replace('install.php', 'placement.php', $_SERVER['REQUEST_URI']);
+// Remove query params if any
+$path = explode('?', $path)[0];
+
+$handlerBackUrl = $protocol . $host . $path;
+
+if ($install_result['install'] === true) {
     
-    // Construct the handler URL dynamically
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-    $host = $_SERVER['HTTP_HOST'];
-    $path = str_replace('install.php', 'placement.php', $_SERVER['REQUEST_URI']);
-    // Remove query params if any
-    $path = explode('?', $path)[0];
-    
-    $handlerBackUrl = $protocol . $host . $path;
-    
-    $domain = $_POST['DOMAIN'] ?? '';
-    $auth_id = $_POST['AUTH_ID'] ?? '';
-    
-    if ($domain && $auth_id) {
-        $baseUrl = 'https://' . $domain . '/rest/';
-        
-        $placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
-        
-        foreach ($placements as $pCode) {
-            $bindUrl = $baseUrl . 'placement.bind.json?auth=' . $auth_id;
-            
-            $postData = [
+    $placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
+    $binding_results = [];
+
+    foreach ($placements as $pCode) {
+        $res = CRest::call(
+            'placement.bind',
+            [
                 'PLACEMENT' => $pCode,
                 'HANDLER' => $handlerBackUrl,
                 'TITLE' => 'KEEN WABA'
-            ];
-            
-            $ch = curl_init($bindUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-            $response = curl_exec($ch);
-            curl_close($ch);
-        }
-        $is_installed = true;
+            ]
+        );
+        $binding_results[$pCode] = $res;
+    }
+    
+    CRest::setLog(['placements' => $binding_results], 'installation_bindings');
+    $is_installed = true;
+} else {
+    // If not a POST install, but accessed normally within Bitrix24
+    if (isset($_REQUEST['PLACEMENT']) && $_REQUEST['PLACEMENT'] == 'DEFAULT') {
+        // Just show the UI
     } else {
-        $error_message = 'Missing domain or auth token during installation.';
+        $error_message = 'Installation failed or invalid request.';
     }
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -101,23 +100,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['AUTH_ID'])) {
                 <i class="fab fa-whatsapp fa-4x text-primary"></i>
             </div>
             <h1 class="mb-3">Welcome to KEEN WABA</h1>
-            <p class="text-muted mb-4">Finalizing the secure connection with your Bitrix24 portal. Click the button below to complete the setup.</p>
-        
-            <button id="finishBtn" class="btn btn-primary btn-lg btn-install px-5">Complete Setup</button>
             
+            <?php if ($error_message): ?>
+                <div class="alert alert-danger"><?= $error_message ?></div>
+            <?php else: ?>
+                <p class="text-muted mb-4">Finalizing the secure connection with your Bitrix24 portal. Click the button below to complete the setup.</p>
+                <button id="finishBtn" class="btn btn-primary btn-lg btn-install px-5">Complete Setup</button>
+            <?php endif; ?>
+        
             <div id="status" class="mt-4" style="display:none;">
                 <div class="spinner-border text-primary mr-2" role="status"></div>
                 <span class="text-muted">Registering secure placements...</span>
             </div>
         
-            <div id="nextSteps" class="mt-4" style="display:none;">
+            <div id="nextSteps" class="mt-4" style="<?= $is_installed ? '' : 'display:none;' ?>">
                 <div class="alert alert-success border-0 shadow-sm rounded-lg py-3">
                     <i class="fas fa-check-circle mr-2"></i> Setup finished successfully!
                 </div>
                 <div class="text-left mt-4 text-muted">
                     <p><span class="badge badge-primary mr-2">1</span> Close this window.</p>
                     <p><span class="badge badge-primary mr-2">2</span> <b>Refresh your Bitrix24 page.</b></p>
-                    <p><span class="badge badge-primary mr-2">3</span> Open <b>"KEEN WABA"</b> from your application list.</p>
+                    <p><span class="badge badge-primary mr-2">3</span> Open any <b>Lead</b> or <b>Deal</b> to find the <b>"KEEN WABA"</b> tab.</p>
                 </div>
             </div>
         </div>
@@ -126,22 +129,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['AUTH_ID'])) {
     <script>
         BX24.init(function() {
             console.log("BX24 Initialized");
-            
             <?php if ($is_installed): ?>
-                // If PHP handled the binding, we just finish the install process right away.
-                BX24.installFinish();
                 document.getElementById('finishBtn').style.display = 'none';
                 document.getElementById('nextSteps').style.display = 'block';
+                BX24.installFinish();
             <?php endif; ?>
         });
 
         document.getElementById('finishBtn').addEventListener('click', function() {
-            // Because Bitrix24 loads the iframe with POST data, and this page is install.php,
-            // we should have already triggered the PHP block above on load.
-            // If the user manually clicks "Complete Setup" without the POST data, 
-            // we fallback to finishing the install here, but bindings might fail.
             BX24.installFinish();
-            document.getElementById('status').style.display = 'none';
+            document.getElementById('finishBtn').style.display = 'none';
             document.getElementById('nextSteps').style.display = 'block';
         });
     </script>
