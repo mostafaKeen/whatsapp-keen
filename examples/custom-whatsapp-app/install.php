@@ -33,7 +33,7 @@ if ($install_result['install'] === true) {
             [
                 'PLACEMENT' => $pCode,
                 'HANDLER' => $handlerBackUrl,
-                'TITLE' => 'KEEN WABA'
+                'TITLE' => 'whatsapp'
             ]
         );
         $binding_results[$pCode] = $res;

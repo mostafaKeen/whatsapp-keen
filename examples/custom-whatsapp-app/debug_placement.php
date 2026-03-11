@@ -58,6 +58,8 @@ $handlerUrl = $protocol . '://' . $host . $selfDir . '/placement.php';
 
 echo "Handler URL: " . $handlerUrl . "\n\n";
 
+$placements = ['CRM_LEAD_DETAIL_TAB', 'CRM_DEAL_DETAIL_TAB'];
+
 echo "--- Cleaning ALL existing placements for this app ---\n";
 // Call without PLACEMENT filter to see everything
 $allPlacements = callAppMethod($clientEndpoint, $accessToken, 'placement.get', []);
@@ -79,7 +81,7 @@ foreach ($placements as $placement) {
     $result = callAppMethod($clientEndpoint, $accessToken, 'placement.bind', [
         'PLACEMENT'   => $placement,
         'HANDLER'     => $handlerUrl,
-        'TITLE'       => 'KEEN WABA',
+        'TITLE'       => 'whatsapp',
         'DESCRIPTION' => 'WhatsApp Business Integration',
     ]);
     echo json_encode($result, JSON_PRETTY_PRINT) . "\n";
