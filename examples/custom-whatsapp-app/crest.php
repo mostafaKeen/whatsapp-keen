@@ -33,11 +33,11 @@ class CRest
 			'rest_only' => true,
 			'install' => false
 		];
-		if($_REQUEST[ 'event' ] == 'ONAPPINSTALL' && !empty($_REQUEST[ 'auth' ]))
+		if(isset($_REQUEST[ 'event' ]) && $_REQUEST[ 'event' ] == 'ONAPPINSTALL' && !empty($_REQUEST[ 'auth' ]))
 		{
 			$result['install'] = static::setAppSettings($_REQUEST[ 'auth' ], true);
 		}
-		elseif($_REQUEST['PLACEMENT'] == 'DEFAULT')
+		elseif(isset($_REQUEST['PLACEMENT']) && $_REQUEST['PLACEMENT'] == 'DEFAULT')
 		{
 			$result['rest_only'] = false;
 			$result['install'] = static::setAppSettings(
