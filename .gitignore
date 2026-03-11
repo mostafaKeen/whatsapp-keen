@@ -22,3 +22,4 @@ log.txt
 php_errors.log
 /var/webhook_events/
 /var/messages/
+/examples/config.php
