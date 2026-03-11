@@ -1,3 +1,4 @@
+<?php
 require_once (__DIR__.'/crest.php');
 
 // LOG ACCESS FOR DEBUGGING
@@ -7,11 +8,39 @@ $placement = $_REQUEST['PLACEMENT'] ?? '';
 $placementOptions = json_decode($_REQUEST['PLACEMENT_OPTIONS'] ?? '{}', true);
 $entityId = $placementOptions['ID'] ?? '';
 $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
+
+$phone = '';
+$contactName = '';
+
+if ($entityId) {
+    if ($entityType === 'deal') {
+        $deal = CRest::call('crm.deal.get', ['id' => $entityId]);
+        if (!empty($deal['result']['CONTACT_ID'])) {
+            $contact = CRest::call('crm.contact.get', ['id' => $deal['result']['CONTACT_ID']]);
+            if (!empty($contact['result'])) {
+                $contactName = trim(($contact['result']['NAME'] ?? '') . ' ' . ($contact['result']['LAST_NAME'] ?? ''));
+                if (!empty($contact['result']['PHONE'])) {
+                    $phone = $contact['result']['PHONE'][0]['VALUE'];
+                }
+            }
+        }
+    } else {
+        $lead = CRest::call('crm.lead.get', ['id' => $entityId]);
+        if (!empty($lead['result'])) {
+            $contactName = trim(($lead['result']['NAME'] ?? '') . ' ' . ($lead['result']['LAST_NAME'] ?? ''));
+            if (!$contactName) $contactName = $lead['result']['TITLE'] ?? 'Lead Contact';
+            if (!empty($lead['result']['PHONE'])) {
+                $phone = $lead['result']['PHONE'][0]['VALUE'];
+            }
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html>
 <head>
 	<meta charset="utf-8">
-    <title>KEEN WABA - Business Chat</title>
+    <title>whatsapp - Business Chat</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 	<script src="//api.bitrix24.com/api/v1/"></script>
@@ -450,7 +479,9 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
         <div class="chat-header">
             <i class="fab fa-whatsapp fa-2x"></i>
             <div>
-                <h1>KEEN WABA</h1>
+            <i class="fab fa-whatsapp fa-2x"></i>
+            <div>
+                <h1>whatsapp</h1>
                 <p style="margin:0; font-size:12px; opacity:0.8; font-weight:500;">Business Chat Integration</p>
             </div>
         </div>
@@ -495,10 +526,11 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 </div>
 
 <script>
-    var entityId = '<?= htmlspecialchars($entityId) ?>';
-    var placement = '<?= htmlspecialchars($placement) ?>';
-    var entityType = '<?= htmlspecialchars($entityType) ?>';
-    var currentPhone = '';
+    var entityId = '<?= htmlspecialchars((string)$entityId) ?>';
+    var placement = '<?= htmlspecialchars((string)$placement) ?>';
+    var entityType = '<?= htmlspecialchars((string)$entityType) ?>';
+    var currentPhone = '<?= htmlspecialchars((string)$phone) ?>';
+    var currentName = '<?= htmlspecialchars((string)$contactName) ?>';
     var lastMessageCount = 0;
     var selectedFile = null;
 
@@ -516,6 +548,12 @@ $entityType = ($placement === 'CRM_DEAL_DETAIL_TAB') ? 'deal' : 'lead';
 
             if (!entityId) {
                 showError();
+                return;
+            }
+
+            // If we already have a phone number from PHP pre-fetch, use it immediately
+            if (currentPhone) {
+                initChat(currentName, currentPhone);
                 return;
             }
 
