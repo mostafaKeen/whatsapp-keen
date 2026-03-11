@@ -125,7 +125,7 @@ if ($entityId) {
             display: flex;
             flex-direction: column;
             background: #efe7de url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
-            min-height: 400px;
+            height: 480px; /* Fixed height for a better widget feel */
         }
 
         .contact-info {
@@ -357,9 +357,9 @@ if ($entityId) {
         .history-list {
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            padding: 10px;
-            max-height: 400px;
+            gap: 12px;
+            padding: 20px 10px;
+            flex: 1; /* Take up all available space */
             overflow-y: auto;
             scroll-behavior: smooth;
         }
@@ -488,33 +488,30 @@ if ($entityId) {
             </div>
         </div>
 
-        <div class="history-section" id="historySection" style="display: none;">
-            <h3>Recent Messages</h3>
-            <div class="history-list" id="historyList"></div>
-        </div>
+        <div class="history-list" id="historyList"></div>
 
-        <div class="chat-input-area" style="padding: 12px 16px; background: #f0f2f5;">
-            <div class="form-group" style="margin-bottom: 8px;">
-                <div class="attachment-wrapper">
+        <div id="statusMessage" style="margin: 0 16px;"></div>
+
+        <div class="chat-input-area" style="padding: 12px 16px; background: #f0f2f5; margin-top: auto;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <div class="attachment-wrapper" style="display: flex; align-items: center; gap: 8px;">
                     <button type="button" class="btn-attach" id="attachBtn">
                         <i class="fas fa-plus"></i>
                     </button>
                     <input type="file" id="fileInput" style="display: none;">
-                    <textarea class="form-control" id="messageText" rows="1" placeholder="Type a message" style="border-radius: 20px; border: none;"></textarea>
+                    <textarea class="form-control" id="messageText" rows="1" placeholder="Type a message" style="border-radius: 20px; border: none; flex: 1;"></textarea>
+                    
+                    <button class="btn-send" id="sendMessageBtn" style="border-radius: 50%; width: 40px; height: 40px; padding: 0; min-width: 40px; flex-shrink: 0;">
+                        <i class="fas fa-paper-plane" id="btnText" style="font-size: 14px;"></i>
+                        <span class="spinner" id="btnSpinner"></span>
+                    </button>
                 </div>
                 <div id="filePreview" style="margin-top: 8px;">
                     <span class="file-name" id="fileName"></span>
                     <button type="button" class="btn-remove" id="removeFile">&times;</button>
                 </div>
             </div>
-
-            <button class="btn-send" id="sendMessageBtn" style="border-radius: 50%; width: 40px; height: 40px; padding: 0; min-width: 40px; margin-left: auto;">
-                <i class="fas fa-paper-plane" id="btnText" style="font-size: 14px;"></i>
-                <span class="spinner" id="btnSpinner"></span>
-            </button>
         </div>
-
-        <div id="statusMessage" style="margin: 8px 16px;"></div>
     </div>
 </div>
 
