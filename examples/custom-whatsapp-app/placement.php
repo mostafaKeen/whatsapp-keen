@@ -682,17 +682,17 @@ if ($entityId) {
     function setLoading(isLoading) {
         const $btn = $('#sendMessageBtn');
         const $spinner = $('#btnSpinner');
-        const $text = $('#btnText');
+        const $icon = $('#btnText');
 
         if (isLoading) {
             $btn.prop('disabled', true);
             $spinner.show();
-            $text.text('Sending...');
+            $icon.hide();
             $('#statusMessage').hide();
         } else {
             $btn.prop('disabled', false);
             $spinner.hide();
-            $text.text('Send WhatsApp');
+            $icon.show();
         }
     }
 
