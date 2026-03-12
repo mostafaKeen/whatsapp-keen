@@ -617,7 +617,7 @@ if ($entityId) {
                 processData: false,
                 contentType: false,
                 success: function(response) {
-                    showStatus('Message sent successfully!', 'success');
+                    // showStatus('Message sent successfully!', 'success');
                     
                     // Trigger poll immediately to show the message with its real ID from the server
                     pollHistory();
