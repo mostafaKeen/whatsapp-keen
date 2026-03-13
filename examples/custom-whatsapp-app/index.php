@@ -115,6 +115,7 @@ if ($hasValidAuth) {
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -460,11 +461,17 @@ if ($hasValidAuth) {
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-2" id="uploadCsvBtn">
                                                     <i class="fas fa-file-csv mr-1" id="csvBtnIcon"></i>
                                                     <span class="spinner-border spinner-border-sm mr-1" id="csvBtnSpinner" style="display:none;"></span>
-                                                    Upload CSV
+                                                    CSV
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 mr-2" id="uploadExcelBtn">
+                                                    <i class="fas fa-file-excel mr-1" id="excelBtnIcon"></i>
+                                                    <span class="spinner-border spinner-border-sm mr-1" id="excelBtnSpinner" style="display:none;"></span>
+                                                    Excel
                                                 </button>
                                                 <input type="file" id="bulkCsvInput" accept=".csv" style="display: none;">
+                                                <input type="file" id="bulkExcelInput" accept=".xlsx, .xls" style="display: none;">
                                                 <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="toggleContactSelector">
-                                                    <i class="fas fa-user-plus mr-1"></i> Add from Bitrix24
+                                                    <i class="fas fa-user-plus mr-1"></i> Bitrix24
                                                 </button>
                                             </div>
                                         </div>
@@ -1774,6 +1781,97 @@ if ($hasValidAuth) {
                         $('#csvBtnSpinner').hide();
                         $('#uploadCsvBtn').prop('disabled', false);
                         $('#bulkCsvInput').val('');
+                    }
+
+                    // --- Excel Upload Logic ---
+                    $('#uploadExcelBtn').on('click', function() {
+                        $('#bulkExcelInput').click();
+                    });
+
+                    $('#bulkExcelInput').on('change', function(e) {
+                        var file = e.target.files[0];
+                        if (!file) return;
+
+                        $('#excelBtnIcon').hide();
+                        $('#excelBtnSpinner').show();
+                        $('#uploadExcelBtn').prop('disabled', true);
+
+                        var reader = new FileReader();
+                        reader.onload = function(e) {
+                            try {
+                                var data = new Uint8Array(e.target.result);
+                                var workbook = XLSX.read(data, {type: 'array'});
+                                
+                                if (workbook.SheetNames.length === 0) {
+                                    alert('Error: Excel file is empty.');
+                                    resetExcelBtn();
+                                    return;
+                                }
+
+                                var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                                var jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+                                if (jsonData.length < 1) {
+                                    alert('Error: Excel sheet is empty.');
+                                    resetExcelBtn();
+                                    return;
+                                }
+
+                                var headers = jsonData[0].map(h => (h || '').toString().trim());
+                                var phoneIdx = headers.findIndex(h => h.toLowerCase() === 'phone');
+
+                                if (phoneIdx === -1) {
+                                    alert('Error: No column named "phone" found in Excel (Case-insensitive).');
+                                    resetExcelBtn();
+                                    return;
+                                }
+
+                                window.currentCsvHeaders = headers; // Reuse variable for mapping logic
+                                window.currentCsvRows = [];
+                                var phoneNumbers = [];
+
+                                for (var i = 1; i < jsonData.length; i++) {
+                                    var cols = jsonData[i];
+                                    if (cols && cols[phoneIdx]) {
+                                        var cleaned = cols[phoneIdx].toString().replace(/[^\d+]/g, '').trim();
+                                        if (cleaned) {
+                                            phoneNumbers.push(cleaned);
+                                            var rowData = {};
+                                            headers.forEach((h, idx) => {
+                                                rowData[h] = cols[idx] || '';
+                                            });
+                                            window.currentCsvRows.push(rowData);
+                                        }
+                                    }
+                                }
+
+                                if (phoneNumbers.length > 0) {
+                                    var currentVal = $('#campaignNumbersArea').val().trim();
+                                    var newVal = (currentVal ? currentVal + "\n" : "") + phoneNumbers.join("\n");
+                                    $('#campaignNumbersArea').val(newVal).trigger('input');
+                                    
+                                    var templateId = $('#campaignTemplateSelect').val();
+                                    var selectedTemplate = (window.allTemplatesData || []).find(t => (t.id || t.templateId || t.externalId) === templateId);
+                                    if (selectedTemplate) detectTemplateVariables(selectedTemplate);
+                                    
+                                    showToast('Imported ' + phoneNumbers.length + ' rows from Excel', 'success');
+                                } else {
+                                    alert('No valid numbers found in the "phone" column.');
+                                }
+                            } catch (err) {
+                                console.error('Excel parsing error:', err);
+                                alert('Error parsing Excel file. Please ensure it is a valid .xlsx or .xls file.');
+                            }
+                            resetExcelBtn();
+                        };
+                        reader.readAsArrayBuffer(file);
+                    });
+
+                    function resetExcelBtn() {
+                        $('#excelBtnIcon').show();
+                        $('#excelBtnSpinner').hide();
+                        $('#uploadExcelBtn').prop('disabled', false);
+                        $('#bulkExcelInput').val('');
                     }
 
                     // --- Campaign Analysis Logic ---
