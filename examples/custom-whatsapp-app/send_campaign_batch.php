@@ -111,20 +111,25 @@ foreach ($batch as $i => &$t) {
     if (!empty($mediaUrl)) {
         if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT') {
             $typeLower = strtolower($tempType);
-            // Format for Gupshup Partner API media header
             $messageData = [
                 'type' => $typeLower,
                 $typeLower => [
                     'link' => $mediaUrl
                 ]
             ];
-            // If the template has an image header, 'params' should only contain body vars.
-            // For now, we don't support body vars, so we leave it empty.
+            // Body variables for media templates go in template.params
+            $params = $t['params'] ?? [];
         } else {
-            // If it's a TEXT template but user provided a media URL, 
-            // treat it as the first body variable (fallback).
-            $params[] = $mediaUrl;
+            // Text template with media URL passed - treat as first param or use mapping
+            if (!empty($t['params'])) {
+                $params = $t['params'];
+            } else {
+                $params[] = $mediaUrl;
+            }
         }
+    } else {
+        // Just text template params
+        $params = $t['params'] ?? [];
     }
 
     $postData = [
@@ -134,7 +139,7 @@ foreach ($batch as $i => &$t) {
         'destination' => $t['phone'],
         'template' => json_encode([
             'id' => $jobData['template_id'], 
-            'params' => $params
+            'params' => array_values($params) // Ensure indexed array
         ]),
         'src.name' => $jobData['app_name']
     ];

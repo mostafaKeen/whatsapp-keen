@@ -458,7 +458,9 @@ if ($hasValidAuth) {
                                             <label class="font-weight-600 small text-muted text-uppercase mb-0">Target Numbers (One per line) *</label>
                                             <div class="d-flex gap-2">
                                                 <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-2" id="uploadCsvBtn">
-                                                    <i class="fas fa-file-csv mr-1"></i> Upload CSV
+                                                    <i class="fas fa-file-csv mr-1" id="csvBtnIcon"></i>
+                                                    <span class="spinner-border spinner-border-sm mr-1" id="csvBtnSpinner" style="display:none;"></span>
+                                                    Upload CSV
                                                 </button>
                                                 <input type="file" id="bulkCsvInput" accept=".csv" style="display: none;">
                                                 <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="toggleContactSelector">
@@ -492,6 +494,13 @@ if ($hasValidAuth) {
 
                                         <textarea name="numbers" id="campaignNumbersArea" class="form-control form-control-modern" rows="6" placeholder="Format: 20100XXXXXXX" required></textarea>
                                         <div class="text-right mt-1"><small id="campaignNumberCount" class="badge badge-light text-muted">0 numbers detected</small></div>
+                                    </div>
+
+                                    <!-- Template Variables Mapping Section -->
+                                    <div id="templateVariablesSection" style="display:none;" class="mt-4 p-4 border rounded-lg bg-light border-info">
+                                        <h6 class="font-weight-bold mb-3 text-info"><i class="fas fa-magic mr-2"></i> Dynamic Personalization</h6>
+                                        <p class="small text-muted mb-3">This template contains variables. Map them to your CSV columns or enter static values.</p>
+                                        <div id="variableMappingList"></div>
                                     </div>
 
                                     <!-- Progress Area -->
@@ -672,8 +681,11 @@ if ($hasValidAuth) {
                                     </div>
 
                                     <div class="form-group">
-                                        <label class="font-weight-600 small text-muted text-uppercase">Message Content (Body) *</label>
-                                        <textarea name="content" class="form-control form-control-modern" rows="4" placeholder="Hello {{1}}, how are you?" required></textarea>
+                                        <div class="d-flex justify-content-between">
+                                            <label class="font-weight-600 small text-muted text-uppercase">Message Content (Body) *</label>
+                                            <button type="button" class="btn btn-xs btn-link p-0 text-primary small" id="insertVarBtn"><i class="fas fa-plus-circle mr-1"></i> Insert {{n}}</button>
+                                        </div>
+                                        <textarea name="content" id="templateContentArea" class="form-control form-control-modern" rows="4" placeholder="Hello {{1}}, how are you?" required></textarea>
                                         <small class="text-muted">Use {{1}}, {{2}}, etc. for variables.</small>
                                     </div>
 
@@ -1430,6 +1442,84 @@ if ($hasValidAuth) {
                             $('#campaignMediaUrlGroup').slideUp();
                             $('#campaignMediaUrl').val('').prop('required', false);
                         }
+
+                        // --- NEW: Template variable detection ---
+                        detectTemplateVariables(selectedTemplate);
+                    });
+
+                    function detectTemplateVariables(template) {
+                        if (!template || !template.content) {
+                            $('#templateVariablesSection').hide();
+                            return;
+                        }
+
+                        var content = template.content;
+                        var matches = content.match(/\{\{\d+\}\}/g);
+                        if (!matches) {
+                            $('#templateVariablesSection').hide();
+                            return;
+                        }
+
+                        // Get unique variables and sort them
+                        var vars = [...new Set(matches)].sort((a, b) => {
+                            var na = parseInt(a.replace(/[^\d]/g, ''));
+                            var nb = parseInt(b.replace(/[^\d]/g, ''));
+                            return na - nb;
+                        });
+
+                        var html = '';
+                        vars.forEach(v => {
+                            var num = v.replace(/[^\d]/g, '');
+                            html += `<div class="form-group row align-items-center mb-3">
+                                <label class="col-sm-3 col-form-label font-weight-bold">Variable ${v}</label>
+                                <div class="col-sm-9">
+                                    <div class="input-group">
+                                        <select class="form-control var-mapping-type" data-var="${num}" style="max-width: 130px;">
+                                            <option value="static">Static</option>
+                                            <option value="csv" ${window.currentCsvHeaders ? '' : 'disabled'}>CSV Col</option>
+                                        </select>
+                                        <input type="text" class="form-control var-static-val" data-var="${num}" placeholder="Enter static value">
+                                        <select class="form-control var-csv-col" data-var="${num}" style="display:none;">
+                                            <option value="">-- Choose Column --</option>
+                                            ${(window.currentCsvHeaders || []).map(h => `<option value="${h}">${h}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+
+                        $('#variableMappingList').html(html);
+                        $('#templateVariablesSection').slideDown();
+                    }
+
+                    $(document).on('change', '.var-mapping-type', function() {
+                        var varNum = $(this).data('var');
+                        var type = $(this).val();
+                        var parent = $(this).closest('.input-group');
+                        if (type === 'static') {
+                            parent.find('.var-static-val').show();
+                            parent.find('.var-csv-col').hide();
+                        } else {
+                            parent.find('.var-static-val').hide();
+                            parent.find('.var-csv-col').show();
+                        }
+                    });
+
+                    $('#insertVarBtn').on('click', function() {
+                        var area = $('#templateContentArea')[0];
+                        var text = area.value;
+                        var matches = text.match(/\{\{(\d+)\}\}/g);
+                        var nextNum = 1;
+                        if (matches) {
+                            var nums = matches.map(m => parseInt(m.replace(/[^\d]/g, '')));
+                            nextNum = Math.max(...nums) + 1;
+                        }
+                        var varStr = '{{' + nextNum + '}}';
+                        var start = area.selectionStart;
+                        var end = area.selectionEnd;
+                        area.value = text.substring(0, start) + varStr + text.substring(end);
+                        area.focus();
+                        area.selectionStart = area.selectionEnd = start + varStr.length;
                     });
 
                     $('#campaignNumbersArea').on('input', function() {
@@ -1453,6 +1543,28 @@ if ($hasValidAuth) {
                         formData.push({name: 'templateName', value: templateName});
                         if (selectedTemplate) {
                             formData.push({name: 'templateType', value: selectedTemplate.templateType});
+                        }
+
+                        // Collect variable mappings
+                        var varMappings = [];
+                        $('.var-mapping-type').each(function() {
+                            var num = $(this).data('var');
+                            var type = $(this).val();
+                            var mapping = { num: num, type: type };
+                            if (type === 'static') {
+                                mapping.value = $(`.var-static-val[data-var="${num}"]`).val();
+                            } else {
+                                mapping.value = $(`.var-csv-col[data-var="${num}"]`).val();
+                            }
+                            varMappings.push(mapping);
+                        });
+                        if (varMappings.length > 0) {
+                            formData.push({name: 'varMappings', value: JSON.stringify(varMappings)});
+                        }
+
+                        // Send CSV rows if available
+                        if (window.currentCsvRows && window.currentCsvRows.length > 0) {
+                            formData.push({name: 'csvData', value: JSON.stringify(window.currentCsvRows)});
                         }
 
                         $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
@@ -1561,27 +1673,49 @@ if ($hasValidAuth) {
                         var file = e.target.files[0];
                         if (!file) return;
 
+                        $('#csvBtnIcon').hide();
+                        $('#csvBtnSpinner').show();
+                        $('#uploadCsvBtn').prop('disabled', true);
+
                         var reader = new FileReader();
                         reader.onload = function(e) {
                             var contents = e.target.result;
-                            var lines = contents.split(/\r?\n/);
-                            if (lines.length < 1) return;
-
-                            var headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                            var phoneIdx = headers.indexOf('phone');
-
-                            if (phoneIdx === -1) {
-                                alert('Error: No column named "phone" found in CSV.');
+                            var lines = contents.split(/\r?\n/).filter(l => l.trim());
+                            if (lines.length < 1) {
+                                resetCsvBtn();
                                 return;
                             }
 
+                            // Use a simple split but handle potential quotes in a basic way
+                            function parseCsvLine(line) {
+                                return line.split(',').map(c => c.replace(/^"(.*)"$/, '$1').trim());
+                            }
+
+                            var headers = parseCsvLine(lines[0]);
+                            var phoneIdx = headers.findIndex(h => h.toLowerCase() === 'phone');
+
+                            if (phoneIdx === -1) {
+                                alert('Error: No column named "phone" found in CSV.');
+                                resetCsvBtn();
+                                return;
+                            }
+
+                            window.currentCsvHeaders = headers;
+                            window.currentCsvRows = [];
                             var phoneNumbers = [];
+
                             for (var i = 1; i < lines.length; i++) {
-                                if (!lines[i].trim()) continue;
-                                var cols = lines[i].split(',');
+                                var cols = parseCsvLine(lines[i]);
                                 if (cols[phoneIdx]) {
                                     var cleaned = cols[phoneIdx].replace(/[^\d+]/g, '').trim();
-                                    if (cleaned) phoneNumbers.push(cleaned);
+                                    if (cleaned) {
+                                        phoneNumbers.push(cleaned);
+                                        var rowData = {};
+                                        headers.forEach((h, idx) => {
+                                            rowData[h] = cols[idx] || '';
+                                        });
+                                        window.currentCsvRows.push(rowData);
+                                    }
                                 }
                             }
 
@@ -1589,16 +1723,28 @@ if ($hasValidAuth) {
                                 var currentVal = $('#campaignNumbersArea').val().trim();
                                 var newVal = (currentVal ? currentVal + "\n" : "") + phoneNumbers.join("\n");
                                 $('#campaignNumbersArea').val(newVal).trigger('input');
-                                showToast('Imported ' + phoneNumbers.length + ' numbers from CSV', 'success');
+                                
+                                // Update mapping UI if variables exist
+                                var templateId = $('#campaignTemplateSelect').val();
+                                var selectedTemplate = (window.allTemplatesData || []).find(t => (t.id || t.templateId || t.externalId) === templateId);
+                                if (selectedTemplate) detectTemplateVariables(selectedTemplate);
+                                
+                                showToast('Imported ' + phoneNumbers.length + ' rows from CSV', 'success');
                             } else {
                                 alert('No valid numbers found in the "phone" column.');
                             }
                             
-                            // Reset input so same file can be uploaded again if needed
-                            $('#bulkCsvInput').val('');
+                            resetCsvBtn();
                         };
                         reader.readAsText(file);
                     });
+
+                    function resetCsvBtn() {
+                        $('#csvBtnIcon').show();
+                        $('#csvBtnSpinner').hide();
+                        $('#uploadCsvBtn').prop('disabled', false);
+                        $('#bulkCsvInput').val('');
+                    }
 
                     // --- Campaign Analysis Logic ---
                     function loadCampaignAnalysis() {

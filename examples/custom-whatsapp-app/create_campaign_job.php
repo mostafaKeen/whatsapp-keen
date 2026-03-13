@@ -19,8 +19,10 @@ $mediaUrl = $_POST['mediaUrl'] ?? '';
 $source = $whatsappConfig['gupshup_source'] ?? ''; 
 $appName = $whatsappConfig['gupshup_app_name'] ?? '';
 
-// Support variables mapping - for now we just expect an array of arrays or flat if static
-// For simplicity, we just extract numbers
+// Support variables mapping
+$varMappings = json_decode($_POST['varMappings'] ?? '[]', true);
+$csvData = json_decode($_POST['csvData'] ?? '[]', true); // Full rows from CSV if uploaded
+
 $numbers = array_values(array_filter(array_map('trim', explode("\n", $numbersRaw))));
 
 if (empty($templateId) || empty($numbers)) {
@@ -35,13 +37,12 @@ if (empty($source) || empty($appName)) {
     exit;
 }
 
-// Media URL Validation Helper (Step 3 & 6)
+// Media URL Validation Helper
 function validateMediaUrl($url) {
     if (empty($url)) return "Media URL is required for this template header.";
     if (strpos($url, 'https://') !== 0) return "Media URL must be public HTTPS and accessible.";
     if (strpos($url, 'localhost') !== false || strpos($url, '127.0.0.1') !== false) return "Localhost URLs are not allowed.";
     
-    // Quick pre-flight check (Step 3)
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_NOBODY, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -82,9 +83,6 @@ $jobData = [
     'processed' => 0,
     'success' => 0,
     'failed' => 0,
-    'delivered' => 0,
-    'read' => 0,
-    'webhook_failed' => 0,
     'status' => 'queued',
     'template_type' => $templateType,
     'media_url' => $mediaUrl,
@@ -92,14 +90,45 @@ $jobData = [
 ];
 
 $processedNumbers = [];
+
+// Helper to get row by phone from CSV data
+function findCsvRow($phone, $csvData) {
+    // Strip everything from phone for comparison
+    $cleanTarget = preg_replace('/[^0-9]/', '', $phone);
+    foreach ($csvData as $row) {
+        foreach ($row as $k => $v) {
+            if (strtolower($k) === 'phone') {
+                $cleanRowPhone = preg_replace('/[^0-9]/', '', (string)$v);
+                if ($cleanRowPhone === $cleanTarget) return $row;
+            }
+        }
+    }
+    return null;
+}
+
 foreach ($numbers as $num) {
-    // Basic cleanup, strip non-numeric
     $cleanNum = preg_replace('/[^0-9]/', '', $num);
     if (!empty($cleanNum) && !isset($processedNumbers[$cleanNum])) {
+        $params = [];
+        if (!empty($varMappings)) {
+            $csvRow = findCsvRow($cleanNum, $csvData);
+            // varMappings is sorted by num
+            foreach ($varMappings as $m) {
+                if ($m['type'] === 'static') {
+                    $params[] = $m['value'] ?? '';
+                } else if ($m['type'] === 'csv' && $csvRow) {
+                    $params[] = $csvRow[$m['value']] ?? '';
+                } else {
+                    $params[] = ''; // Fallback
+                }
+            }
+        }
+
         $jobData['targets'][] = [
             'phone' => $cleanNum,
             'status' => 'pending', 
-            'error' => null
+            'error' => null,
+            'params' => $params
         ];
         $processedNumbers[$cleanNum] = true;
     }
