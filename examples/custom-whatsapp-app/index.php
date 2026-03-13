@@ -1472,12 +1472,18 @@ if ($hasValidAuth) {
                     });
 
                     function detectTemplateVariables(template) {
-                        if (!template || !template.content) {
+                        if (!template) {
                             $('#templateVariablesSection').hide();
                             return;
                         }
 
-                        var content = template.content;
+                        // Try to find the actual message text in the Gupshup response.
+                        // It's usually in template.data, or inside template.containerMeta.
+                        var content = template.data || template.content || '';
+                        
+                        // If it's HTML/JSON encoded representation, try to parse it if needed.
+                        // For Gupshup, `template.data` is usually a string like "hello {{1}}".
+                        
                         var matches = content.match(/\{\{\d+\}\}/g);
                         if (!matches) {
                             $('#templateVariablesSection').hide();
