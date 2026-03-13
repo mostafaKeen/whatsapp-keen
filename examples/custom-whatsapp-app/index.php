@@ -653,7 +653,19 @@ if ($hasValidAuth) {
                                         </div>
                                         <div class="col-md-3 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Language *</label>
-                                            <input type="text" name="languageCode" class="form-control form-control-modern" value="en_US" required>
+                                            <select name="languageCode" class="form-control form-control-modern" required>
+                                                <option value="en_US" selected>English (US)</option>
+                                                <option value="en_GB">English (UK)</option>
+                                                <option value="ar">Arabic</option>
+                                                <option value="ru">Russian</option>
+                                                <option value="es">Spanish</option>
+                                                <option value="fr">French</option>
+                                                <option value="de">German</option>
+                                                <option value="tr">Turkish</option>
+                                                <option value="pt_BR">Portuguese (BR)</option>
+                                                <option value="hi">Hindi</option>
+                                                <option value="zh_CN">Chinese (CN)</option>
+                                            </select>
                                         </div>
                                     </div>
                                     <div class="row">
@@ -750,7 +762,19 @@ if ($hasValidAuth) {
                                         </div>
                                         <div class="col-md-3 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Language</label>
-                                            <input type="text" name="languageCode" class="form-control form-control-modern" required>
+                                            <select name="languageCode" class="form-control form-control-modern" required>
+                                                <option value="en_US">English (US)</option>
+                                                <option value="en_GB">English (UK)</option>
+                                                <option value="ar">Arabic</option>
+                                                <option value="ru">Russian</option>
+                                                <option value="es">Spanish</option>
+                                                <option value="fr">French</option>
+                                                <option value="de">German</option>
+                                                <option value="tr">Turkish</option>
+                                                <option value="pt_BR">Portuguese (BR)</option>
+                                                <option value="hi">Hindi</option>
+                                                <option value="zh_CN">Chinese (CN)</option>
+                                            </select>
                                         </div>
                                     </div>
                                     
