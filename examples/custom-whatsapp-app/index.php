@@ -456,9 +456,15 @@ if ($hasValidAuth) {
                                     <div class="form-group">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <label class="font-weight-600 small text-muted text-uppercase mb-0">Target Numbers (One per line) *</label>
-                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="toggleContactSelector">
-                                                <i class="fas fa-user-plus mr-1"></i> Add from Bitrix24
-                                            </button>
+                                            <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-2" id="uploadCsvBtn">
+                                                    <i class="fas fa-file-csv mr-1"></i> Upload CSV
+                                                </button>
+                                                <input type="file" id="bulkCsvInput" accept=".csv" style="display: none;">
+                                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="toggleContactSelector">
+                                                    <i class="fas fa-user-plus mr-1"></i> Add from Bitrix24
+                                                </button>
+                                            </div>
                                         </div>
                                         
                                         <!-- Contact Selector -->
@@ -1544,6 +1550,54 @@ if ($hasValidAuth) {
                         $('#pauseCampaignBtn').show();
                         $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
                         processNextCampaignBatch();
+                    });
+
+                    // --- CSV Upload Logic ---
+                    $('#uploadCsvBtn').on('click', function() {
+                        $('#bulkCsvInput').click();
+                    });
+
+                    $('#bulkCsvInput').on('change', function(e) {
+                        var file = e.target.files[0];
+                        if (!file) return;
+
+                        var reader = new FileReader();
+                        reader.onload = function(e) {
+                            var contents = e.target.result;
+                            var lines = contents.split(/\r?\n/);
+                            if (lines.length < 1) return;
+
+                            var headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                            var phoneIdx = headers.indexOf('phone');
+
+                            if (phoneIdx === -1) {
+                                alert('Error: No column named "phone" found in CSV.');
+                                return;
+                            }
+
+                            var phoneNumbers = [];
+                            for (var i = 1; i < lines.length; i++) {
+                                if (!lines[i].trim()) continue;
+                                var cols = lines[i].split(',');
+                                if (cols[phoneIdx]) {
+                                    var cleaned = cols[phoneIdx].replace(/[^\d+]/g, '').trim();
+                                    if (cleaned) phoneNumbers.push(cleaned);
+                                }
+                            }
+
+                            if (phoneNumbers.length > 0) {
+                                var currentVal = $('#campaignNumbersArea').val().trim();
+                                var newVal = (currentVal ? currentVal + "\n" : "") + phoneNumbers.join("\n");
+                                $('#campaignNumbersArea').val(newVal).trigger('input');
+                                showToast('Imported ' + phoneNumbers.length + ' numbers from CSV', 'success');
+                            } else {
+                                alert('No valid numbers found in the "phone" column.');
+                            }
+                            
+                            // Reset input so same file can be uploaded again if needed
+                            $('#bulkCsvInput').val('');
+                        };
+                        reader.readAsText(file);
                     });
 
                     // --- Campaign Analysis Logic ---
