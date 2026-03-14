@@ -330,6 +330,41 @@ if ($hasValidAuth) {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        /* Analytics Modal Styles */
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .metric-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .analytics-range-btn.active {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+        }
+        .comparison-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+        }
+        .badge-up { background: rgba(40, 167, 69, 0.2); color: #28a745; }
+        .badge-down { background: rgba(220, 53, 69, 0.2); color: #dc3545; }
     </style>
 </head>
 <body>
@@ -635,7 +670,80 @@ if ($hasValidAuth) {
                     </div>
                 </div>
 
-                <!-- Create Template Modal -->
+                <!-- Template Analytics Modal -->
+    <div class="modal fade" id="templateAnalyticsModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content glass">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title font-weight-bold">
+                            <i class="fas fa-chart-line text-info mr-2"></i>Template Analytics
+                        </h5>
+                        <small class="text-white-50" id="analyticsTemplateName"></small>
+                    </div>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body pt-4">
+                    <!-- Range Selector -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-light analytics-range-btn active" data-range="7">7 Days</button>
+                            <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="30">30 Days</button>
+                            <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="60">60 Days</button>
+                            <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="90">90 Days</button>
+                        </div>
+                        <div class="text-right">
+                            <small class="text-white-50 d-block">Comparison</small>
+                            <select id="analyticsComparisonSelect" class="form-control form-control-sm bg-transparent text-white border-0 p-0" style="height: auto;">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Basic Warning -->
+                    <div id="analyticsWarning" class="alert alert-warning py-2 small d-none" role="alert">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Data requires at least 1,000 sends per template.
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div id="analyticsContent">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="metric-card h-100">
+                                    <div class="metric-label">Block Rate</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="metric-value text-info" id="metricBlockRate">--</div>
+                                        <span id="diffBlockRate" class="comparison-badge"></span>
+                                    </div>
+                                    <small class="text-white-50" id="reasonBlockRate">Top reason: --</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="metric-card h-100">
+                                    <div class="metric-label">Message Sends</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="metric-value text-success" id="metricSends">--</div>
+                                        <span id="diffSends" class="comparison-badge"></span>
+                                    </div>
+                                    <small class="text-white-50">Successful delivery attempts</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="analyticsLoader" class="text-center py-5 d-none">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <p class="mt-2 text-white-50">Analyzing data...</p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Template Modal -->
                 <div class="modal fade" id="createTemplateModal" tabindex="-1">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -1074,6 +1182,7 @@ if ($hasValidAuth) {
                                         html += '<td><span class="' + statusPill + '">' + t.status + '</span>' + reasonHtml + '</td>';
                                         html += '<td class="text-right"><div class="btn-group">';
                                         html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View"><i class="fas fa-eye"></i></button>';
+                                        html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-analytics-btn" data-id="' + t.gsTemplateId + '" data-element="' + t.elementName + '" title="View Performance Analytics"><i class="fas fa-chart-line"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 px-2 edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit"><i class="fas fa-edit"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-danger rounded-circle px-2 delete-btn" data-name="' + t.elementName + '" title="Delete"><i class="fas fa-trash"></i></button>';
                                         html += '</div></td></tr>';
@@ -2009,6 +2118,129 @@ if ($hasValidAuth) {
                         loadCampaignAnalysis();
                     });
                     
+                    // --- Template Analytics Logic ---
+                    let currentAnalyticsId = null;
+                    let currentAnalyticsRange = 7;
+
+                    $(document).on('click', '.view-analytics-btn', function() {
+                        const id = $(this).data('id');
+                        const element = $(this).data('element');
+                        
+                        currentAnalyticsId = id;
+                        $('#analyticsTemplateName').text(element);
+                        
+                        // Populate comparison select
+                        const $select = $('#analyticsComparisonSelect').empty().append('<option value="">None</option>');
+                        if (window.allTemplatesData) {
+                            window.allTemplatesData.forEach(t => {
+                                if (t.gsTemplateId !== id && t.status === 'APPROVED') {
+                                    $select.append(`<option value="${t.gsTemplateId}">${t.elementName}</option>`);
+                                }
+                            });
+                        }
+
+                        loadAnalytics();
+                        $('#templateAnalyticsModal').modal('show');
+                    });
+
+                    $('.analytics-range-btn').click(function() {
+                        $('.analytics-range-btn').removeClass('active');
+                        $(this).addClass('active');
+                        currentAnalyticsRange = $(this).data('range');
+                        loadAnalytics();
+                    });
+
+                    $('#analyticsComparisonSelect').change(function() {
+                        loadAnalytics();
+                    });
+
+                    function loadAnalytics() {
+                        $('#analyticsContent').addClass('d-none');
+                        $('#analyticsLoader').removeClass('d-none');
+                        $('#analyticsWarning').addClass('d-none');
+
+                        const compareId = $('#analyticsComparisonSelect').val();
+
+                        $.ajax({
+                            url: 'get_template_analytics.php',
+                            method: 'GET',
+                            data: {
+                                templateId: currentAnalyticsId,
+                                templateList: compareId,
+                                range: currentAnalyticsRange
+                            },
+                            dataType: 'json',
+                            success: function(resp) {
+                                $('#analyticsLoader').addClass('d-none');
+                                $('#analyticsContent').removeClass('d-none');
+
+                                if (resp.status === 'error') {
+                                    showToast('Analytics', resp.message, 'danger');
+                                    if (resp.message && resp.message.includes('1,000')) $('#analyticsWarning').removeClass('d-none');
+                                    resetAnalyticsUI();
+                                    return;
+                                }
+
+                                renderAnalytics(resp.data, currentAnalyticsId, compareId);
+                            },
+                            error: function() {
+                                $('#analyticsLoader').addClass('d-none');
+                                $('#analyticsContent').removeClass('d-none');
+                                showToast('Analytics', 'Failed to fetch analytics data', 'danger');
+                                resetAnalyticsUI();
+                            }
+                        });
+                    }
+
+                    function resetAnalyticsUI() {
+                        $('#metricBlockRate').text('--');
+                        $('#metricSends').text('--');
+                        $('#diffBlockRate, #diffSends').empty();
+                        $('#reasonBlockRate').text('Top reason: --');
+                    }
+
+                    function renderAnalytics(data, targetId, compareId) {
+                        if (!data) return;
+                        const sends = data.find(m => m.metric === 'MESSAGE_SENDS');
+                        const blockRate = data.find(m => m.metric === 'BLOCK_RATE');
+                        const blockReason = data.find(m => m.metric === 'TOP_BLOCK_REASON');
+
+                        // Render Sends
+                        if (sends) {
+                            const targetVal = (sends.number_values.find(v => v.key === targetId) || {}).value || 0;
+                            $('#metricSends').text(targetVal.toLocaleString());
+                            
+                            if (compareId) {
+                                const compareVal = (sends.number_values.find(v => v.key === compareId) || {}).value || 0;
+                                const diff = targetVal - compareVal;
+                                const $badge = $('#diffSends').removeClass('badge-up badge-down');
+                                if (diff > 0) $badge.addClass('badge-up').text(`+${diff.toLocaleString()} vs base`);
+                                else if (diff < 0) $badge.addClass('badge-down').text(`${diff.toLocaleString()} vs base`);
+                            }
+                        }
+
+                        // Render Block Rate
+                        if (blockRate) {
+                            const order = blockRate.order_by_relative_metric || [];
+                            if (compareId) {
+                                const pos = order.indexOf(targetId);
+                                const compPos = order.indexOf(compareId);
+                                const $badge = $('#diffBlockRate').removeClass('badge-up badge-down');
+                                if (pos < compPos) $badge.addClass('badge-up').text('Better performance');
+                                else if (pos > compPos) $badge.addClass('badge-down').text('Higher block rate');
+                                $('#metricBlockRate').text(pos === 0 ? 'LOW' : 'HIGH');
+                            } else {
+                                $('#metricBlockRate').text('ACTIVE');
+                            }
+                        }
+
+                        // Render Reason
+                        if (blockReason) {
+                            const reason = (blockReason.string_values.find(v => v.key === targetId) || {}).value || 'None';
+                            $('#reasonBlockRate').text(`Top reason: ${reason.replace(/_/g, ' ')}`);
+                        }
+                    }
+
                     $('#refreshAnalysisBtn').off('click').on('click', function() {
                         loadCampaignAnalysis();
                     });
