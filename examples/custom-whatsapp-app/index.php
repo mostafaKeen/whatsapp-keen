@@ -1445,15 +1445,19 @@ if ($hasValidAuth) {
                     var nextStart = 50;
                     var segmentFieldKey = null;
 
+                    var segmentFieldFetched = false;
+
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
-                        if (!isVisible && allContacts.length === 0) {
-                            if (segmentFieldKey === null) {
+                        if (!isVisible) {
+                            // Always fetch segment field on first open
+                            if (!segmentFieldFetched) {
+                                segmentFieldFetched = true;
                                 fetchSegmentField(function() {
-                                    fetchCampaignContacts(0);
+                                    if (allContacts.length === 0) fetchCampaignContacts(0);
                                 });
-                            } else {
+                            } else if (allContacts.length === 0) {
                                 fetchCampaignContacts(0);
                             }
                         }
