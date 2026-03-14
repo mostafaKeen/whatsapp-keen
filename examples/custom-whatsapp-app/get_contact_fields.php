@@ -39,15 +39,23 @@ if (!isset($data['result'])) {
 
 $segmentField = null;
 foreach ($data['result'] as $key => $field) {
-    // Check various label properties as Bitrix sometimes returns them differently
-    $title = $field['title'] ?? $field['listLabel'] ?? $field['formLabel'] ?? '';
-    if (strcasecmp($title, 'Segment') === 0) {
-        $segmentField = [
-            'key' => $key,
-            'title' => $title,
-            'items' => $field['items'] ?? []
-        ];
-        break;
+    // Check all possible label properties for the word "Segment"
+    $labels = [
+        $field['listLabel'] ?? '',
+        $field['formLabel'] ?? '',
+        $field['filterLabel'] ?? '',
+        $field['title'] ?? ''
+    ];
+    
+    foreach ($labels as $label) {
+        if ($label && strcasecmp($label, 'Segment') === 0) {
+            $segmentField = [
+                'key' => $key,
+                'title' => $label,
+                'items' => $field['items'] ?? []
+            ];
+            break 2; // Found it
+        }
     }
 }
 

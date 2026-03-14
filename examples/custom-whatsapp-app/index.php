@@ -1448,13 +1448,18 @@ if ($hasValidAuth) {
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
-                        if (!isVisible) {
-                            if (segmentFieldKey === null) fetchSegmentField();
-                            if (allContacts.length === 0) fetchCampaignContacts(0);
+                        if (!isVisible && allContacts.length === 0) {
+                            if (segmentFieldKey === null) {
+                                fetchSegmentField(function() {
+                                    fetchCampaignContacts(0);
+                                });
+                            } else {
+                                fetchCampaignContacts(0);
+                            }
                         }
                     });
 
-                    function fetchSegmentField() {
+                    function fetchSegmentField(callback) {
                         $.ajax({
                             url: 'get_contact_fields.php',
                             method: 'GET',
@@ -1471,12 +1476,16 @@ if ($hasValidAuth) {
                                     }
                                     $filter.show();
                                 }
+                                if (callback) callback();
+                            },
+                            error: function() {
+                                if (callback) callback();
                             }
                         });
                     }
 
                     $('#contactSegmentFilter').change(function() {
-                        renderContactList();
+                        renderCampaignContacts($('#contactSearchInput').val());
                     });
 
                     function fetchCampaignContacts(start) {
