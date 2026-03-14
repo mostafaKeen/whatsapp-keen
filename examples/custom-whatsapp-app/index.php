@@ -498,7 +498,7 @@ if ($hasValidAuth) {
                         <div class="modal-content">
                             <form id="campaignForm">
                                 <div class="modal-header">
-                                    <h5 class="modal-title text-info"><i class="fas fa-paper-plane mr-2"></i> Send Bulk Campaign</h5>
+                                    <h5 class="modal-title text-info"><i class="fas fa-paper-plane mr-2"></i> Send bulk campaign</h5>
                                     <button type="button" class="close" data-dismiss="modal" id="campaignCloseBtn">&times;</button>
                                 </div>
                                 <div class="modal-body">
