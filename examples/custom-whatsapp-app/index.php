@@ -330,41 +330,66 @@ if ($hasValidAuth) {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        /* Analytics Modal Styles */
+        /* Analytics Modal Styles - Premium Refresh */
         .metric-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
             padding: 1.5rem;
-            transition: transform 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
         }
         .metric-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-8px);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         .metric-value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-bottom: 0.25rem;
+            letter-spacing: -0.02em;
         }
         .metric-label {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .comparison-meter {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+        .comparison-meter-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s ease-out;
+        }
+        .text-cyan { color: #00e5ff; }
+        .text-emerald { color: #00e676; }
+        .text-amber { color: #ffca28; }
+        .text-rose { color: #ff5252; }
+        
+        .analytics-range-btn {
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            padding: 0.4rem 0.8rem !important;
         }
         .analytics-range-btn.active {
-            background-color: var(--primary-color) !important;
+            background: var(--primary-color) !important;
             border-color: var(--primary-color) !important;
+            color: white !important;
+            box-shadow: 0 0 15px rgba(0, 188, 212, 0.3);
         }
-        .comparison-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            margin-left: 0.5rem;
-        }
-        .badge-up { background: rgba(40, 167, 69, 0.2); color: #28a745; }
-        .badge-down { background: rgba(220, 53, 69, 0.2); color: #dc3545; }
     </style>
 </head>
 <body>
@@ -712,22 +737,28 @@ if ($hasValidAuth) {
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="metric-card h-100">
-                                    <div class="metric-label">Block Rate</div>
+                                    <div class="metric-label">Block Rate Performance</div>
                                     <div class="d-flex align-items-baseline">
-                                        <div class="metric-value text-info" id="metricBlockRate">--</div>
+                                        <div class="metric-value" id="metricBlockRate">--</div>
                                         <span id="diffBlockRate" class="comparison-badge"></span>
                                     </div>
-                                    <small class="text-white-50" id="reasonBlockRate">Top reason: --</small>
+                                    <div id="blockRateMeter" class="comparison-meter d-none">
+                                        <div id="blockRateFill" class="comparison-meter-fill"></div>
+                                    </div>
+                                    <small class="text-white-50 mt-2 d-block" id="reasonBlockRate">Top reason: --</small>
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <div class="metric-card h-100">
-                                    <div class="metric-label">Message Sends</div>
+                                    <div class="metric-label">Total Message Sends</div>
                                     <div class="d-flex align-items-baseline">
-                                        <div class="metric-value text-success" id="metricSends">--</div>
+                                        <div class="metric-value" id="metricSends">--</div>
                                         <span id="diffSends" class="comparison-badge"></span>
                                     </div>
-                                    <small class="text-white-50">Successful delivery attempts</small>
+                                    <div id="sendsMeter" class="comparison-meter d-none">
+                                        <div id="sendsFill" class="comparison-meter-fill bg-emerald"></div>
+                                    </div>
+                                    <small class="text-white-50 mt-2 d-block">Successful delivery attempts</small>
                                 </div>
                             </div>
                         </div>
@@ -2205,39 +2236,56 @@ if ($hasValidAuth) {
                         const blockRate = data.find(m => m.metric === 'BLOCK_RATE');
                         const blockReason = data.find(m => m.metric === 'TOP_BLOCK_REASON');
 
+                        $('#blockRateMeter, #sendsMeter').addClass('d-none');
+
                         // Render Sends
                         if (sends) {
                             const targetVal = (sends.number_values.find(v => v.key === targetId) || {}).value || 0;
-                            $('#metricSends').text(targetVal.toLocaleString());
+                            $('#metricSends').text(targetVal.toLocaleString()).addClass('text-emerald');
                             
                             if (compareId) {
                                 const compareVal = (sends.number_values.find(v => v.key === compareId) || {}).value || 0;
                                 const diff = targetVal - compareVal;
+                                const total = targetVal + compareVal;
+                                const pct = total > 0 ? (targetVal / total) * 100 : 50;
+                                
                                 const $badge = $('#diffSends').removeClass('badge-up badge-down');
-                                if (diff > 0) $badge.addClass('badge-up').text(`+${diff.toLocaleString()} vs base`);
-                                else if (diff < 0) $badge.addClass('badge-down').text(`${diff.toLocaleString()} vs base`);
+                                if (diff > 0) $badge.addClass('badge-up').text(`+${diff.toLocaleString()} vs comp`);
+                                else if (diff < 0) $badge.addClass('badge-down').text(`${diff.toLocaleString()} vs comp`);
+                                
+                                $('#sendsMeter').removeClass('d-none');
+                                $('#sendsFill').css('width', pct + '%');
                             }
                         }
 
                         // Render Block Rate
                         if (blockRate) {
                             const order = blockRate.order_by_relative_metric || [];
+                            const targetIdx = order.indexOf(targetId);
+                            
                             if (compareId) {
-                                const pos = order.indexOf(targetId);
-                                const compPos = order.indexOf(compareId);
+                                const compIdx = order.indexOf(compareId);
                                 const $badge = $('#diffBlockRate').removeClass('badge-up badge-down');
-                                if (pos < compPos) $badge.addClass('badge-up').text('Better performance');
-                                else if (pos > compPos) $badge.addClass('badge-down').text('Higher block rate');
-                                $('#metricBlockRate').text(pos === 0 ? 'LOW' : 'HIGH');
+                                $('#blockRateMeter').removeClass('d-none');
+                                
+                                if (targetIdx < compIdx) {
+                                    $badge.addClass('badge-up').text('Optimal Performance');
+                                    $('#metricBlockRate').text('TOP').addClass('text-emerald').removeClass('text-amber text-rose');
+                                    $('#blockRateFill').css('width', '85%').addClass('bg-emerald').removeClass('bg-amber bg-rose');
+                                } else {
+                                    $badge.addClass('badge-down').text('Action Required');
+                                    $('#metricBlockRate').text('ATTENTION').addClass('text-rose').removeClass('text-emerald text-amber');
+                                    $('#blockRateFill').css('width', '35%').addClass('bg-rose').removeClass('bg-emerald bg-amber');
+                                }
                             } else {
-                                $('#metricBlockRate').text('ACTIVE');
+                                $('#metricBlockRate').text('ANALYZING').addClass('text-cyan').removeClass('text-emerald text-rose text-amber');
                             }
                         }
 
                         // Render Reason
                         if (blockReason) {
-                            const reason = (blockReason.string_values.find(v => v.key === targetId) || {}).value || 'None';
-                            $('#reasonBlockRate').text(`Top reason: ${reason.replace(/_/g, ' ')}`);
+                            const reason = (blockReason.string_values.find(v => v.key === targetId) || {}).value || 'None detected';
+                            $('#reasonBlockRate').text(`Primary Concern: ${reason.replace(/_/g, ' ')}`);
                         }
                     }
 

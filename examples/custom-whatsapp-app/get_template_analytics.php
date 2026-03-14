@@ -55,6 +55,7 @@ $ch = curl_init($fullUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: ' . $apiToken,
+    'token: ' . $apiToken,
     'accept: application/json'
 ]);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
