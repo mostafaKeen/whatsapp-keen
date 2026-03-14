@@ -9,6 +9,8 @@ declare(strict_types=1);
 header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
+ini_set('display_errors', '0');
+error_reporting(0);
 
 $whatsappConfig = require __DIR__ . '/../config.php';
 $webhookUrl = rtrim($whatsappConfig['webhook_url'], '/');
@@ -48,7 +50,7 @@ foreach ($data['result'] as $key => $field) {
     ];
     
     foreach ($labels as $label) {
-        if ($label && strcasecmp($label, 'Segment') === 0) {
+        if ($label && stripos($label, 'Segment') !== false) {
             $segmentField = [
                 'key' => $key,
                 'title' => $label,

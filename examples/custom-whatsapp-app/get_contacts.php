@@ -7,8 +7,8 @@ declare(strict_types=1);
  */
 
 // Enable error output for debugging
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
+ini_set('display_errors', '0');
+error_reporting(0);
 
 $whatsappConfig = require __DIR__ . '/../config.php';
 $webhookUrl = $whatsappConfig['webhook_url'];

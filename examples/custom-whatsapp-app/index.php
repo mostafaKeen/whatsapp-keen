@@ -1460,12 +1460,14 @@ if ($hasValidAuth) {
                     });
 
                     function fetchSegmentField(callback) {
+                        console.log('Fetching segment field definitions...');
                         $.ajax({
                             url: 'get_contact_fields.php',
                             method: 'GET',
                             dataType: 'json',
                             success: function(resp) {
                                 if (resp.success && resp.segmentField) {
+                                    console.log('Segment field found:', resp.segmentField.key);
                                     segmentFieldKey = resp.segmentField.key;
                                     var $filter = $('#contactSegmentFilter');
                                     $filter.empty().append('<option value="">All Segments</option>');
@@ -1475,10 +1477,13 @@ if ($hasValidAuth) {
                                         });
                                     }
                                     $filter.show();
+                                } else {
+                                    console.warn('Segment field not found in Bitrix24 fields.');
                                 }
                                 if (callback) callback();
                             },
-                            error: function() {
+                            error: function(xhr, status, err) {
+                                console.error('Error fetching segment field:', status, err);
                                 if (callback) callback();
                             }
                         });
