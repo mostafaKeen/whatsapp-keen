@@ -540,6 +540,9 @@ if ($hasValidAuth) {
                                         <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded-lg bg-light overflow-hidden">
                                             <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
                                                 <input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" style="width: 200px;" placeholder="Search names...">
+                                                <select id="contactSegmentFilter" class="form-control form-control-sm form-control-modern mx-2" style="width: 150px; display: none;">
+                                                    <option value="">All Segments</option>
+                                                </select>
                                                 <div class="d-flex align-items-center">
                                                     <div class="custom-control custom-checkbox mr-3">
                                                         <input type="checkbox" class="custom-control-input" id="selectAllContacts">
@@ -1440,13 +1443,40 @@ if ($hasValidAuth) {
                     // ============================================
                     var allContacts = [];
                     var nextStart = 50;
+                    var segmentFieldKey = null;
 
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
-                        if (!isVisible && allContacts.length === 0) {
-                            fetchCampaignContacts(0);
+                        if (!isVisible) {
+                            if (segmentFieldKey === null) fetchSegmentField();
+                            if (allContacts.length === 0) fetchCampaignContacts(0);
                         }
+                    });
+
+                    function fetchSegmentField() {
+                        $.ajax({
+                            url: 'get_contact_fields.php',
+                            method: 'GET',
+                            dataType: 'json',
+                            success: function(resp) {
+                                if (resp.success && resp.segmentField) {
+                                    segmentFieldKey = resp.segmentField.key;
+                                    var $filter = $('#contactSegmentFilter');
+                                    $filter.empty().append('<option value="">All Segments</option>');
+                                    if (resp.segmentField.items) {
+                                        resp.segmentField.items.forEach(function(item) {
+                                            $filter.append('<option value="' + item.ID + '">' + item.VALUE + '</option>');
+                                        });
+                                    }
+                                    $filter.show();
+                                }
+                            }
+                        });
+                    }
+
+                    $('#contactSegmentFilter').change(function() {
+                        renderContactList();
                     });
 
                     function fetchCampaignContacts(start) {
@@ -1460,7 +1490,7 @@ if ($hasValidAuth) {
                         }
 
                         $.ajax({
-                            url: 'get_contacts.php?start=' + start,
+                            url: 'get_contacts.php?start=' + start + '&segmentField=' + (segmentFieldKey || ''),
                             method: 'GET',
                             cache: false,
                             success: function(res) {
@@ -1506,9 +1536,23 @@ if ($hasValidAuth) {
                     function renderCampaignContacts(search) {
                         var html = '';
                         var filter = (search || '').toLowerCase();
+                        var segment = $('#contactSegmentFilter').val();
+                        
                         var filtered = allContacts.filter(function(c) {
                             var fullName = ((c.NAME || '') + ' ' + (c.LAST_NAME || '')).toLowerCase();
-                            return fullName.includes(filter);
+                            var matchQuery = fullName.includes(filter);
+                            
+                            var matchSegment = true;
+                            if (segment && segmentFieldKey) {
+                                var val = c[segmentFieldKey];
+                                if (Array.isArray(val)) {
+                                    matchSegment = val.some(v => String(v) === String(segment));
+                                } else {
+                                    matchSegment = String(val) === String(segment);
+                                }
+                            }
+                            
+                            return matchQuery && matchSegment;
                         });
                         
                         if (filtered.length === 0) {

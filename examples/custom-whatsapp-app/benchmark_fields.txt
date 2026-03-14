@@ -1,0 +1,76 @@
+﻿
+Warning: Module "intl" is already loaded in Unknown on line 0
+ID: ID
+HONORIFIC: Salutation
+NAME: First name
+SECOND_NAME: Second name
+LAST_NAME: Last name
+PHOTO: Photo
+BIRTHDATE: Date of birth
+TYPE_ID: Contact type
+SOURCE_ID: Source
+SOURCE_DESCRIPTION: Source information
+POST: Position
+ADDRESS: Address
+ADDRESS_2: Address (line 2)
+ADDRESS_CITY: City
+ADDRESS_POSTAL_CODE: Zip
+ADDRESS_REGION: Region
+ADDRESS_PROVINCE: State / Province
+ADDRESS_COUNTRY: Country
+ADDRESS_COUNTRY_CODE: Country Code
+ADDRESS_LOC_ADDR_ID: Location address ID
+COMMENTS: Comment
+OPENED: Available to everyone
+EXPORT: Included in export
+HAS_PHONE: Has phone
+HAS_EMAIL: Has email
+HAS_IMOL: Has Open Channel
+ASSIGNED_BY_ID: Responsible person
+CREATED_BY_ID: Created by
+MODIFY_BY_ID: Modified by
+DATE_CREATE: Created on
+DATE_MODIFY: Modified on
+COMPANY_ID: Company
+COMPANY_IDS: COMPANY_IDS
+LEAD_ID: Lead
+ORIGINATOR_ID: External source
+ORIGIN_ID: Item ID in data source
+ORIGIN_VERSION: Original version
+UTM_SOURCE: Ad system
+UTM_MEDIUM: Medium
+UTM_CAMPAIGN: Ad campaign UTM
+UTM_CONTENT: Campaign contents
+UTM_TERM: Campaign search term
+PARENT_ID_1036: BenchMark Property Finder - Listings
+PARENT_ID_1042: BenchMark Bayut Listing
+PARENT_ID_1046: Relaam Bayut Listing
+PARENT_ID_1050: Relaam Property Finder - Listings
+LAST_ACTIVITY_TIME: Last updated on
+LAST_ACTIVITY_BY: Last timeline activity added by
+LAST_COMMUNICATION_TIME: Last contact
+PHONE: Phone
+EMAIL: E-mail
+WEB: Website
+IM: Messenger
+LINK: LINK
+UF_CRM_1761681256651: Preferred Area
+UF_CRM_1761681320585: Requirement
+UF_CRM_694D3892D836F: Preferred Area
+UF_CRM_694D3892EF444: Name
+UF_CRM_694D389303B68: Listing Reference
+UF_CRM_694D38930E30A: Lead ID
+UF_CRM_694D389317773: Current Type
+UF_CRM_694D389324BC1: Message
+UF_CRM_694D38932FC90: Ref No.
+UF_CRM_694D38933948E: Project Name/Property Name
+UF_CRM_694D389342691: Bayut Unique Key
+UF_CRM_694D38934DA47: Interest
+  - 370: Buy
+  - 372: Rent
+UF_CRM_694D389359DE4: Would like to recieve communications
+UF_CRM_694D38936480A: Request Call Back
+UF_CRM_694D38936ED09: Request Email
+UF_CRM_1773487881: Segment
+  - 478: Buy
+  - 480: Rent

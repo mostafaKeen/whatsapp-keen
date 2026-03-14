@@ -17,12 +17,18 @@ $webhookUrl = $whatsappConfig['webhook_url'];
 $webhookUrl = rtrim($webhookUrl, '/');
 
 $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
+$segmentField = isset($_GET['segmentField']) ? $_GET['segmentField'] : '';
 
 // Build the API URL for crm.contact.list
 $apiUrl = $webhookUrl . '/crm.contact.list.json';
 
+$select = ['ID', 'NAME', 'LAST_NAME', 'PHONE'];
+if ($segmentField) {
+    $select[] = $segmentField;
+}
+
 $postData = [
-    'select' => ['ID', 'NAME', 'LAST_NAME', 'PHONE'],
+    'select' => $select,
     'order'  => ['NAME' => 'ASC'],
     'start'  => $start
 ];

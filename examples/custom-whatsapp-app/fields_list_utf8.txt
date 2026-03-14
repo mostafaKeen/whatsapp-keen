@@ -1,0 +1,62 @@
+﻿
+Warning: Module "intl" is already loaded in Unknown on line 0
+ID: ID
+HONORIFIC: Salutation
+NAME: First name
+SECOND_NAME: Second name
+LAST_NAME: Last name
+PHOTO: Photo
+BIRTHDATE: Date of birth
+TYPE_ID: Contact type
+SOURCE_ID: Source
+SOURCE_DESCRIPTION: Source information
+POST: Position
+ADDRESS: Address
+ADDRESS_2: Address (line 2)
+ADDRESS_CITY: City
+ADDRESS_POSTAL_CODE: Zip
+ADDRESS_REGION: Region
+ADDRESS_PROVINCE: State / Province
+ADDRESS_COUNTRY: Country
+ADDRESS_COUNTRY_CODE: Country Code
+ADDRESS_LOC_ADDR_ID: Location address ID
+COMMENTS: Comment
+OPENED: Available to everyone
+EXPORT: Included in export
+HAS_PHONE: Has phone
+HAS_EMAIL: Has email
+HAS_IMOL: Has Open Channel
+ASSIGNED_BY_ID: Responsible person
+CREATED_BY_ID: Created by
+MODIFY_BY_ID: Modified by
+DATE_CREATE: Created on
+DATE_MODIFY: Modified on
+COMPANY_ID: Company
+COMPANY_IDS: COMPANY_IDS
+LEAD_ID: Lead
+ORIGINATOR_ID: External source
+ORIGIN_ID: Item ID in data source
+ORIGIN_VERSION: Original version
+UTM_SOURCE: Ad system
+UTM_MEDIUM: Medium
+UTM_CAMPAIGN: Ad campaign UTM
+UTM_CONTENT: Campaign contents
+UTM_TERM: Campaign search term
+LAST_ACTIVITY_TIME: Last updated on
+LAST_ACTIVITY_BY: Last timeline activity added by
+LAST_COMMUNICATION_TIME: Last contact
+PHONE: Phone
+EMAIL: E-mail
+WEB: Website
+IM: Messenger
+LINK: LINK
+UF_CRM_INSTAGRAM_WZ: Instagram_WZ
+UF_CRM_TELEGRAMUSERNAME_WZ: TelegramUsername_WZ
+UF_CRM_VK_WZ: VK_WZ
+UF_CRM_AVITO_WZ: Avito_WZ
+UF_CRM_TELEGRAMID_WZ: TelegramId_WZ
+UF_CRM_MAXUSERNAME_WZ: MaxUsername_WZ
+UF_CRM_MAXID_WZ: MaxId_WZ
+UF_CRM_1772177953057: Owner Of / Project Name 
+UF_CRM_CHATAPP_DIALOG: ChatApp Dialog
+UF_CRM_MESSAGE_TEXT: Message Text
