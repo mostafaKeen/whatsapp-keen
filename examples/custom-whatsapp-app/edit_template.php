@@ -30,6 +30,7 @@ $buttons = $_POST['buttons'] ?? '';
 $exampleMedia = $_POST['exampleMedia'] ?? '';
 $exampleHeader = $_POST['exampleHeader'] ?? '';
 $mediaId = $_POST['mediaId'] ?? '';
+$mediaUrl = $_POST['mediaUrl'] ?? '';
 
 if (empty($templateId)) {
     http_response_code(400);
@@ -65,6 +66,7 @@ if (!empty($buttons)) $postData['buttons'] = $buttons;
 if (!empty($exampleMedia)) $postData['exampleMedia'] = $exampleMedia;
 if (!empty($exampleHeader)) $postData['exampleHeader'] = $exampleHeader;
 if (!empty($mediaId)) $postData['mediaId'] = $mediaId;
+if (!empty($mediaUrl)) $postData['mediaUrl'] = $mediaUrl;
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

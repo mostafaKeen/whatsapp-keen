@@ -683,6 +683,7 @@ if ($hasValidAuth) {
                                                 <option value="IMAGE">IMAGE</option>
                                                 <option value="VIDEO">VIDEO</option>
                                                 <option value="DOCUMENT">DOCUMENT</option>
+                                                <option value="GIF">GIF</option>
                                             </select>
                                         </div>
                                         <div class="col-md-6 form-group">
@@ -943,6 +944,13 @@ if ($hasValidAuth) {
                         if (type !== 'TEXT') {
                             $('#mediaExampleSection').show();
                             $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
+                            
+                            // Adjust placeholder for GIF
+                            if (type === 'GIF') {
+                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
+                            } else {
+                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample file');
+                            }
                         } else {
                             $('#mediaExampleSection').hide();
                             $('#headerField').prop('disabled', false).attr('placeholder', '60 characters max');
@@ -1145,7 +1153,7 @@ if ($hasValidAuth) {
                                 $form.find('[name="header"]').val(meta.header || '');
                                 $form.find('[name="exampleMedia"]').val(meta.sampleMedia || '');
                                 $form.find('[name="exampleHeader"]').val(meta.sampleText || '');
-                                $('#editMediaExampleSection').toggle(['IMAGE','VIDEO','DOCUMENT'].indexOf(t.templateType) !== -1);
+                                 $('#editMediaExampleSection').toggle(['IMAGE','VIDEO','DOCUMENT','GIF'].indexOf(t.templateType) !== -1);
                                 $('#editButtonsContainer').empty();
                                 if (meta.buttons && meta.buttons.length > 0) {
                                     meta.buttons.forEach(function(btn) { addButtonToEditForm(btn); });
@@ -1458,7 +1466,7 @@ if ($hasValidAuth) {
                         }
 
                         // Check if template type requires media (IMAGE, VIDEO, DOCUMENT)
-                        if (selectedTemplate && ['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(selectedTemplate.templateType) !== -1) {
+                        if (selectedTemplate && ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(selectedTemplate.templateType) !== -1) {
                             $('#campaignMediaUrl').val(autoMediaUrl);
                             if (autoMediaUrl) {
                                 // If found in template data, no need to ask user

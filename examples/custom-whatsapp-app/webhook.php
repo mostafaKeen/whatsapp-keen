@@ -13,17 +13,6 @@ declare(strict_types=1);
  * -----------------------------------------------
  */
 
-// Immediately respond 200 OK so Gupshup doesn't retry
-http_response_code(200);
-echo json_encode(["status" => "ok"]);
-
-// Run logic asynchronously (output already flushed)
-if (function_exists('fastcgi_finish_request')) {
-    fastcgi_finish_request();
-} else {
-    ob_flush(); flush();
-}
-
 // Setup
 require_once __DIR__ . '/../../vendor/autoload.php';
 $whatsappConfig = require __DIR__ . '/../config.php';
@@ -129,8 +118,38 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     'document' => $msg['document']['caption']  ?? ($msg['document']['filename'] ?? '[Document]'),
                     'audio'    => '[Voice Message]',
                     'sticker'  => '[Sticker]',
+                    'location' => '[Location: ' . ($msg['location']['name'] ?? $msg['location']['address'] ?? ($msg['location']['latitude'] . ',' . $msg['location']['longitude'])) . ']',
+                    'contacts' => '[Contact: ' . ($msg['contacts'][0]['name']['formatted_name'] ?? 'Contact Card') . ']',
+                    'interactive' => match($msg['interactive']['type'] ?? '') {
+                        'button_reply' => $msg['interactive']['button_reply']['title'] ?? '[Button Reply]',
+                        'list_reply'   => $msg['interactive']['list_reply']['title']   ?? '[List Selection]',
+                        default        => '[Interactive Message]'
+                    },
+                    'button'   => $msg['button']['text'] ?? '[Button Click]',
                     default    => '[Unsupported message type: ' . $type . ']',
                 };
+
+                // Add extra context if it's location or interactive
+                $extraData = [];
+                if ($type === 'location') {
+                    $extraData = [
+                        'latitude'  => $msg['location']['latitude']  ?? null,
+                        'longitude' => $msg['location']['longitude'] ?? null,
+                        'address'   => $msg['location']['address']   ?? null,
+                        'name'      => $msg['location']['name']      ?? null,
+                        'map_url'   => isset($msg['location']['latitude']) ? "https://www.google.com/maps?q={$msg['location']['latitude']},{$msg['location']['longitude']}" : null
+                    ];
+                } elseif ($type === 'interactive') {
+                    $extraData = [
+                        'interactive_type' => $msg['interactive']['type'] ?? null,
+                        'reply_id'         => $msg['interactive']['button_reply']['id'] ?? $msg['interactive']['list_reply']['id'] ?? null
+                    ];
+                } elseif ($type === 'contacts') {
+                    $extraData = [
+                        'contact_name' => $msg['contacts'][0]['name']['formatted_name'] ?? null,
+                        'contact_phones' => array_column($msg['contacts'][0]['phones'] ?? [], 'phone')
+                    ];
+                }
 
                 // Get sender name
                 $senderName = '';
@@ -177,6 +196,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'direction'    => 'inbound',
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
+                        'extra'        => $extraData,
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 } else {
@@ -193,6 +213,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'direction'    => 'inbound',
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
+                        'extra'        => $extraData,
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 }
@@ -440,6 +461,7 @@ function updateStatusByPhone(string $dir, string $phone, ?string $gsId, ?string 
         }
     }
 }
+
 
 /**
  * Update campaign job target status by message ID for webhook analysis

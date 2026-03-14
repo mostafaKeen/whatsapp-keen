@@ -28,6 +28,8 @@ $footer = $_POST['footer'] ?? '';
 $buttons = $_POST['buttons'] ?? ''; // JSON string from UI
 $exampleHeader = $_POST['exampleHeader'] ?? '';
 $exampleMedia = $_POST['exampleMedia'] ?? ''; // Media handle if already uploaded or URL
+$mediaUrl = $_POST['mediaUrl'] ?? '';
+$mediaId = $_POST['mediaId'] ?? '';
 
 if (empty($elementName) || empty($content)) {
     http_response_code(400);
@@ -69,6 +71,12 @@ if (!empty($exampleHeader)) {
 }
 if (!empty($exampleMedia)) {
     $postData['exampleMedia'] = $exampleMedia;
+}
+if (!empty($mediaUrl)) {
+    $postData['mediaUrl'] = $mediaUrl;
+}
+if (!empty($mediaId)) {
+    $postData['mediaId'] = $mediaId;
 }
 
 $ch = curl_init($url);
