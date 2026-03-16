@@ -31,6 +31,12 @@ if (!$templateId) {
     exit;
 }
 
+// Handle empty template list gracefully
+if (empty($templateList)) {
+    echo json_encode(['status' => 'success', 'data' => []]);
+    exit;
+}
+
 // Gupshup API requires specific differences in seconds:
 // 7 days: 604800, 30 days: 2592000, 60 days: 5184000, 90 days: 7776000
 $ranges = [
