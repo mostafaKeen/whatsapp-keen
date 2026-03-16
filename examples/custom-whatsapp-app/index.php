@@ -385,11 +385,45 @@ if ($hasValidAuth) {
             padding: 0.4rem 0.8rem !important;
         }
         .analytics-range-btn.active {
-            background: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
             color: white !important;
-            box-shadow: 0 0 15px rgba(0, 188, 212, 0.3);
+            box-shadow: 0 0 15px rgba(37, 211, 102, 0.3);
         }
+
+        /* Dark Glass for Analytics */
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.9) !important;
+            backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+        }
+        .glass-dark .modal-header, .glass-dark .modal-footer {
+            background: transparent !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        .glass-dark .close {
+            color: white;
+            text-shadow: none;
+            opacity: 0.7;
+        }
+        .glass-dark .close:hover { opacity: 1; }
+        
+        .metric-card-dark {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .metric-card-dark:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .text-white-50 { color: rgba(255, 255, 255, 0.5) !important; }
+        .text-white { color: #ffffff !important; }
     </style>
 </head>
 <body>
@@ -701,11 +735,11 @@ if ($hasValidAuth) {
                 <!-- Template Analytics Modal -->
     <div class="modal fade" id="templateAnalyticsModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content glass">
+            <div class="modal-content glass-dark">
                 <div class="modal-header border-0 pb-0">
                     <div>
-                        <h5 class="modal-title font-weight-bold">
-                            <i class="fas fa-chart-line text-info mr-2"></i>Template Analytics
+                        <h5 class="modal-title font-weight-bold text-white">
+                            <i class="fas fa-chart-line text-info mr-2"></i>Template Performance
                         </h5>
                         <small class="text-white-50" id="analyticsTemplateName"></small>
                     </div>
@@ -723,7 +757,7 @@ if ($hasValidAuth) {
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="90">90 Days</button>
                         </div>
                         <div class="text-right d-flex align-items-center">
-                            <button type="button" id="enableAnalyticsBtn" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-3">
+                            <button type="button" id="enableAnalyticsBtn" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-3 shadow-sm">
                                 <i class="fas fa-power-off mr-1"></i> Enable API
                             </button>
                             <div>
@@ -739,26 +773,26 @@ if ($hasValidAuth) {
                     <div id="analyticsContent">
                         <div class="row mb-3">
                             <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                <div class="metric-card h-100 text-center">
-                                    <div class="metric-label">Sent</div>
+                                <div class="metric-card-dark h-100 text-center">
+                                    <div class="metric-label text-white-50">Sent</div>
                                     <div class="metric-value text-info" id="metricSent">--</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                <div class="metric-card h-100 text-center">
-                                    <div class="metric-label">Delivered</div>
+                                <div class="metric-card-dark h-100 text-center">
+                                    <div class="metric-label text-white-50">Delivered</div>
                                     <div class="metric-value text-success" id="metricDelivered">--</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
-                                <div class="metric-card h-100 text-center">
-                                    <div class="metric-label">Read</div>
+                                <div class="metric-card-dark h-100 text-center">
+                                    <div class="metric-label text-white-50">Read</div>
                                     <div class="metric-value text-primary" id="metricRead">--</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
-                                <div class="metric-card h-100 text-center">
-                                    <div class="metric-label">Clicked</div>
+                                <div class="metric-card-dark h-100 text-center">
+                                    <div class="metric-label text-white-50">Clicked</div>
                                     <div class="metric-value text-warning" id="metricClicked">--</div>
                                 </div>
                             </div>
@@ -766,10 +800,10 @@ if ($hasValidAuth) {
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <div class="metric-card h-100">
-                                    <div class="metric-label">Block Rate Performance</div>
+                                <div class="metric-card-dark h-100">
+                                    <div class="metric-label text-white-50">Block Rate Performance</div>
                                     <div class="d-flex align-items-baseline">
-                                        <div class="metric-value" id="metricBlockRate">--</div>
+                                        <div class="metric-value text-white" id="metricBlockRate">--</div>
                                         <span id="diffBlockRate" class="comparison-badge"></span>
                                     </div>
                                     <div id="blockRateMeter" class="comparison-meter d-none">
@@ -779,10 +813,10 @@ if ($hasValidAuth) {
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <div class="metric-card h-100">
-                                    <div class="metric-label">Total Delivery Attempts (Compare API)</div>
+                                <div class="metric-card-dark h-100">
+                                    <div class="metric-label text-white-50">Total Delivery Attempts (Compare API)</div>
                                     <div class="d-flex align-items-baseline">
-                                        <div class="metric-value" id="metricSends">--</div>
+                                        <div class="metric-value text-white" id="metricSends">--</div>
                                         <span id="diffSends" class="comparison-badge"></span>
                                     </div>
                                     <div id="sendsMeter" class="comparison-meter d-none">
@@ -1242,7 +1276,7 @@ if ($hasValidAuth) {
                                         html += '<td><span class="' + statusPill + '">' + t.status + '</span>' + reasonHtml + '</td>';
                                         html += '<td class="text-right"><div class="btn-group">';
                                         html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View"><i class="fas fa-eye"></i></button>';
-                                        html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-analytics-btn" data-id="' + t.gsTemplateId + '" data-element="' + t.elementName + '" title="View Performance Analytics"><i class="fas fa-chart-line"></i></button>';
+                                        html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-analytics-btn" data-id="' + t.id + '" data-element="' + t.elementName + '" title="View Performance Analytics"><i class="fas fa-chart-line"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 px-2 edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit"><i class="fas fa-edit"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-danger rounded-circle px-2 delete-btn" data-name="' + t.elementName + '" title="Delete"><i class="fas fa-trash"></i></button>';
                                         html += '</div></td></tr>';
@@ -2252,8 +2286,8 @@ if ($hasValidAuth) {
                         const $select = $('#analyticsComparisonSelect').empty().append('<option value="">None</option>');
                         if (window.allTemplatesData) {
                             window.allTemplatesData.forEach(t => {
-                                if (t.gsTemplateId !== id && t.status === 'APPROVED') {
-                                    $select.append(`<option value="${t.gsTemplateId}">${t.elementName}</option>`);
+                                if (t.id !== id && t.status === 'APPROVED') {
+                                    $select.append(`<option value="${t.id}">${t.elementName}</option>`);
                                 }
                             });
                         }
