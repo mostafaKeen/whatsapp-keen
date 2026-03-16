@@ -2274,6 +2274,9 @@ if ($hasValidAuth) {
                     // --- Template Analytics Logic ---
                     let currentAnalyticsId = null;
                     let currentAnalyticsRange = 7;
+                    let analyticsDebounceTimer = null;
+                    let xhrCompare = null;
+                    let xhrPerformance = null;
 
                     $(document).on('click', '.view-analytics-btn', function() {
                         const id = $(this).data('id');
@@ -2331,7 +2334,30 @@ if ($hasValidAuth) {
                     });
 
                     function loadAnalytics() {
-                        console.log('[Analytics] loadAnalytics called. ID:', currentAnalyticsId, 'Range:', currentAnalyticsRange);
+                        // Clear existing debounce timer
+                        if (analyticsDebounceTimer) {
+                            clearTimeout(analyticsDebounceTimer);
+                        }
+
+                        // Set new debounce timer (300ms)
+                        analyticsDebounceTimer = setTimeout(function() {
+                            executeLoadAnalytics();
+                        }, 300);
+                    }
+
+                    function executeLoadAnalytics() {
+                        console.log('[Analytics] executeLoadAnalytics called. ID:', currentAnalyticsId, 'Range:', currentAnalyticsRange);
+                        
+                        // Abort pending requests
+                        if (xhrCompare && xhrCompare.readyState !== 4) {
+                            console.log('[Analytics] Aborting previous Compare request');
+                            xhrCompare.abort();
+                        }
+                        if (xhrPerformance && xhrPerformance.readyState !== 4) {
+                            console.log('[Analytics] Aborting previous Performance request');
+                            xhrPerformance.abort();
+                        }
+
                         $('#analyticsContent').addClass('d-none');
                         $('#analyticsLoader').removeClass('d-none');
                         resetAnalyticsUI();
@@ -2346,7 +2372,7 @@ if ($hasValidAuth) {
                         const compareId = $('#analyticsComparisonSelect').val();
 
                         // reqCompare: For Block Rate and Total Sends comparison
-                        $.ajax({
+                        xhrCompare = $.ajax({
                             url: 'get_template_analytics.php',
                             method: 'GET',
                             cache: false,
@@ -2363,12 +2389,16 @@ if ($hasValidAuth) {
                                 }
                             },
                             error: function(xhr, status, err) {
+                                if (status === 'abort') return;
                                 console.warn('[Analytics] Compare API error:', status, err);
+                                if (xhr.status === 429) {
+                                    showToast('Analytics', 'Rate limit exceeded. Please wait a moment.', 'warning');
+                                }
                             }
                         });
                         
                         // reqPerformance: For Detailed Performance Grid (Sent, Delivered, etc)
-                        $.ajax({
+                        xhrPerformance = $.ajax({
                             url: 'get_template_performance.php',
                             method: 'GET',
                             cache: false,
@@ -2382,16 +2412,26 @@ if ($hasValidAuth) {
                                 if (resp.status === 'success' && resp.template_analytics) {
                                     renderAnalyticsPerformance(resp.template_analytics);
                                 } else {
-                                    console.warn('[Analytics] Performance data missing or error:', resp.message || 'No template_analytics in response');
+                                    var msg = resp.message || 'No template_analytics in response';
+                                    console.warn('[Analytics] Performance data missing or error:', msg);
+                                    if (resp.status === 'error' && msg.indexOf('Requests') !== -1) {
+                                         showToast('Analytics', 'Too many requests. Retrying in 2 seconds...', 'warning');
+                                    }
                                 }
                                 $('#analyticsLoader').addClass('d-none');
                                 $('#analyticsContent').removeClass('d-none');
                             },
                             error: function(xhr, status, err) {
+                                if (status === 'abort') return;
                                 console.error('[Analytics] Performance API failed:', status, err, xhr.responseText);
                                 $('#analyticsLoader').addClass('d-none');
                                 $('#analyticsContent').removeClass('d-none');
-                                showToast('Analytics', 'Performance data unavailable. Ensure API is enabled.', 'warning');
+                                
+                                if (xhr.status === 429) {
+                                    showToast('Analytics', 'Rate limit hit. Slowing down...', 'warning');
+                                } else {
+                                    showToast('Analytics', 'Failed to fetch metrics.', 'danger');
+                                }
                             }
                         });
                     }
