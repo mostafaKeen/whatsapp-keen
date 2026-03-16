@@ -2331,17 +2331,25 @@ if ($hasValidAuth) {
                     });
 
                     function loadAnalytics() {
+                        console.log('[Analytics] loadAnalytics called. ID:', currentAnalyticsId, 'Range:', currentAnalyticsRange);
                         $('#analyticsContent').addClass('d-none');
                         $('#analyticsLoader').removeClass('d-none');
                         resetAnalyticsUI();
 
+                        if (!currentAnalyticsId) {
+                            console.warn('[Analytics] No template ID set!');
+                            $('#analyticsLoader').addClass('d-none');
+                            $('#analyticsContent').removeClass('d-none');
+                            return;
+                        }
+
                         const compareId = $('#analyticsComparisonSelect').val();
 
-                        // Fire Both Analytics API requests independently
                         // reqCompare: For Block Rate and Total Sends comparison
                         $.ajax({
                             url: 'get_template_analytics.php',
                             method: 'GET',
+                            cache: false,
                             data: {
                                 templateId: currentAnalyticsId,
                                 templateList: compareId,
@@ -2349,9 +2357,13 @@ if ($hasValidAuth) {
                             },
                             dataType: 'json',
                             success: function(resp) {
+                                console.log('[Analytics] Compare API response:', resp);
                                 if (resp.status === 'success') {
                                     renderAnalyticsCompare(resp.data, currentAnalyticsId, compareId);
                                 }
+                            },
+                            error: function(xhr, status, err) {
+                                console.warn('[Analytics] Compare API error:', status, err);
                             }
                         });
                         
@@ -2359,20 +2371,24 @@ if ($hasValidAuth) {
                         $.ajax({
                             url: 'get_template_performance.php',
                             method: 'GET',
+                            cache: false,
                             data: {
                                 templateId: currentAnalyticsId,
                                 range: currentAnalyticsRange
                             },
                             dataType: 'json',
                             success: function(resp) {
-                                if (resp.status === 'success') {
+                                console.log('[Analytics] Performance API response:', resp);
+                                if (resp.status === 'success' && resp.template_analytics) {
                                     renderAnalyticsPerformance(resp.template_analytics);
+                                } else {
+                                    console.warn('[Analytics] Performance data missing or error:', resp.message || 'No template_analytics in response');
                                 }
-                                // Finish loading after performance metrics (primary data) are handled
                                 $('#analyticsLoader').addClass('d-none');
                                 $('#analyticsContent').removeClass('d-none');
                             },
-                            error: function() {
+                            error: function(xhr, status, err) {
+                                console.error('[Analytics] Performance API failed:', status, err, xhr.responseText);
                                 $('#analyticsLoader').addClass('d-none');
                                 $('#analyticsContent').removeClass('d-none');
                                 showToast('Analytics', 'Performance data unavailable. Ensure API is enabled.', 'warning');
