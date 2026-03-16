@@ -2333,11 +2333,13 @@ if ($hasValidAuth) {
                     function loadAnalytics() {
                         $('#analyticsContent').addClass('d-none');
                         $('#analyticsLoader').removeClass('d-none');
+                        resetAnalyticsUI();
 
                         const compareId = $('#analyticsComparisonSelect').val();
 
-                        // Fire Both Analytics API requests in parallel
-                        const reqCompare = $.ajax({
+                        // Fire Both Analytics API requests independently
+                        // reqCompare: For Block Rate and Total Sends comparison
+                        $.ajax({
                             url: 'get_template_analytics.php',
                             method: 'GET',
                             data: {
@@ -2345,44 +2347,36 @@ if ($hasValidAuth) {
                                 templateList: compareId,
                                 range: currentAnalyticsRange
                             },
-                            dataType: 'json'
+                            dataType: 'json',
+                            success: function(resp) {
+                                if (resp.status === 'success') {
+                                    renderAnalyticsCompare(resp.data, currentAnalyticsId, compareId);
+                                }
+                            }
                         });
                         
-                        const reqPerformance = $.ajax({
+                        // reqPerformance: For Detailed Performance Grid (Sent, Delivered, etc)
+                        $.ajax({
                             url: 'get_template_performance.php',
                             method: 'GET',
                             data: {
                                 templateId: currentAnalyticsId,
                                 range: currentAnalyticsRange
                             },
-                            dataType: 'json'
-                        });
-
-                        $.when(reqCompare, reqPerformance).done(function(respCompare, respPerformance) {
-                            $('#analyticsLoader').addClass('d-none');
-                            $('#analyticsContent').removeClass('d-none');
-                            resetAnalyticsUI();
-                            
-                            // Handle Compare API Response (Metrics like Block Rate)
-                            const r1 = respCompare[0];
-                            if (r1.status === 'success') {
-                                renderAnalyticsCompare(r1.data, currentAnalyticsId, compareId);
-                            } else {
-                                console.warn("Compare API Error:", r1.message);
+                            dataType: 'json',
+                            success: function(resp) {
+                                if (resp.status === 'success') {
+                                    renderAnalyticsPerformance(resp.template_analytics);
+                                }
+                                // Finish loading after performance metrics (primary data) are handled
+                                $('#analyticsLoader').addClass('d-none');
+                                $('#analyticsContent').removeClass('d-none');
+                            },
+                            error: function() {
+                                $('#analyticsLoader').addClass('d-none');
+                                $('#analyticsContent').removeClass('d-none');
+                                showToast('Analytics', 'Performance data unavailable. Ensure API is enabled.', 'warning');
                             }
-                            
-                            // Handle Performance API Response (Daily granularity metrics)
-                            const r2 = respPerformance[0];
-                            if (r2.status === 'success') {
-                                renderAnalyticsPerformance(r2.template_analytics);
-                            } else {
-                                console.warn("Performance API Error:", r2.message);
-                            }
-                        }).fail(function() {
-                            $('#analyticsLoader').addClass('d-none');
-                            $('#analyticsContent').removeClass('d-none');
-                            showToast('Analytics', 'Failed to fetch some analytics data. Make sure it is Enabled.', 'warning');
-                            resetAnalyticsUI();
                         });
                     }
 

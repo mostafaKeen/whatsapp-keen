@@ -1,0 +1,21 @@
+=== Step 1: Fetching Templates ===
+Found 10 templates
+
+test12355                                80bb46ca-1016-4f17-9b17-d97dda485139  [APPROVED]
+keen_testmar06                           2d508972-ac78-49cd-a9ee-5cf55d56b516  [APPROVED]
+keen_test_mar06                          330fe695-cd8e-4845-bd70-7b4211e86869  [FAILED]
+test_image                               8f78bf36-9a28-4742-8c58-f8ff0a2a1b80  [FAILED]
+test1234                                 c4c3a870-6a85-4e02-84ea-70cb800a8581  [FAILED]
+testbitrix                               110b2d16-9f6e-4d40-ac93-fc3157cf069b  [PENDING]
+test123                                  b20b7cae-ff43-4c7c-84cf-277299cbd90d  [FAILED]
+appointment_scheduling_address1          d09a8d77-b6a2-410b-bd6f-2a01accc0d36  [PENDING]
+call_permission_request_12               abb437fe-2605-445a-b49f-e78af63df210  [APPROVED]
+call_permission_request_1                32d7ca30-9bcd-4220-9ed9-aba7ca366fa9  [APPROVED]
+
+=== Step 2: Performance API for test12355 (ID: 80bb46ca-1016-4f17-9b17-d97dda485139) ===
+HTTP Code: 200
+Response: {"product_type":"MARKETING_MESSAGES_LITE_API","status":"success","template_analytics":[{"clicked":[{"button_content":"reply","count":0,"type":"quick_reply_button"}],"delivered":0,"end":1773100800,"read":0,"sent":0,"start":1773014400,"template_id":"80bb46ca-1016-4f17-9b17-d97dda485139"},{"clicked":[{"button_content":"reply","count":0,"type":"quick_reply_button"}],"delivered":0,"end":1773187200,"read":0,"sent":0,"start":1773100800,"template_id":"80bb46ca-1016-4f17-9b17-d97dda485139"},{"clicked":[{
+
+=== Step 3: Compare API ===
+HTTP Code: 429
+Response: {"status":"error","message":"Too Many Requests"}
