@@ -46,46 +46,91 @@ $ranges = [
     90 => 7776000
 ];
 
-$diff = $ranges[$range] ?? 604800;
-$end   = time();
-$start = $end - $diff;
+// Calculate total time window
+$totalEnd   = time();
+$totalStart = $totalEnd - $diff;
 
-$url = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics/{$templateId}/compare";
-$queryParams = [
-    'start'        => $start,
-    'end'          => $end,
-    'templateList' => $templateList
-];
+$chunkSize = 5 * 86400; // 5 days
+$aggregatedData = []; // templateId => [metric_type => value]
 
-$fullUrl = $url . '?' . http_build_query($queryParams);
+// Fetch in 5-day chunks
+for ($currentStart = $totalStart; $currentStart < $totalEnd; $currentStart += $chunkSize) {
+    $currentEnd = min($currentStart + $chunkSize, $totalEnd);
+    
+    $url = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics/{$templateId}/compare";
+    $queryParams = [
+        'start'        => $currentStart,
+        'end'          => $currentEnd,
+        'templateList' => $templateList
+    ];
 
-$ch = curl_init($fullUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Authorization: ' . $apiToken,
-    'token: ' . $apiToken,
-    'accept: application/json'
-]);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $fullUrl = $url . '?' . http_build_query($queryParams);
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error    = curl_error($ch);
-curl_close($ch);
-
-if ($error) {
-    echo json_encode(['status' => 'error', 'message' => 'CURL Error: ' . $error]);
-    exit;
-}
-
-if ($httpCode !== 200) {
-    $decoded = json_decode($response, true);
-    echo json_encode([
-        'status' => 'error',
-        'message' => $decoded['message'] ?? 'API returned error code ' . $httpCode,
-        'raw' => $decoded
+    $ch = curl_init($fullUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: ' . $apiToken,
+        'token: ' . $apiToken,
+        'accept: application/json'
     ]);
-    exit;
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error    = curl_error($ch);
+    curl_close($ch);
+
+    if (!$error && $httpCode === 200) {
+        $decoded = json_decode($response, true);
+        if (isset($decoded['data']) && is_array($decoded['data'])) {
+            foreach ($decoded['data'] as $item) {
+                $tId = $item['template_id'];
+                $mType = $item['metric_type'];
+                $val = (float)$item['metric_value'];
+                
+                if (!isset($aggregatedData[$tId])) {
+                    $aggregatedData[$tId] = [];
+                }
+                
+                if (!isset($aggregatedData[$tId][$mType])) {
+                    $aggregatedData[$tId][$mType] = [
+                        'sum' => 0,
+                        'count' => 0
+                    ];
+                }
+                
+                $aggregatedData[$tId][$mType]['sum'] += $val;
+                $aggregatedData[$tId][$mType]['count']++;
+            }
+        }
+    }
+
+    if ($range > 7) {
+        usleep(200000); // 200ms
+    }
 }
 
-echo $response;
+// Format back to original structure
+$finalData = [];
+foreach ($aggregatedData as $tId => $metrics) {
+    foreach ($metrics as $mType => $stats) {
+        $value = $stats['sum'];
+        // For BLOCK_RATE, we take the average across chunks
+        if ($mType === 'BLOCK_RATE' && $stats['count'] > 0) {
+            $value = $stats['sum'] / $stats['count'];
+        }
+        
+        $finalData[] = [
+            'template_id'  => $tId,
+            'metric_type'  => $mType,
+            'metric_value' => $value
+        ];
+    }
+}
+
+echo json_encode([
+    'status' => 'success',
+    'data'   => $finalData,
+    'range'  => $range,
+    'chunks' => ceil(($totalEnd - $totalStart) / $chunkSize)
+]);
