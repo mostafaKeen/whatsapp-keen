@@ -134,18 +134,14 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     default    => '[Unsupported message type: ' . $type . ']',
                 };
 
-                // 2A. Handle Media Downloads
-                $localMediaPath = null;
+                // 2A. Extract Media Links
                 $mediaId = null;
                 $mediaUrl = null;
                 if (in_array($type, ['image', 'video', 'audio', 'document', 'sticker'])) {
                     $mediaId  = $msg[$type]['id']  ?? null;
                     $mediaUrl = $msg[$type]['url'] ?? null;
-                    if ($mediaId) {
-                        $localMediaPath = downloadMedia($mediaId, $type, $MEDIA_BASE_DIR, $apiToken, $mediaUrl);
-                        if ($localMediaPath) {
-                            $text .= " (Media saved: " . basename($localMediaPath) . ")";
-                        }
+                    if ($mediaUrl) {
+                        $text .= " [Attached Media]";
                     }
                 }
 
@@ -192,7 +188,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if ($entity) {
                     // 2C. Add the message as a comment/TIMELINE entry to the found lead
-                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo, $localMediaPath, $mediaId);
+                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo, null, $mediaId);
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
@@ -217,15 +213,10 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                         'extra'        => $extraData,
-                        'media_path'   => $localMediaPath,
                         'media_id'     => $mediaId,
-                        'external_url' => $mediaUrl,
-                        'storage'      => 'bitrix24'
+                        'external_url' => $mediaUrl
                     ];
-
-                    // Optional: Delete local file after Bitrix upload to save space
-                    // if ($localMediaPath && file_exists($localMediaPath)) unlink($localMediaPath);
-                    
+    
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 } else {
                     // Fallback to phone file
@@ -242,7 +233,6 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                         'extra'        => $extraData,
-                        'media_path'   => $localMediaPath,
                         'media_id'     => $mediaId,
                         'external_url' => $mediaUrl
                     ];
@@ -255,64 +245,6 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 exit;
 
 
-/**
- * Helper to download media from Gupshup/Meta and save it locally.
- */
-function downloadMedia(string $mediaId, string $type, string $baseDir, string $apiToken, ?string $mediaUrl = null): ?string {
-    $subDir = $baseDir . '/' . date('Y/m/d');
-    if (!is_dir($subDir)) mkdir($subDir, 0755, true);
-
-    global $appId; 
-    
-    // Prefer the URL provided in the payload, fallback to construction
-    $url = $mediaUrl ?: "https://partner.gupshup.io/partner/app/{$appId}/media/{$mediaId}";
-    
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: ' . $apiToken
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    curl_close($ch);
-
-    if ($httpCode === 200 && !empty($response)) {
-        // Determine extension from content-type or type
-        $ext = match($type) {
-            'image'    => 'jpg',
-            'video'    => 'mp4',
-            'audio'    => 'ogg',
-            'document' => 'file',
-            'sticker'  => 'webp',
-            default    => 'bin'
-        };
-        
-        // Try to refine extension from Content-Type
-        if ($contentType) {
-            $parts = explode('/', $contentType);
-            if (count($parts) === 2) {
-                // simple mapping
-                $cExt = $parts[1];
-                if (in_array($cExt, ['jpeg', 'png', 'gif', 'webp', 'mp4', 'mpeg', 'pdf', 'plain', 'ogg', 'opus'])) {
-                    $ext = ($cExt === 'jpeg') ? 'jpg' : $cExt;
-                }
-            }
-        }
-
-        $filename = $mediaId . '.' . $ext;
-        $savePath = $subDir . '/' . $filename;
-        
-        if (file_put_contents($savePath, $response)) {
-            return $savePath;
-        }
-    }
-
-    error_log("Failed to download media $mediaId: HTTP $httpCode");
-    return null;
-}
 
 
 /**

@@ -360,30 +360,6 @@ function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $sourc
         'RESPONSIBLE_ID'=> 1
     ];
 
-    if ($mediaUrl) {
-        // Download media temporarily to attach to Bitrix
-        $chDrive = curl_init($mediaUrl);
-        curl_setopt($chDrive, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($chDrive, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($chDrive, CURLOPT_SSL_VERIFYPEER, false);
-        $fileContent = curl_exec($chDrive);
-        $contentType = curl_getinfo($chDrive, CURLINFO_CONTENT_TYPE);
-        curl_close($chDrive);
-
-        if ($fileContent) {
-            $ext = 'file';
-            if ($contentType) {
-                $parts = explode('/', $contentType);
-                if (count($parts) === 2) $ext = $parts[1];
-            }
-            $filename = 'campaign_media_' . time() . '.' . $ext;
-            
-            $fields['FILES'] = [
-                ['fileData' => [$filename, base64_encode($fileContent)]]
-            ];
-        }
-    }
-
     $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.activity.add.json');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
