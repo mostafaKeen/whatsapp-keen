@@ -722,21 +722,48 @@ if ($hasValidAuth) {
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="60">60 Days</button>
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="90">90 Days</button>
                         </div>
-                        <div class="text-right">
-                            <small class="text-white-50 d-block">Comparison</small>
-                            <select id="analyticsComparisonSelect" class="form-control form-control-sm bg-transparent text-white border-0 p-0" style="height: auto;">
-                                <option value="">None</option>
-                            </select>
+                        <div class="text-right d-flex align-items-center">
+                            <button type="button" id="enableAnalyticsBtn" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-3">
+                                <i class="fas fa-power-off mr-1"></i> Enable API
+                            </button>
+                            <div>
+                                <small class="text-white-50 d-block">Comparison</small>
+                                <select id="analyticsComparisonSelect" class="form-control form-control-sm bg-transparent text-white border-0 p-0" style="height: auto; min-width:100px;">
+                                    <option value="">None</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Basic Warning -->
-                    <div id="analyticsWarning" class="alert alert-warning py-2 small d-none" role="alert">
-                        <i class="fas fa-exclamation-triangle mr-1"></i> Data requires at least 1,000 sends per template.
                     </div>
 
                     <!-- Metrics Grid -->
                     <div id="analyticsContent">
+                        <div class="row mb-3">
+                            <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                <div class="metric-card h-100 text-center">
+                                    <div class="metric-label">Sent</div>
+                                    <div class="metric-value text-info" id="metricSent">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                <div class="metric-card h-100 text-center">
+                                    <div class="metric-label">Delivered</div>
+                                    <div class="metric-value text-success" id="metricDelivered">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="metric-card h-100 text-center">
+                                    <div class="metric-label">Read</div>
+                                    <div class="metric-value text-primary" id="metricRead">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="metric-card h-100 text-center">
+                                    <div class="metric-label">Clicked</div>
+                                    <div class="metric-value text-warning" id="metricClicked">--</div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="metric-card h-100">
@@ -753,7 +780,7 @@ if ($hasValidAuth) {
                             </div>
                             <div class="col-md-6 mb-3">
                                 <div class="metric-card h-100">
-                                    <div class="metric-label">Total Message Sends</div>
+                                    <div class="metric-label">Total Delivery Attempts (Compare API)</div>
                                     <div class="d-flex align-items-baseline">
                                         <div class="metric-value" id="metricSends">--</div>
                                         <span id="diffSends" class="comparison-badge"></span>
@@ -761,7 +788,6 @@ if ($hasValidAuth) {
                                     <div id="sendsMeter" class="comparison-meter d-none">
                                         <div id="sendsFill" class="comparison-meter-fill bg-emerald"></div>
                                     </div>
-                                    <small class="text-white-50 mt-2 d-block">Successful delivery attempts</small>
                                 </div>
                             </div>
                         </div>
@@ -2246,15 +2272,38 @@ if ($hasValidAuth) {
                     $('#analyticsComparisonSelect').change(function() {
                         loadAnalytics();
                     });
+                    
+                    $('#enableAnalyticsBtn').click(function() {
+                        const btn = $(this);
+                        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Enabling...');
+                        $.ajax({
+                            url: 'enable_template_analytics.php',
+                            method: 'POST',
+                            dataType: 'json',
+                            success: function(resp) {
+                                btn.prop('disabled', false).html('<i class="fas fa-power-off mr-1"></i> Enable API');
+                                if (resp.status === 'success') {
+                                    showToast('Success', 'Template Analytics API enabled for this app', 'success');
+                                    loadAnalytics(); // Refresh current view
+                                } else {
+                                    showToast('Error', resp.message || 'Failed to enable analytics', 'danger');
+                                }
+                            },
+                            error: function() {
+                                btn.prop('disabled', false).html('<i class="fas fa-power-off mr-1"></i> Enable API');
+                                showToast('Error', 'Server connection failed', 'danger');
+                            }
+                        });
+                    });
 
                     function loadAnalytics() {
                         $('#analyticsContent').addClass('d-none');
                         $('#analyticsLoader').removeClass('d-none');
-                        $('#analyticsWarning').addClass('d-none');
 
                         const compareId = $('#analyticsComparisonSelect').val();
 
-                        $.ajax({
+                        // Fire Both Analytics API requests in parallel
+                        const reqCompare = $.ajax({
                             url: 'get_template_analytics.php',
                             method: 'GET',
                             data: {
@@ -2262,26 +2311,44 @@ if ($hasValidAuth) {
                                 templateList: compareId,
                                 range: currentAnalyticsRange
                             },
-                            dataType: 'json',
-                            success: function(resp) {
-                                $('#analyticsLoader').addClass('d-none');
-                                $('#analyticsContent').removeClass('d-none');
-
-                                if (resp.status === 'error') {
-                                    showToast('Analytics', resp.message, 'danger');
-                                    if (resp.message && resp.message.includes('1,000')) $('#analyticsWarning').removeClass('d-none');
-                                    resetAnalyticsUI();
-                                    return;
-                                }
-
-                                renderAnalytics(resp.data, currentAnalyticsId, compareId);
+                            dataType: 'json'
+                        });
+                        
+                        const reqPerformance = $.ajax({
+                            url: 'get_template_performance.php',
+                            method: 'GET',
+                            data: {
+                                templateId: currentAnalyticsId,
+                                range: currentAnalyticsRange
                             },
-                            error: function() {
-                                $('#analyticsLoader').addClass('d-none');
-                                $('#analyticsContent').removeClass('d-none');
-                                showToast('Analytics', 'Failed to fetch analytics data', 'danger');
-                                resetAnalyticsUI();
+                            dataType: 'json'
+                        });
+
+                        $.when(reqCompare, reqPerformance).done(function(respCompare, respPerformance) {
+                            $('#analyticsLoader').addClass('d-none');
+                            $('#analyticsContent').removeClass('d-none');
+                            resetAnalyticsUI();
+                            
+                            // Handle Compare API Response (Metrics like Block Rate)
+                            const r1 = respCompare[0];
+                            if (r1.status === 'success') {
+                                renderAnalyticsCompare(r1.data, currentAnalyticsId, compareId);
+                            } else {
+                                console.warn("Compare API Error:", r1.message);
                             }
+                            
+                            // Handle Performance API Response (Daily granularity metrics)
+                            const r2 = respPerformance[0];
+                            if (r2.status === 'success') {
+                                renderAnalyticsPerformance(r2.template_analytics);
+                            } else {
+                                console.warn("Performance API Error:", r2.message);
+                            }
+                        }).fail(function() {
+                            $('#analyticsLoader').addClass('d-none');
+                            $('#analyticsContent').removeClass('d-none');
+                            showToast('Analytics', 'Failed to fetch some analytics data. Make sure it is Enabled.', 'warning');
+                            resetAnalyticsUI();
                         });
                     }
 
@@ -2290,9 +2357,40 @@ if ($hasValidAuth) {
                         $('#metricSends').text('--');
                         $('#diffBlockRate, #diffSends').empty();
                         $('#reasonBlockRate').text('Top reason: --');
+                        
+                        $('#metricSent').text('--');
+                        $('#metricDelivered').text('--');
+                        $('#metricRead').text('--');
+                        $('#metricClicked').text('--');
+                        
+                        $('#blockRateMeter, #sendsMeter').addClass('d-none');
+                    }
+                    
+                    function renderAnalyticsPerformance(dataList) {
+                        if (!dataList || dataList.length === 0) return;
+                        
+                        let totalSent = 0;
+                        let totalDelivered = 0;
+                        let totalRead = 0;
+                        let totalClicked = 0;
+                        
+                        // Aggregate data over the selected date range
+                        dataList.forEach(day => {
+                            totalSent += (day.sent || 0);
+                            totalDelivered += (day.delivered || 0);
+                            totalRead += (day.read || 0);
+                            if (day.clicked && day.clicked.length > 0) {
+                                day.clicked.forEach(c => totalClicked += (c.count || 0));
+                            }
+                        });
+                        
+                        $('#metricSent').text(totalSent.toLocaleString());
+                        $('#metricDelivered').text(totalDelivered.toLocaleString());
+                        $('#metricRead').text(totalRead.toLocaleString());
+                        $('#metricClicked').text(totalClicked.toLocaleString());
                     }
 
-                    function renderAnalytics(data, targetId, compareId) {
+                    function renderAnalyticsCompare(data, targetId, compareId) {
                         if (!data) return;
                         const sends = data.find(m => m.metric === 'MESSAGE_SENDS');
                         const blockRate = data.find(m => m.metric === 'BLOCK_RATE');
