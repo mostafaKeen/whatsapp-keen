@@ -25,7 +25,9 @@ $WEBHOOK_URL  = $whatsappConfig['webhook_url']; // Bitrix24 direct webhook URL
 
 if (!is_dir($MSG_DIR)) mkdir($MSG_DIR, 0755, true);
 if (!is_dir($LOG_DIR)) mkdir($LOG_DIR, 0755, true);
-if (!is_dir($JOB_DIR)) mkdir($JOB_DIR, 0755, true); // Create jobs dir if missing
+if (!is_dir($JOB_DIR)) mkdir($JOB_DIR, 0755, true); 
+$MEDIA_BASE_DIR = $BASE_VAR_DIR . '/media';
+if (!is_dir($MEDIA_BASE_DIR)) mkdir($MEDIA_BASE_DIR, 0755, true);
 
 $rawBody = file_get_contents('php://input');
 
@@ -129,6 +131,19 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     default    => '[Unsupported message type: ' . $type . ']',
                 };
 
+                // 2A. Handle Media Downloads
+                $localMediaPath = null;
+                $mediaId = null;
+                if (in_array($type, ['image', 'video', 'audio', 'document', 'sticker'])) {
+                    $mediaId = $msg[$type]['id'] ?? null;
+                    if ($mediaId) {
+                        $localMediaPath = downloadMedia($mediaId, $type, $MEDIA_BASE_DIR, $apiToken);
+                        if ($localMediaPath) {
+                            $text .= " (Media saved: " . basename($localMediaPath) . ")";
+                        }
+                    }
+                }
+
                 // Add extra context if it's location or interactive
                 $extraData = [];
                 if ($type === 'location') {
@@ -172,7 +187,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if ($entity) {
                     // 2C. Add the message as a comment/TIMELINE entry to the found lead
-                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo);
+                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo, $localMediaPath, $mediaId);
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
@@ -197,7 +212,14 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                         'extra'        => $extraData,
+                        'media_path'   => $localMediaPath,
+                        'media_id'     => $mediaId,
+                        'storage'      => 'bitrix24'
                     ];
+
+                    // Optional: Delete local file after Bitrix upload to save space
+                    // if ($localMediaPath && file_exists($localMediaPath)) unlink($localMediaPath);
+                    
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 } else {
                     // Fallback to phone file
@@ -214,6 +236,8 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'source'       => 'whatsapp',
                         'sender_name'  => $senderName,
                         'extra'        => $extraData,
+                        'media_path'   => $localMediaPath,
+                        'media_id'     => $mediaId
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 }
@@ -222,6 +246,72 @@ foreach ($decoded['entry'] ?? [] as $entry) {
     }
 }
 exit;
+
+
+/**
+ * Helper to download media from Gupshup/Meta and save it locally.
+ */
+function downloadMedia(string $mediaId, string $type, string $baseDir, string $apiToken): ?string {
+    $subDir = $baseDir . '/' . date('Y/m/d');
+    if (!is_dir($subDir)) mkdir($subDir, 0755, true);
+
+    // 1. Get the media URL from Meta (via Gupshup proxy or direct if config allows)
+    // For standard Gupshup Meta V3, we use their media retrieve endpoint or direct Meta media URL if available.
+    // Gupshup's endpoint: GET https://partner.gupshup.io/partner/app/<appId>/media/<mediaId>
+    // However, for Meta Cloud API (V3), the URL is often inside the payload or requires a separate call.
+    // Given the ID, we'll try the common Gupshup retrieval pattern.
+    
+    // Note: We need appId here. Let's global it or pass it.
+    global $appId; 
+    
+    $url = "https://partner.gupshup.io/partner/app/{$appId}/media/{$mediaId}";
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: ' . $apiToken
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !empty($response)) {
+        // Determine extension from content-type or type
+        $ext = match($type) {
+            'image'    => 'jpg',
+            'video'    => 'mp4',
+            'audio'    => 'ogg',
+            'document' => 'file',
+            'sticker'  => 'webp',
+            default    => 'bin'
+        };
+        
+        // Try to refine extension from Content-Type
+        if ($contentType) {
+            $parts = explode('/', $contentType);
+            if (count($parts) === 2) {
+                // simple mapping
+                $cExt = $parts[1];
+                if (in_array($cExt, ['jpeg', 'png', 'gif', 'webp', 'mp4', 'mpeg', 'pdf', 'plain', 'ogg', 'opus'])) {
+                    $ext = ($cExt === 'jpeg') ? 'jpg' : $cExt;
+                }
+            }
+        }
+
+        $filename = $mediaId . '.' . $ext;
+        $savePath = $subDir . '/' . $filename;
+        
+        if (file_put_contents($savePath, $response)) {
+            return $savePath;
+        }
+    }
+
+    error_log("Failed to download media $mediaId: HTTP $httpCode");
+    return null;
+}
 
 
 /**
@@ -248,34 +338,33 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
 }
 
 /**
- * Pushes the inbound message to Bitrix24 as a comment for the entity.
+ * Pushes the inbound message to Bitrix24 as a activity with optional media.
  */
-function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $text, ?array $campaign): void {
+function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $text, ?array $campaign, ?string $mediaPath = null, ?string $mediaId = null): void {
     $title = ($campaign) ? "WhatsApp Reply to Campaign: [" . $campaign['template_name'] . "]" : "Inbound WhatsApp Message";
-    $comment = "$title\nMessage: $text";
+    
+    $fields = [
+        'OWNER_TYPE_ID' => $entity['type'] === 'lead' ? 1 : 3, // 1=Lead, 3=Contact
+        'OWNER_ID'      => $entity['id'],
+        'TYPE_ID'       => 1, 
+        'COMMUNICATION_TYPE_ID' => 'PHONE',
+        'DIRECTION'     => 1, // Inbound
+        'SUBJECT'       => $title,
+        'DESCRIPTION'   => $text,
+        'COMPLETED'     => 'Y',
+        'RESPONSIBLE_ID'=> 1,
+    ];
 
-    // Adding as an activity or timeline entry is best. crm.timeline.item.add is v2, crm.livefeedmessage.add is easier.
-    // For universal compatibility, we Use crm.lead.update or crm.contact.update by appending to comments,
-    // OR we use crm.timeline.item.add if we want it to look like a message.
-    
-    // Let's use crm.timeline.item.add if it's available, otherwise simple crm.entity.update
-    $method = $entity['type'] === 'lead' ? 'crm.lead.update' : 'crm.contact.update';
-    
-    // First, let's get existing comments to append if we want history? No, Bitrix handles separate entries if we push activities.
-    // Let's create an activity.
-    bitrix24Call($webhookUrl, 'crm.activity.add', [
-        'fields' => [
-            'OWNER_TYPE_ID' => $entity['type'] === 'lead' ? 1 : 3, // 1=Lead, 3=Contact
-            'OWNER_ID'      => $entity['id'],
-            'TYPE_ID'       => 1, // Meeting? 2=Call, 3=Task. 1=Meeting is often used for generic. Or 6=Email.
-            'COMMUNICATION_TYPE_ID' => 'PHONE',
-            'DIRECTION'     => 1, // Inbound
-            'SUBJECT'       => $title,
-            'DESCRIPTION'   => $text,
-            'COMPLETED'     => 'Y',
-            'RESPONSIBLE_ID'=> 1, // Admin by default or we could search
-        ]
-    ]);
+    // If we have media, attach it
+    if ($mediaPath && file_exists($mediaPath)) {
+        $filename = basename($mediaPath);
+        $content = base64_encode(file_get_contents($mediaPath));
+        $fields['FILES'] = [
+            ['fileData' => [$filename, $content]]
+        ];
+    }
+
+    bitrix24Call($webhookUrl, 'crm.activity.add', ['fields' => $fields]);
 }
 
 

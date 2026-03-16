@@ -189,11 +189,17 @@ foreach ($curls as $i => $ch) {
     $respStatus = strtolower($decoded['status'] ?? '');
 
     if ($httpCode >= 200 && $httpCode < 300 && in_array($respStatus, ['success', 'submitted'])) {
-        $batch[$i]['status'] = 'sent';
-        $batch[$i]['message_id'] = $decoded['messageId'] ?? null;
-        $jobData['success']++;
+        // Check if phone belongs to a Lead in Bitrix24
+        $lead = findLeadByPhone($batch[$i]['phone'], $whatsappConfig['webhook_url']);
         
-        // Optionally log to history json? We can skip for bulk depending on performance, but let's just do it
+        if ($lead) {
+            // Log to lead-specific history
+            logToLeadHistory($lead['id'], $jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source']);
+            // Add Bitrix Activity (with media if present)
+            addCampaignActivityToBitrix($whatsappConfig['webhook_url'], $lead['id'], $jobData['template_name'], $jobData['source'], $jobData['media_url'] ?? null);
+        }
+
+        // Always log to the general bulk log
         logToHistory($jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source']);
 
     } else {
@@ -282,4 +288,105 @@ function logDetailedError($jobId, $target, $payload, $response, $httpCode, $curl
     array_unshift($logs, $entry);
     if (count($logs) > 500) array_pop($logs); // Keep last 500
     file_put_contents($file, json_encode($logs, JSON_PRETTY_PRINT));
+}
+
+/**
+ * Searches Bitrix24 for a Lead by phone.
+ */
+function findLeadByPhone(string $phone, string $webhookUrl): ?array {
+    $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+    $variants = [ $cleanPhone, '+' . $cleanPhone ];
+
+    $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.duplicate.findbycomm.json');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'type'        => 'PHONE',
+        'values'      => $variants,
+        'entity_type' => ['LEAD'],
+    ]));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $res = curl_exec($ch);
+    $decoded = json_decode($res, true);
+    curl_close($ch);
+
+    if (!empty($decoded['result']['LEAD'])) {
+        return ['type' => 'lead', 'id' => (int)$decoded['result']['LEAD'][0]];
+    }
+    return null;
+}
+
+/**
+ * Logs a message to a specific lead's history file.
+ */
+function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source) {
+    global $BASE_VAR_DIR;
+    $dir = $BASE_VAR_DIR . '/messages';
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    
+    $filename = $dir . '/lead_' . $leadId . '.json';
+    $logEntry = [
+        'id' => $msgId,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'phone' => $phone,
+        'message' => 'Campaign: ' . $templateName,
+        'message_type' => 'template',
+        'status' => 'sent',
+        'direction' => 'outbound',
+        'source' => $source
+    ];
+    
+    $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
+    $history[] = $logEntry;
+    file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+}
+
+/**
+ * Adds an outbound campaign message activity to the Lead's timeline, attaching media if provided.
+ */
+function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $source, $mediaUrl = null) {
+    $fields = [
+        'OWNER_TYPE_ID' => 1, // Lead
+        'OWNER_ID'      => $leadId,
+        'TYPE_ID'       => 1, // Meeting/Generic
+        'COMMUNICATION_TYPE_ID' => 'PHONE',
+        'DIRECTION'     => 2, // Outbound
+        'SUBJECT'       => "WhatsApp Campaign: $templateName",
+        'DESCRIPTION'   => "Sent template message via Gupshup ($source)" . ($mediaUrl ? "\nMedia: $mediaUrl" : ""),
+        'COMPLETED'     => 'Y',
+        'RESPONSIBLE_ID'=> 1
+    ];
+
+    if ($mediaUrl) {
+        // Download media temporarily to attach to Bitrix
+        $chDrive = curl_init($mediaUrl);
+        curl_setopt($chDrive, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chDrive, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($chDrive, CURLOPT_SSL_VERIFYPEER, false);
+        $fileContent = curl_exec($chDrive);
+        $contentType = curl_getinfo($chDrive, CURLINFO_CONTENT_TYPE);
+        curl_close($chDrive);
+
+        if ($fileContent) {
+            $ext = 'file';
+            if ($contentType) {
+                $parts = explode('/', $contentType);
+                if (count($parts) === 2) $ext = $parts[1];
+            }
+            $filename = 'campaign_media_' . time() . '.' . $ext;
+            
+            $fields['FILES'] = [
+                ['fileData' => [$filename, base64_encode($fileContent)]]
+            ];
+        }
+    }
+
+    $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.activity.add.json');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['fields' => $fields]));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($ch);
+    curl_close($ch);
 }
