@@ -40,6 +40,9 @@ if (!is_array($decoded)) {
     exit;
 }
 
+// Extract Gupshup App ID context if provided at root
+$appId = $decoded['gs_app_id'] ?? ($whatsappConfig['gupshup_app_id'] ?? '');
+
 // Parse Meta V3 envelope
 foreach ($decoded['entry'] ?? [] as $entry) {
     foreach ($entry['changes'] ?? [] as $change) {
@@ -135,9 +138,10 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $localMediaPath = null;
                 $mediaId = null;
                 if (in_array($type, ['image', 'video', 'audio', 'document', 'sticker'])) {
-                    $mediaId = $msg[$type]['id'] ?? null;
+                    $mediaId  = $msg[$type]['id']  ?? null;
+                    $mediaUrl = $msg[$type]['url'] ?? null;
                     if ($mediaId) {
-                        $localMediaPath = downloadMedia($mediaId, $type, $MEDIA_BASE_DIR, $apiToken);
+                        $localMediaPath = downloadMedia($mediaId, $type, $MEDIA_BASE_DIR, $apiToken, $mediaUrl);
                         if ($localMediaPath) {
                             $text .= " (Media saved: " . basename($localMediaPath) . ")";
                         }
@@ -251,20 +255,14 @@ exit;
 /**
  * Helper to download media from Gupshup/Meta and save it locally.
  */
-function downloadMedia(string $mediaId, string $type, string $baseDir, string $apiToken): ?string {
+function downloadMedia(string $mediaId, string $type, string $baseDir, string $apiToken, ?string $mediaUrl = null): ?string {
     $subDir = $baseDir . '/' . date('Y/m/d');
     if (!is_dir($subDir)) mkdir($subDir, 0755, true);
 
-    // 1. Get the media URL from Meta (via Gupshup proxy or direct if config allows)
-    // For standard Gupshup Meta V3, we use their media retrieve endpoint or direct Meta media URL if available.
-    // Gupshup's endpoint: GET https://partner.gupshup.io/partner/app/<appId>/media/<mediaId>
-    // However, for Meta Cloud API (V3), the URL is often inside the payload or requires a separate call.
-    // Given the ID, we'll try the common Gupshup retrieval pattern.
-    
-    // Note: We need appId here. Let's global it or pass it.
     global $appId; 
     
-    $url = "https://partner.gupshup.io/partner/app/{$appId}/media/{$mediaId}";
+    // Prefer the URL provided in the payload, fallback to construction
+    $url = $mediaUrl ?: "https://partner.gupshup.io/partner/app/{$appId}/media/{$mediaId}";
     
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
