@@ -137,6 +137,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 // 2A. Handle Media Downloads
                 $localMediaPath = null;
                 $mediaId = null;
+                $mediaUrl = null;
                 if (in_array($type, ['image', 'video', 'audio', 'document', 'sticker'])) {
                     $mediaId  = $msg[$type]['id']  ?? null;
                     $mediaUrl = $msg[$type]['url'] ?? null;
