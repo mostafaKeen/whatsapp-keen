@@ -218,6 +218,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'extra'        => $extraData,
                         'media_path'   => $localMediaPath,
                         'media_id'     => $mediaId,
+                        'external_url' => $mediaUrl,
                         'storage'      => 'bitrix24'
                     ];
 
@@ -241,7 +242,8 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'sender_name'  => $senderName,
                         'extra'        => $extraData,
                         'media_path'   => $localMediaPath,
-                        'media_id'     => $mediaId
+                        'media_id'     => $mediaId,
+                        'external_url' => $mediaUrl
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
                 }

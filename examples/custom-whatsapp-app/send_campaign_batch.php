@@ -194,13 +194,13 @@ foreach ($curls as $i => $ch) {
         
         if ($lead) {
             // Log to lead-specific history
-            logToLeadHistory($lead['id'], $jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source']);
+            logToLeadHistory($lead['id'], $jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source'], $jobData['media_url'] ?? null);
             // Add Bitrix Activity (with media if present)
             addCampaignActivityToBitrix($whatsappConfig['webhook_url'], $lead['id'], $jobData['template_name'], $jobData['source'], $jobData['media_url'] ?? null);
         }
 
         // Always log to the general bulk log
-        logToHistory($jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source']);
+        logToHistory($jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source'], $jobData['media_url'] ?? null);
 
     } else {
         $batch[$i]['status'] = 'failed';
@@ -244,7 +244,7 @@ echo json_encode([
     'failed' => $jobData['failed']
 ]);
 
-function logToHistory($templateName, $phone, $msgId, $source) {
+function logToHistory($templateName, $phone, $msgId, $source, $mediaUrl = null) {
     $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     // Log it under a generic entity ID or using the phone as entity? Let's use lead_bulk
@@ -257,7 +257,8 @@ function logToHistory($templateName, $phone, $msgId, $source) {
         'message_type' => 'template',
         'status' => 'sent',
         'direction' => 'outbound',
-        'source' => $source
+        'source' => $source,
+        'external_url' => $mediaUrl
     ];
     $history = [];
     if (file_exists($filename)) {
@@ -320,7 +321,7 @@ function findLeadByPhone(string $phone, string $webhookUrl): ?array {
 /**
  * Logs a message to a specific lead's history file.
  */
-function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source) {
+function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source, $mediaUrl = null) {
     global $BASE_VAR_DIR;
     $dir = $BASE_VAR_DIR . '/messages';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
@@ -334,7 +335,8 @@ function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source) {
         'message_type' => 'template',
         'status' => 'sent',
         'direction' => 'outbound',
-        'source' => $source
+        'source' => $source,
+        'external_url' => $mediaUrl
     ];
     
     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
