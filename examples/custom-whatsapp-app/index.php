@@ -2946,7 +2946,9 @@ if ($hasValidAuth) {
                 $('#chatSearchInput').on('keyup', function() {
                     const v = $(this).val().toLowerCase();
                     $('#conversationsListContainer .chat-item').filter(function() {
-                        $(this).toggle($(this).text().toLowerCase().indexOf(v) > -1);
+                        const nameAndMsg = $(this).text().toLowerCase();
+                        const phone = ($(this).data('phone') || '').toString().toLowerCase();
+                        $(this).toggle(nameAndMsg.indexOf(v) > -1 || phone.indexOf(v) > -1);
                     });
                 });
             });
