@@ -2677,7 +2677,79 @@ if ($hasValidAuth) {
             </script>
         <?php endif; ?>
 
-        <!-- Conversation JS Logic -->
+    <!-- Conversations Modal (WhatsApp Web Clone) -->
+    <div class="modal fade" id="conversationsModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
+        <div class="modal-dialog" style="max-width: 95%; max-height: 95vh; margin: 2.5vh auto;" role="document">
+            <div class="modal-content" style="height: 95vh; border-radius: 12px; overflow: hidden; background: #f0f2f5;">
+                <div class="modal-body p-0 d-flex flex-row" style="height: 100%;">
+                    
+                    <!-- Left Sidebar (Chat List) -->
+                    <div class="conversations-sidebar d-flex flex-column" style="width: 30%; min-width: 300px; border-right: 1px solid #d1d7db; background: #ffffff;">
+                        <div class="sidebar-header d-flex justify-content-between align-items-center" style="background: #f0f2f5; padding: 10px 16px; height: 59px;">
+                            <h5 class="mb-0 font-weight-bold" style="color: #41525d; font-size: 16px;">Chats</h5>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-link text-muted" id="refreshConversationsBtn" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                                <button type="button" class="close ml-2" data-dismiss="modal" aria-label="Close" style="font-size: 24px;">&times;</button>
+                            </div>
+                        </div>
+                        <div class="sidebar-search" style="padding: 8px 12px; background: #ffffff; border-bottom: 1px solid #f2f2f2;">
+                            <div class="input-group input-group-sm" style="background: #f0f2f5; border-radius: 8px;">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-search"></i></span>
+                                </div>
+                                <input type="text" id="chatSearchInput" class="form-control border-0 bg-transparent" placeholder="Search or start new chat" style="box-shadow: none;">
+                            </div>
+                        </div>
+                        <div class="sidebar-list overflow-auto flex-grow-1" id="conversationsListContainer" style="background: #ffffff;">
+                            <div class="p-4 text-center text-muted" id="conversationsLoading">
+                                <span class="spinner-border spinner-border-sm mr-2"></span> Loading chats...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Panel (Chat Area) -->
+                    <div class="chat-area d-flex flex-column" style="width: 70%; background: #e5ddd5; position: relative;">
+                        <!-- WhatsApp Doodles Background -->
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 0.08; pointer-events: none;"></div>
+                        
+                        <!-- Empty State -->
+                        <div id="chatEmptyState" class="d-flex flex-column justify-content-center align-items-center w-100 h-100" style="background: #f0f2f5; z-index: 1;">
+                            <div class="text-center">
+                                <i class="fab fa-whatsapp text-muted mb-3" style="font-size: 5rem; opacity: 0.2;"></i>
+                                <h4 class="text-muted" style="color: #41525d;">KEEN WABA for Bitrix24</h4>
+                                <p class="text-muted small">Select a conversation to start messaging.<br>Send and receive messages directly from your CRM.</p>
+                            </div>
+                        </div>
+
+                        <!-- Active Chat Header -->
+                        <div id="activeChatHeader" class="chat-header d-flex align-items-center" style="background: #f0f2f5; padding: 10px 16px; height: 59px; z-index: 2; display: none !important;">
+                            <div class="avatar bg-secondary text-white rounded-circle d-flex justify-content-center align-items-center mr-3" style="width: 40px; height: 40px; font-size: 1.2rem;">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="chat-info flex-grow-1">
+                                <div class="font-weight-bold" id="activeChatTitle" style="color: #111b21; font-size: 16px; line-height: 21px;">Loading...</div>
+                                <div class="text-muted small" id="activeChatSubtitle" style="font-size: 13px;">...</div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Messages Container -->
+                        <div id="chatMessagesContainer" class="chat-messages flex-grow-1 p-4 overflow-auto" style="z-index: 2; display: none !important; display: flex !important; flex-direction: column;">
+                            <!-- Bubbles rendered via JS -->
+                        </div>
+
+                        <!-- Chat Input Footer -->
+                        <div id="chatInputFooter" class="chat-footer d-flex align-items-center" style="background: #f0f2f5; padding: 10px 16px; min-height: 62px; z-index: 2; display: none !important;">
+                            <button class="btn btn-link text-muted px-2" title="Attach"><i class="fas fa-paperclip" style="font-size: 20px;"></i></button>
+                            <input type="text" id="chatMessageInput" class="form-control border-0 px-3 mx-2 py-2" placeholder="Type a message" style="border-radius: 8px; box-shadow: none;">
+                            <button id="chatSendBtn" class="btn btn-link px-2" style="color: #54656f;"><i class="fas fa-paper-plane" style="font-size: 20px;"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversation JS Logic -->
         <script>
             $(document).ready(function() {
                 let currentChatType = null;
