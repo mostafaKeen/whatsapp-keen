@@ -1885,10 +1885,10 @@ if ($hasValidAuth) {
                                 if (res.status === 'success') {
                                     activeJobId = res.job_id;
                                     $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', true);
-                                    $('#campaignStatusText').text('Campaign Job Created. Starting batches...');
+                                    $('#campaignStatusText').text('Campaign Job Created. Processing on server...');
                                     $('#pauseCampaignBtn').show();
                                     $('#resumeCampaignBtn').hide();
-                                    processNextCampaignBatch();
+                                    pollCampaignProgress();
                                 } else {
                                     campaignError(res.message);
                                 }
@@ -1899,39 +1899,39 @@ if ($hasValidAuth) {
                         });
                     });
 
-                    function processNextCampaignBatch() {
+                    function pollCampaignProgress() {
                         if (!activeJobId) return;
                         
-                        $('#campaignStatusText').text('Processing batch...');
-                        
                         $.ajax({
-                            url: 'send_campaign_batch.php',
-                            method: 'POST',
-                            data: { job_id: activeJobId, batch_size: 5 },
+                            url: 'get_campaign_job_details.php',
+                            method: 'GET',
+                            data: { job_id: activeJobId },
                             success: function(res) {
-                                if (!res || res.status !== 'success') {
-                                    pauseCampaignUI('Error from batch script: ' + (res.message||'Unknown'));
+                                if (res.status !== 'success' || !res.data) {
+                                    pauseCampaignUI('Error polling status: ' + (res.message || 'Unknown'));
                                     return;
                                 }
                                 
-                                updateCampaignProgress(res.processed, res.total, res.success, res.failed);
+                                var job = res.data;
+                                updateCampaignProgress(job.processed, job.total, job.success, job.failed);
                                 
-                                if (res.job_status === 'completed') {
-                                    $('#campaignStatusText').text('Campaign Completed!').removeClass('text-info').addClass('text-success');
+                                if (job.status === 'completed') {
+                                    $('#campaignStatusText').text('Campaign Completed!').removeClass('text-info text-warning').addClass('text-success');
                                     $('#pauseCampaignBtn, #resumeCampaignBtn').hide();
                                     $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', false).text('Close');
                                     $('#startCampaignBtn').prop('disabled', false).text('Start New Campaign');
                                     $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', false).prop('disabled', false);
                                     activeJobId = null; 
-                                } else if (res.job_status === 'paused' || res.rate_limited) {
-                                    pauseCampaignUI('Paused (Rate limit hit 429). Please wait before resuming.');
-                                } else {
-                                    // Make next request in 1.5 seconds to space out Gupshup API calls
-                                    currentCampaignTimer = setTimeout(processNextCampaignBatch, 1500);
+                                } else if (job.status === 'paused') {
+                                    pauseCampaignUI('Campaign Paused (Server-side).');
+                                } else if (job.status === 'running' || job.status === 'queued') {
+                                    $('#campaignStatusText').text('Campaign Running in Background...');
+                                    currentCampaignTimer = setTimeout(pollCampaignProgress, 2000);
                                 }
                             },
-                            error: function(xhr) {
-                                pauseCampaignUI('Connection error while processing batch. Paused.');
+                            error: function() {
+                                // Don't pause immediately on transient network errors while polling
+                                currentCampaignTimer = setTimeout(pollCampaignProgress, 5000);
                             }
                         });
                     }
@@ -1961,7 +1961,18 @@ if ($hasValidAuth) {
                     }
 
                     $('#pauseCampaignBtn').on('click', function() {
-                        pauseCampaignUI('Campaign paused by user.');
+                        if (!activeJobId) return;
+                        var btn = $(this);
+                        btn.prop('disabled', true);
+                        $.ajax({
+                            url: 'update_job_status.php',
+                            method: 'POST',
+                            data: { job_id: activeJobId, status: 'paused' },
+                            success: function() {
+                                btn.prop('disabled', false);
+                                pauseCampaignUI('Campaign paused by user.');
+                            }
+                        });
                     });
 
                     $('#resumeCampaignBtn').on('click', function() {
@@ -1969,7 +1980,16 @@ if ($hasValidAuth) {
                         $(this).hide();
                         $('#pauseCampaignBtn').show();
                         $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
-                        processNextCampaignBatch();
+                        
+                        // Tell server to resume (currently worker stops on pause, so we might need a resume script or just trigger worker again)
+                        $.ajax({
+                             url: 'update_job_status.php',
+                             method: 'POST',
+                             data: { job_id: activeJobId, status: 'queued' },
+                             success: function() {
+                                 pollCampaignProgress();
+                             }
+                        });
                     });
 
                     // --- CSV Upload Logic ---

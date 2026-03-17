@@ -145,6 +145,17 @@ if ($jobData['total'] === 0) {
 
 file_put_contents($jobDir . '/' . $jobId . '.json', json_encode($jobData, JSON_PRETTY_PRINT));
 
+// Trigger the background worker
+$workerPath = __DIR__ . '/worker.php';
+$cmd = "php \"$workerPath\" \"$jobId\"";
+if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
+    // Windows background execution
+    pclose(popen("start /B $cmd > NUL 2>&1", "r"));
+} else {
+    // Linux/Unix background execution
+    exec("$cmd > /dev/null 2>&1 &");
+}
+
 header('Content-Type: application/json');
 echo json_encode([
     'status' => 'success',
