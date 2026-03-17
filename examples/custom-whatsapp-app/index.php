@@ -1897,11 +1897,54 @@ if ($hasValidAuth) {
                         area.selectionStart = area.selectionEnd = start + varStr.length;
                     });
 
-                    $('#campaignNumbersArea').on('input', function() {
+                    $('#campaignNumbersArea').on('input change blur', function(e) {
                         var val = $(this).val();
-                        var lines = val.split('\n').filter(Boolean).map(function(s){ return s.replace(/[^0-9]/g, ''); }).filter(Boolean);
-                        var unique = lines.filter(function(item, pos) { return lines.indexOf(item) === pos; });
-                        $('#campaignNumberCount').text(unique.length + ' unique numbers');
+                        if (!val) {
+                            $('#campaignNumberCount').text('0 unique numbers');
+                            return;
+                        }
+                        
+                        var lines = val.split('\n');
+                        var uniqueLines = [];
+                        var seen = {};
+                        var hasDuplicates = false;
+                        
+                        for (var i = 0; i < lines.length; i++) {
+                            var line = lines[i];
+                            var trimmed = line.trim();
+                            
+                            // Keep empty lines while typing
+                            if (trimmed === '') {
+                                uniqueLines.push(line);
+                                continue;
+                            }
+                            
+                            if (seen[trimmed]) {
+                                hasDuplicates = true;
+                            } else {
+                                seen[trimmed] = true;
+                                uniqueLines.push(line);
+                            }
+                        }
+                        
+                        // Only auto-correct on change/blur or if we found duplicates during input to prevent jumping cursor
+                        if (hasDuplicates || e.type !== 'input') {
+                            var cleanedVal = uniqueLines.join('\n');
+                            // If event is blur/change, remove empty lines at the end
+                            if (e.type !== 'input') {
+                                cleanedVal = uniqueLines.filter(function(l) { return l.trim() !== ''; }).join('\n');
+                            }
+                            
+                            if (val !== cleanedVal) {
+                                $(this).val(cleanedVal);
+                            }
+                        }
+
+                        // Update detection count
+                        var finalVal = $(this).val();
+                        var countLines = finalVal.split('\n').filter(Boolean).map(function(s){ return s.replace(/[^0-9]/g, ''); }).filter(Boolean);
+                        var uniqueNums = countLines.filter(function(item, pos) { return countLines.indexOf(item) === pos; });
+                        $('#campaignNumberCount').text(uniqueNums.length + ' unique numbers');
                     });
 
                     $('#campaignForm').on('submit', function(e) {
