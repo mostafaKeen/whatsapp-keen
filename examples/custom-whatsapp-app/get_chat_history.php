@@ -32,5 +32,23 @@ if (!file_exists($filename)) {
     exit;
 }
 
+// Strictly enforce "do not view if ID not found in Bitrix"
+if ($type === 'lead' || $type === 'contact') {
+    $method = ($type === 'lead') ? 'crm.lead.get' : 'crm.contact.get';
+    $url = rtrim($whatsappConfig['webhook_url'], '/') . '/' . $method . '.json?id=' . $id;
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    $resData = json_decode($response, true);
+    if (isset($resData['error']) || empty($resData['result'])) {
+        http_response_code(404);
+        echo json_encode(['error' => 'The associated CRM record was not found or has been deleted.']);
+        exit;
+    }
+}
+
 header('Content-Type: application/json');
 echo file_get_contents($filename);

@@ -2722,7 +2722,7 @@ if ($hasValidAuth) {
                         </div>
 
                         <!-- Active Chat Header -->
-                        <div id="activeChatHeader" class="chat-header d-flex align-items-center" style="background: #f0f2f5; padding: 10px 16px; height: 59px; z-index: 2; display: none !important;">
+                        <div id="activeChatHeader" class="chat-header align-items-center" style="background: #f0f2f5; padding: 10px 16px; height: 59px; z-index: 2; display: none;">
                             <div class="avatar bg-secondary text-white rounded-circle d-flex justify-content-center align-items-center mr-3" style="width: 40px; height: 40px; font-size: 1.2rem;">
                                 <i class="fas fa-user"></i>
                             </div>
@@ -2733,12 +2733,12 @@ if ($hasValidAuth) {
                         </div>
 
                         <!-- Chat Messages Container -->
-                        <div id="chatMessagesContainer" class="chat-messages flex-grow-1 p-4 overflow-auto" style="z-index: 2; display: none !important; display: flex !important; flex-direction: column;">
+                        <div id="chatMessagesContainer" class="chat-messages flex-grow-1 p-4 overflow-auto" style="z-index: 2; flex-direction: column; display: none;">
                             <!-- Bubbles rendered via JS -->
                         </div>
 
                         <!-- Chat Input Footer -->
-                        <div id="chatInputFooter" class="chat-footer d-flex align-items-center" style="background: #f0f2f5; padding: 10px 16px; min-height: 62px; z-index: 2; display: none !important;">
+                        <div id="chatInputFooter" class="chat-footer align-items-center" style="background: #f0f2f5; padding: 10px 16px; min-height: 62px; z-index: 2; display: none;">
                             <button class="btn btn-link text-muted px-2" title="Attach"><i class="fas fa-paperclip" style="font-size: 20px;"></i></button>
                             <input type="text" id="chatMessageInput" class="form-control border-0 px-3 mx-2 py-2" placeholder="Type a message" style="border-radius: 8px; box-shadow: none;">
                             <button id="chatSendBtn" class="btn btn-link px-2" style="color: #54656f;"><i class="fas fa-paper-plane" style="font-size: 20px;"></i></button>
@@ -2810,7 +2810,8 @@ if ($hasValidAuth) {
                             const name = $(this).data('name');
                             
                             $('#chatEmptyState').hide();
-                            $('#activeChatHeader, #chatMessagesContainer, #chatInputFooter').attr('style', function(i, s) { return s.replace(/display:\s*none\s*!important;/g, ''); });
+                            $('#activeChatHeader, #chatInputFooter').css('display', 'flex');
+                            $('#chatMessagesContainer').css('display', 'flex');
                             $('#activeChatTitle').text(name);
                             $('#activeChatSubtitle').text(currentChatPhone);
                             

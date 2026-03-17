@@ -70,8 +70,45 @@ foreach ($files as $file) {
 
 // Sort by timestamp descending (newest activity first)
 usort($conversations, function($a, $b) {
-    return strtotime($b['last_message_timestamp']) - strtotime($a['last_message_timestamp']);
+    return (int)strtotime($b['last_message_timestamp'] ?: 'now') - (int)strtotime($a['last_message_timestamp'] ?: 'now');
 });
+
+// Filter out deleted leads/contacts
+if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
+    $batch = [];
+    foreach ($conversations as $index => $conv) {
+        if ($conv['type'] === 'lead') {
+            $batch['check_' . $index] = 'crm.lead.get?id=' . $conv['id'];
+        } elseif ($conv['type'] === 'contact') {
+            $batch['check_' . $index] = 'crm.contact.get?id=' . $conv['id'];
+        }
+    }
+
+    if (!empty($batch)) {
+        $batchUrl = rtrim($whatsappConfig['webhook_url'], '/') . '/batch.json';
+        $ch = curl_init($batchUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['cmd' => $batch, 'halt' => 0]));
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $resData = json_decode($response, true);
+        if (!empty($resData['result']['result'])) {
+            $filteredConversations = [];
+            foreach ($conversations as $index => $conv) {
+                $key = 'check_' . $index;
+                // If the entity exists, Bitrix returns an object. If not, it returns null or error.
+                if ($conv['type'] === 'phone') {
+                    $filteredConversations[] = $conv;
+                } elseif (isset($resData['result']['result'][$key]) && !empty($resData['result']['result'][$key])) {
+                    $filteredConversations[] = $conv;
+                }
+            }
+            $conversations = $filteredConversations;
+        }
+    }
+}
 
 header('Content-Type: application/json');
 echo json_encode($conversations);

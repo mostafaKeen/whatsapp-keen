@@ -25,6 +25,24 @@ if (empty($message) || empty($phone) || empty($type) || empty($id)) {
 }
 
 $whatsappConfig = require __DIR__ . '/../config.php';
+$webhookUrl = $whatsappConfig['webhook_url'] ?? '';
+
+// Strictly enforce existence check
+if ($type === 'lead' || $type === 'contact') {
+    $method = ($type === 'lead') ? 'crm.lead.get' : 'crm.contact.get';
+    $url = rtrim($webhookUrl, '/') . '/' . $method . '.json?id=' . $id;
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $resData = json_decode($response, true);
+    if (isset($resData['error']) || empty($resData['result'])) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Cannot send message: the associated CRM record (' . $type . ' ' . $id . ') has been deleted.']);
+        exit;
+    }
+}
+
 $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
 $MSG_DIR = $BASE_VAR_DIR . '/messages';
 
