@@ -2809,7 +2809,7 @@ if ($hasValidAuth) {
                             currentChatPhone = $(this).data('phone');
                             const name = $(this).data('name');
                             
-                            $('#chatEmptyState').hide();
+                            $('#chatEmptyState').attr('style', 'display: none !important;');
                             $('#activeChatHeader, #chatInputFooter').css('display', 'flex');
                             $('#chatMessagesContainer').css('display', 'flex');
                             $('#activeChatTitle').text(name);

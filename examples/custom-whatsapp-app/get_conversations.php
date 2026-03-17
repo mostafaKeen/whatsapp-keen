@@ -113,7 +113,28 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
             }
             // If there's no error AND no result, or an explicit 'not found' error, it's deleted
         }
-        $conversations = $filteredConversations;
+
+        // Final Deduplication by Phone Number
+        $deduplicated = [];
+        foreach ($filteredConversations as $conv) {
+            $phone = $conv['phone'];
+            if (!$phone) {
+                $deduplicated[] = $conv;
+                continue;
+            }
+            
+            if (!isset($deduplicated[$phone])) {
+                $deduplicated[$phone] = $conv;
+            } else {
+                // Keep the one with the more recent timestamp
+                $currentTs = strtotime($conv['last_message_timestamp'] ?: '0');
+                $existingTs = strtotime($deduplicated[$phone]['last_message_timestamp'] ?: '0');
+                if ($currentTs > $existingTs) {
+                    $deduplicated[$phone] = $conv;
+                }
+            }
+        }
+        $conversations = array_values($deduplicated);
     }
 }
 
