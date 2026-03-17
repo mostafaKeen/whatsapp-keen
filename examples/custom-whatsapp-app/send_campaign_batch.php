@@ -187,20 +187,25 @@ foreach ($curls as $i => $ch) {
     $jobData['processed']++;
     $decoded = json_decode($response, true);
     $respStatus = strtolower($decoded['status'] ?? '');
+    $msgId = $decoded['messageId'] ?? null;
 
     if ($httpCode >= 200 && $httpCode < 300 && in_array($respStatus, ['success', 'submitted'])) {
+        $batch[$i]['status'] = 'sent';
+        $batch[$i]['message_id'] = $msgId;
+        $jobData['success']++;
+
         // Check if phone belongs to a Lead in Bitrix24
         $lead = findLeadByPhone($batch[$i]['phone'], $whatsappConfig['webhook_url']);
         
         if ($lead) {
             // Log to lead-specific history
-            logToLeadHistory($lead['id'], $jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source'], $jobData['media_url'] ?? null);
+            logToLeadHistory($lead['id'], $jobData['template_name'], $batch[$i]['phone'], $msgId, $jobData['source'], $jobData['media_url'] ?? null);
             // Add Bitrix Activity (with media if present)
             addCampaignActivityToBitrix($whatsappConfig['webhook_url'], $lead['id'], $jobData['template_name'], $jobData['source'], $jobData['media_url'] ?? null);
         }
 
         // Always log to the general bulk log
-        logToHistory($jobData['template_name'], $batch[$i]['phone'], $batch[$i]['message_id'], $jobData['source'], $jobData['media_url'] ?? null);
+        logToHistory($jobData['template_name'], $batch[$i]['phone'], $msgId, $jobData['source'], $jobData['media_url'] ?? null);
 
     } else {
         $batch[$i]['status'] = 'failed';
