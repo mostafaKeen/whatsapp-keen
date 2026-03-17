@@ -2761,7 +2761,7 @@ if ($hasValidAuth) {
                     $('#conversationsLoading').show();
                     $('#conversationsListContainer .chat-item').remove();
                     
-                    $.getJSON('get_conversations.php', function(data) {
+                    $.getJSON('get_conversations.php?t=' + Date.now(), function(data) {
                         $('#conversationsLoading').hide();
                         
                         if (!data || data.length === 0) {
@@ -2822,7 +2822,7 @@ if ($hasValidAuth) {
 
                 function loadChatHistory(type, id) {
                     $('#chatMessagesContainer').empty().append('<div class="text-center p-4"><span class="spinner-border text-success"></span></div>');
-                    $.getJSON('get_chat_history.php?type=' + type + '&id=' + id, function(history) {
+                    $.getJSON('get_chat_history.php?type=' + type + '&id=' + id + '&t=' + Date.now(), function(history) {
                         $('#chatMessagesContainer').empty();
                         
                         let lastDate = '';
