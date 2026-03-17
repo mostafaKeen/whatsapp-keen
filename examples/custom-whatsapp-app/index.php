@@ -1508,8 +1508,8 @@ if ($hasValidAuth) {
                     // ============================================
                     // BULK CAMPAIGN LOGIC
                     // ============================================
-                    var allContacts = [];
-                    var nextStart = 50;
+                    var allLeads = [];
+                    var nextStart = 0;
                     var segmentFieldKey = null;
 
                     var segmentFieldFetched = false;
@@ -1518,27 +1518,26 @@ if ($hasValidAuth) {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
                         if (!isVisible) {
-                            // Always fetch segment field on first open
                             if (!segmentFieldFetched) {
                                 segmentFieldFetched = true;
                                 fetchSegmentField(function() {
-                                    if (allContacts.length === 0) fetchCampaignContacts(0);
+                                    if (allLeads.length === 0) fetchCampaignLeads();
                                 });
-                            } else if (allContacts.length === 0) {
-                                fetchCampaignContacts(0);
+                            } else if (allLeads.length === 0) {
+                                fetchCampaignLeads();
                             }
                         }
                     });
 
                     function fetchSegmentField(callback) {
-                        console.log('Fetching segment field definitions...');
+                        console.log('Fetching Lead segment field definitions...');
                         $.ajax({
-                            url: 'get_contact_fields.php',
+                            url: 'get_lead_fields.php',
                             method: 'GET',
                             dataType: 'json',
                             success: function(resp) {
                                 if (resp.success && resp.segmentField) {
-                                    console.log('Segment field found:', resp.segmentField.key);
+                                    console.log('Lead Segment field found:', resp.segmentField.key);
                                     segmentFieldKey = resp.segmentField.key;
                                     var $filter = $('#contactSegmentFilter');
                                     $filter.empty().append('<option value="">All Segments</option>');
@@ -1548,66 +1547,38 @@ if ($hasValidAuth) {
                                         });
                                     }
                                     $filter.show();
-                                } else {
-                                    console.warn('Segment field not found in Bitrix24 fields.');
                                 }
                                 if (callback) callback();
                             },
                             error: function(xhr, status, err) {
-                                console.error('Error fetching segment field:', status, err);
+                                console.error('Error fetching Lead segments:', status, err);
                                 if (callback) callback();
                             }
                         });
                     }
 
                     $('#contactSegmentFilter').change(function() {
-                        renderCampaignContacts($('#contactSearchInput').val());
+                        renderCampaignLeads($('#contactSearchInput').val());
                     });
 
-                    function fetchCampaignContacts(start) {
-                        if (start === 0) {
-                            $('#contactsLoading').show();
-                            $('#contactList').hide();
-                            $('#loadMoreContactsContainer').hide();
-                            allContacts = [];
-                        } else {
-                            $('#loadMoreContacts').prop('disabled', true).text('Loading...');
-                        }
+                    function fetchCampaignLeads() {
+                        $('#contactsLoading').show();
+                        $('#contactList').hide();
+                        $('#loadMoreContactsContainer').hide();
+                        allLeads = [];
 
                         $.ajax({
-                            url: 'get_contacts.php?start=' + start + '&segmentField=' + (segmentFieldKey || ''),
+                            url: 'get_leads.php?segmentField=' + (segmentFieldKey || ''),
                             method: 'GET',
                             cache: false,
                             success: function(res) {
-                                var newContacts = (res.result || []).filter(function(c) {
-                                    return c.PHONE && c.PHONE.length > 0;
-                                });
-                                
-                                allContacts = allContacts.concat(newContacts);
-                                nextStart = res.next || null;
-
-                                renderCampaignContacts($('#contactSearchInput').val());
-                                
-                                if (start === 0) {
-                                    $('#contactsLoading').hide();
-                                    $('#contactList').show();
-                                } else {
-                                    $('#loadMoreContacts').prop('disabled', false).text('Load More Contacts...');
-                                }
-
-                                if (nextStart) {
-                                    $('#loadMoreContactsContainer').show();
-                                } else {
-                                    $('#loadMoreContactsContainer').hide();
-                                }
+                                allLeads = res.result || [];
+                                renderCampaignLeads($('#contactSearchInput').val());
+                                $('#contactsLoading').hide();
+                                $('#contactList').show();
                             },
                             error: function() {
-                                if (start === 0) {
-                                    $('#contactsLoading').html('<span class="text-danger">Failed to load contacts. Ensure Bitrix24 is accessible.</span>');
-                                } else {
-                                    showToast('Failed to load more contacts', 'error');
-                                    $('#loadMoreContacts').prop('disabled', false).text('Load More Contacts...');
-                                }
+                                $('#contactsLoading').html('<span class="text-danger">Failed to load Leads. Ensure Bitrix24 is accessible.</span>');
                             }
                         });
                     }
@@ -1618,42 +1589,37 @@ if ($hasValidAuth) {
                         }
                     });
 
-                    function renderCampaignContacts(search) {
+                    function renderCampaignLeads(search) {
                         var html = '';
                         var filter = (search || '').toLowerCase();
                         var segment = $('#contactSegmentFilter').val();
                         
-                        var filtered = allContacts.filter(function(c) {
-                            var fullName = ((c.NAME || '') + ' ' + (c.LAST_NAME || '')).toLowerCase();
+                        var filtered = allLeads.filter(function(l) {
+                            var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '')).toLowerCase();
                             var matchQuery = fullName.includes(filter);
                             
                             var matchSegment = true;
                             if (segment && segmentFieldKey) {
-                                var val = c[segmentFieldKey];
+                                var val = l[segmentFieldKey];
                                 if (Array.isArray(val)) {
                                     matchSegment = val.some(v => String(v) === String(segment));
                                 } else {
                                     matchSegment = String(val) === String(segment);
                                 }
                             }
-                            
                             return matchQuery && matchSegment;
                         });
                         
                         if (filtered.length === 0) {
-                            if (allContacts.length > 0) {
-                                html = '<div class="text-center p-3 text-muted">No contacts match your search.</div>';
-                            } else {
-                                html = '<div class="text-center p-3 text-muted">No contacts with phone numbers found.</div>';
-                            }
+                            html = '<div class="text-center p-3 text-muted">' + (allLeads.length > 0 ? 'No leads match your search.' : 'No leads with phone numbers found.') + '</div>';
                         } else {
-                            filtered.forEach(function(c) {
-                                c.PHONE.forEach(function(p, pIdx) {
-                                    var uniqueId = 'contact_' + c.ID + '_' + pIdx;
+                            filtered.forEach(function(l) {
+                                l.PHONE.forEach(function(p, pIdx) {
+                                    var uniqueId = 'lead_' + l.ID + '_' + pIdx;
                                     html += '<div class="contact-item font-weight-normal">' +
                                         '<div class="custom-control custom-checkbox">' +
                                             '<input type="checkbox" class="custom-control-input contact-checkbox" id="' + uniqueId + '" value="' + p.VALUE + '">' +
-                                            '<label class="custom-control-label small" for="' + uniqueId + '">' + (c.NAME || 'No Name') + (c.LAST_NAME ? ' ' + c.LAST_NAME : '') + ' <span class="text-muted">(' + p.VALUE + ')</span></label>' +
+                                            '<label class="custom-control-label small" for="' + uniqueId + '">' + (l.NAME || 'No Name') + (l.LAST_NAME ? ' ' + l.LAST_NAME : '') + ' <span class="text-muted">(' + p.VALUE + ')</span></label>' +
                                         '</div>' +
                                     '</div>';
                                 });
@@ -1663,7 +1629,7 @@ if ($hasValidAuth) {
                     }
 
                     $('#contactSearchInput').on('input', function() {
-                        renderCampaignContacts($(this).val());
+                        renderCampaignLeads($(this).val());
                     });
 
                     $('#selectAllContacts').change(function() {
@@ -1955,6 +1921,7 @@ if ($hasValidAuth) {
                                     $('#pauseCampaignBtn, #resumeCampaignBtn').hide();
                                     $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', false).text('Close');
                                     $('#startCampaignBtn').prop('disabled', false).text('Start New Campaign');
+                                    $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', false).prop('disabled', false);
                                     activeJobId = null; 
                                 } else if (res.job_status === 'paused' || res.rate_limited) {
                                     pauseCampaignUI('Paused (Rate limit hit 429). Please wait before resuming.');
@@ -1983,11 +1950,13 @@ if ($hasValidAuth) {
                         $('#pauseCampaignBtn').hide();
                         $('#resumeCampaignBtn').show();
                         $('#campaignCancelBtn, #campaignCloseBtn').prop('disabled', false);
+                        $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', false).prop('disabled', false);
                     }
 
                     function campaignError(msg) {
                         $('#campaignStatusText').text(msg).removeClass('text-info text-success').addClass('text-danger');
                         $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', false);
+                        $('textarea[name="numbers"], select[name="templateId"]').prop('readonly', false).prop('disabled', false);
                         activeJobId = null;
                     }
 
