@@ -94,19 +94,26 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
         curl_close($ch);
 
         $resData = json_decode($response, true);
-        if (!empty($resData['result']['result'])) {
-            $filteredConversations = [];
-            foreach ($conversations as $index => $conv) {
-                $key = 'check_' . $index;
-                // If the entity exists, Bitrix returns an object. If not, it returns null or error.
-                if ($conv['type'] === 'phone') {
-                    $filteredConversations[] = $conv;
-                } elseif (isset($resData['result']['result'][$key]) && !empty($resData['result']['result'][$key])) {
-                    $filteredConversations[] = $conv;
-                }
+        $results = $resData['result']['result'] ?? [];
+        $errors = $resData['result']['result_error'] ?? [];
+
+        $filteredConversations = [];
+        foreach ($conversations as $index => $conv) {
+            $key = 'check_' . $index;
+            
+            // If it's a generic phone-only chat, keep it
+            if ($conv['type'] === 'phone') {
+                $filteredConversations[] = $conv;
+                continue;
             }
-            $conversations = $filteredConversations;
+
+            // If Bitrix found the record and it's not null, keep it
+            if (isset($results[$key]) && !empty($results[$key])) {
+                $filteredConversations[] = $conv;
+            }
+            // If there's no error AND no result, or an explicit 'not found' error, it's deleted
         }
+        $conversations = $filteredConversations;
     }
 }
 

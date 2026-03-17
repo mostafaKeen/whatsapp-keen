@@ -2713,7 +2713,7 @@ if ($hasValidAuth) {
                         <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 0.08; pointer-events: none;"></div>
                         
                         <!-- Empty State -->
-                        <div id="chatEmptyState" class="d-flex flex-column justify-content-center align-items-center w-100 h-100" style="background: #f0f2f5; z-index: 1;">
+                        <div id="chatEmptyState" class="flex-column justify-content-center align-items-center w-100 h-100" style="background: #f0f2f5; z-index: 1; display: flex;">
                             <div class="text-center">
                                 <i class="fab fa-whatsapp text-muted mb-3" style="font-size: 5rem; opacity: 0.2;"></i>
                                 <h4 class="text-muted" style="color: #41525d;">KEEN WABA for Bitrix24</h4>
