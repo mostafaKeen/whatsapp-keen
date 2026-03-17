@@ -481,6 +481,9 @@ if ($hasValidAuth) {
                         <button id="refreshTemplates" class="btn btn-modern btn-outline-modern" title="Refresh List">
                             <i class="fas fa-sync-alt"></i>
                         </button>
+                        <button id="openConversationsBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#conversationsModal">
+                            <i class="fas fa-comments text-success"></i> Conversations
+                        </button>
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
                             <i class="fas fa-chart-line"></i> Insights
                         </button>
@@ -2674,6 +2677,207 @@ if ($hasValidAuth) {
             </script>
         <?php endif; ?>
 
+        <!-- Conversation JS Logic -->
+        <script>
+            $(document).ready(function() {
+                let currentChatType = null;
+                let currentChatId = null;
+                let currentChatPhone = null;
+
+                // Load conversations list
+                function loadConversations() {
+                    $('#conversationsLoading').show();
+                    $('#conversationsListContainer .chat-item').remove();
+                    
+                    $.getJSON('get_conversations.php', function(data) {
+                        $('#conversationsLoading').hide();
+                        
+                        if (!data || data.length === 0) {
+                            $('#conversationsListContainer').append('<div class="p-4 text-center text-muted chat-item small">No conversations found.</div>');
+                            return;
+                        }
+                        
+                        data.forEach(function(conv) {
+                            const timeStr = conv.last_message_timestamp ? new Date(conv.last_message_timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                            const statusIcon = conv.last_message_direction === 'outbound' ? 
+                                (conv.last_message_status === 'read' ? '<i class="fas fa-check-double text-info mx-1"></i>' : 
+                                 conv.last_message_status === 'delivered' ? '<i class="fas fa-check-double text-muted mx-1"></i>' : 
+                                 '<i class="fas fa-check text-muted mx-1"></i>') : '';
+                            
+                            const html = `
+                                <div class="chat-item d-flex align-items-center p-3 border-bottom" style="cursor: pointer; transition: background 0.2s; background: #fff;" 
+                                     data-type="${conv.type}" data-id="${conv.id}" data-phone="${conv.phone}" data-name="${conv.name}">
+                                    <div class="avatar bg-light text-secondary rounded-circle d-flex justify-content-center align-items-center mr-3" style="width: 48px; height: 48px; font-size: 1.2rem; flex-shrink: 0;">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div class="chat-item-info flex-grow-1 overflow-hidden" style="min-width: 0;">
+                                        <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                            <div class="font-weight-bold text-truncate" style="color: #111b21;">${conv.name}</div>
+                                            <div class="small text-muted" style="font-size: 12px; flex-shrink: 0; margin-left: 8px;">${timeStr}</div>
+                                        </div>
+                                        <div class="small text-muted text-truncate" style="font-size: 13px;">
+                                            ${statusIcon} ${conv.last_message || '📷 Media / Template'}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            $('#conversationsListContainer').append(html);
+                        });
+                        
+                        // Hover & Click events
+                        $('.chat-item').hover(
+                            function() { if (!$(this).hasClass('active-chat')) $(this).css('background', '#f5f6f6'); },
+                            function() { if (!$(this).hasClass('active-chat')) $(this).css('background', '#fff'); }
+                        ).click(function() {
+                            $('.chat-item').removeClass('active-chat').css('background', '#fff');
+                            $(this).addClass('active-chat').css('background', '#f0f2f5');
+                            
+                            currentChatType = $(this).data('type');
+                            currentChatId = $(this).data('id');
+                            currentChatPhone = $(this).data('phone');
+                            const name = $(this).data('name');
+                            
+                            $('#chatEmptyState').hide();
+                            $('#activeChatHeader, #chatMessagesContainer, #chatInputFooter').attr('style', function(i, s) { return s.replace(/display:\s*none\s*!important;/g, ''); });
+                            $('#activeChatTitle').text(name);
+                            $('#activeChatSubtitle').text(currentChatPhone);
+                            
+                            loadChatHistory(currentChatType, currentChatId);
+                        });
+                    });
+                }
+
+                function loadChatHistory(type, id) {
+                    $('#chatMessagesContainer').empty().append('<div class="text-center p-4"><span class="spinner-border text-success"></span></div>');
+                    $.getJSON('get_chat_history.php?type=' + type + '&id=' + id, function(history) {
+                        $('#chatMessagesContainer').empty();
+                        
+                        let lastDate = '';
+                        
+                        history.forEach(function(msg) {
+                            const dateObj = new Date(msg.timestamp);
+                            const dateStr = dateObj.toLocaleDateString();
+                            const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            
+                            if (dateStr !== lastDate) {
+                                $('#chatMessagesContainer').append(`
+                                    <div class="text-center my-3">
+                                        <span class="badge" style="background: rgba(255,255,255,0.9); color: #54656f; font-weight: normal; font-size: 12px; padding: 6px 12px; box-shadow: 0 1px 1px rgba(11,20,26,0.1);">${dateStr}</span>
+                                    </div>
+                                `);
+                                lastDate = dateStr;
+                            }
+                            
+                            const isOut = msg.direction === 'outbound';
+                            const flexAlign = isOut ? 'align-self-end' : 'align-self-start';
+                            const bgColor = isOut ? '#d9fdd3' : '#ffffff';
+                            const bradius = isOut ? '12px 0 12px 12px' : '0 12px 12px 12px';
+                            
+                            let statusIcon = '';
+                            if (isOut) {
+                                statusIcon = msg.status === 'read' ? '<i class="fas fa-check-double text-info ml-1" style="font-size: 11px;"></i>' : 
+                                            msg.status === 'delivered' ? '<i class="fas fa-check-double text-muted ml-1" style="font-size: 11px;"></i>' : 
+                                            '<i class="fas fa-check text-muted ml-1" style="font-size: 11px;"></i>';
+                            }
+
+                            // Only render valid text messages or fallback media notes.
+                            const txt = (msg.message && msg.message.trim() !== '') ? msg.message.replace(/\n/g, '<br>') : '📎 <i>Media message</i>';
+                            
+                            const html = `
+                                <div class="${flexAlign} mb-2" style="max-width: 75%; position: relative;">
+                                    <div class="p-2 shadow-sm" style="background: ${bgColor}; border-radius: ${bradius}; color: #111b21; font-size: 14px; position: relative;">
+                                        <div style="padding-bottom: 8px; padding-right: ${isOut ? '40px' : '30px'};">${txt}</div>
+                                        <div class="d-flex align-items-center" style="position: absolute; bottom: 4px; right: 8px; color: #667781; font-size: 11px;">
+                                            <span>${timeStr}</span>
+                                            ${statusIcon}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            $('#chatMessagesContainer').append(html);
+                        });
+                        
+                        setTimeout(() => {
+                            const c = document.getElementById('chatMessagesContainer');
+                            c.scrollTop = c.scrollHeight;
+                        }, 50);
+                    });
+                }
+
+                function sendChatMessage() {
+                    const text = $('#chatMessageInput').val().trim();
+                    if (!text || !currentChatPhone) return;
+                    
+                    $('#chatMessageInput').val('').prop('disabled', true);
+                    $('#chatSendBtn').prop('disabled', true).html('<i class="fas fa-circle-notch fa-spin"></i>');
+                    
+                    // Optimistic UI append
+                    const tempId = 'temp_' + Date.now();
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    const html = `
+                        <div id="${tempId}" class="align-self-end mb-2" style="max-width: 75%;">
+                            <div class="p-2 shadow-sm" style="background: #d9fdd3; border-radius: 12px 0 12px 12px; color: #111b21; font-size: 14px; position: relative; opacity: 0.7;">
+                                <div style="padding-bottom: 8px; padding-right: 40px;">${text.replace(/\n/g, '<br>')}</div>
+                                <div class="d-flex align-items-center" style="position: absolute; bottom: 4px; right: 8px; color: #667781; font-size: 11px;">
+                                    <span>${timeStr}</span>
+                                    <i class="far fa-clock ml-1" style="font-size: 10px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $('#chatMessagesContainer').append(html);
+                    const c = document.getElementById('chatMessagesContainer');
+                    c.scrollTop = c.scrollHeight;
+                    
+                    $.ajax({
+                        url: 'send_chat_message.php',
+                        type: 'POST',
+                        data: {
+                            message: text,
+                            phone: currentChatPhone,
+                            type: currentChatType,
+                            id: currentChatId
+                        },
+                        success: function(res) {
+                            $('#chatMessageInput').prop('disabled', false).focus();
+                            $('#chatSendBtn').prop('disabled', false).html('<i class="fas fa-paper-plane" style="font-size: 20px;"></i>');
+                            // Reload history to get real IDs and status
+                            loadChatHistory(currentChatType, currentChatId);
+                        },
+                        error: function(err) {
+                            $('#chatMessageInput').prop('disabled', false);
+                            $('#chatSendBtn').prop('disabled', false).html('<i class="fas fa-paper-plane" style="font-size: 20px;"></i>');
+                            $('#' + tempId).find('.far.fa-clock').removeClass('far fa-clock').addClass('fas fa-exclamation-circle text-danger');
+                            alert('Failed to send message: ' + (err.responseJSON ? err.responseJSON.error : 'Network error'));
+                        }
+                    });
+                }
+
+                // Chat DOM Events
+                $('#openConversationsBtn').click(function() {
+                    loadConversations();
+                });
+                $('#refreshConversationsBtn').click(function() {
+                    loadConversations();
+                    if (currentChatId) loadChatHistory(currentChatType, currentChatId);
+                });
+                
+                $('#chatSendBtn').click(sendChatMessage);
+                $('#chatMessageInput').keypress(function(e) {
+                    if (e.which === 13) sendChatMessage();
+                });
+                
+                // Simple search filter in sidebar
+                $('#chatSearchInput').on('keyup', function() {
+                    const v = $(this).val().toLowerCase();
+                    $('#conversationsListContainer .chat-item').filter(function() {
+                        $(this).toggle($(this).text().toLowerCase().indexOf(v) > -1);
+                    });
+                });
+            });
+        </script>
 
     </div>
 </body>
