@@ -262,7 +262,8 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
                 return [
                     'job_id' => $data['job_id'],
                     'template_name' => $data['template_name'],
-                    'template_id' => $data['template_id']
+                    'template_id' => $data['template_id'],
+                    'responsible_id' => $data['responsible_id'] ?? null
                 ];
             }
         }
@@ -285,7 +286,7 @@ function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $tex
         'SUBJECT'       => $title,
         'DESCRIPTION'   => $text,
         'COMPLETED'     => 'Y',
-        'RESPONSIBLE_ID'=> 1,
+        'RESPONSIBLE_ID'=> ($campaign && isset($campaign['responsible_id']) && $campaign['responsible_id']) ? $campaign['responsible_id'] : 1,
     ];
 
     // If we have media, attach it
@@ -329,14 +330,21 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
 
     // Not found — create new Lead
     error_log("No Lead/Contact found for +$phone, creating new Lead...");
+    
+    $leadFields = [
+        'TITLE'     => ($campaign ? 'CAMPAIGN: ' . $campaign['template_name'] : 'WA Inquiry') . ': +' . $phone,
+        'NAME'      => $name ?: 'WhatsApp User',
+        'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
+        'SOURCE_ID' => 'WA_GUPSHUP',
+        'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
+    ];
+    
+    if ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) {
+        $leadFields['ASSIGNED_BY_ID'] = $campaign['responsible_id'];
+    }
+
     $createRes = bitrix24Call($webhookUrl, 'crm.lead.add', [
-        'fields' => [
-            'TITLE'     => ($campaign ? 'CAMPAIGN: ' . $campaign['template_name'] : 'WA Inquiry') . ': +' . $phone,
-            'NAME'      => $name ?: 'WhatsApp User',
-            'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
-            'SOURCE_ID' => 'WA_GUPSHUP',
-            'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
-        ],
+        'fields' => $leadFields,
     ]);
 
     if (!empty($createRes['result'])) {

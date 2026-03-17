@@ -542,6 +542,13 @@ if ($hasValidAuth) {
                                             <option value="">-- Choose an approved template --</option>
                                         </select>
                                     </div>
+                                    <div class="form-group mb-4">
+                                        <label class="font-weight-600 small text-muted text-uppercase">Responsible Person</label>
+                                        <select name="responsibleId" id="campaignResponsibleSelect" class="form-control form-control-modern">
+                                            <option value="">-- Lead will be unassigned (default) --</option>
+                                        </select>
+                                        <small class="text-muted">Users created from this campaign will be assigned to this person.</small>
+                                    </div>
                                     <div class="form-group mb-4" id="campaignMediaUrlGroup" style="display:none;">
                                         <label class="font-weight-600 small text-muted text-uppercase">Media Header URL *</label>
                                         <input type="url" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://example.com/image.jpg">
@@ -1694,6 +1701,31 @@ if ($hasValidAuth) {
                             window.allTemplatesData.forEach(function(t) {
                                 if (t.status === 'APPROVED') {
                                     $sel.append('<option value="'+(t.id || t.templateId || t.externalId)+'">'+t.elementName+' ('+t.templateType+')</option>');
+                                }
+                            });
+                        }
+
+                        var $respSel = $('#campaignResponsibleSelect');
+                        if ($respSel.children('option').length <= 1) { // Only the default option exists
+                            $respSel.empty().append('<option value="">Loading users...</option>');
+                            $.ajax({
+                                url: 'https://westgate.bitrix24.com/rest/9034/nks666y4mpf9ppx6/user.get.json',
+                                method: 'GET',
+                                dataType: 'json',
+                                success: function(resp) {
+                                    $respSel.empty().append('<option value="">-- Lead will be unassigned (default) --</option>');
+                                    if (resp && resp.result && Array.isArray(resp.result)) {
+                                        resp.result.forEach(function(user) {
+                                            if (user.ACTIVE) {
+                                                var nameStr = (user.NAME || '') + (user.NAME && user.LAST_NAME ? ' ' : '') + (user.LAST_NAME || '');
+                                                $respSel.append('<option value="' + user.ID + '">' + nameStr + '</option>');
+                                            }
+                                        });
+                                    }
+                                },
+                                error: function(xhr, status, err) {
+                                    console.error('Error fetching Bitrix24 users:', err);
+                                    $respSel.empty().append('<option value="">-- Failed to load users --</option>');
                                 }
                             });
                         }
