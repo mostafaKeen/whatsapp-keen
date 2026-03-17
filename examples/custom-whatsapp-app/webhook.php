@@ -339,16 +339,53 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     // Not found — create new Lead
     error_log("No Lead/Contact found for +$phone, creating new Lead...");
     
+    static $waSourceId = null;
+    if ($waSourceId === null) {
+        $waSourceId = 'WA_GUPSHUP'; // default fallback
+        $statusRes = bitrix24Call($webhookUrl, 'crm.status.list', [
+            'filter' => ['ENTITY_ID' => 'SOURCE']
+        ]);
+        if (!empty($statusRes['result'])) {
+            foreach ($statusRes['result'] as $status) {
+                if (strtolower(trim($status['NAME'])) === 'whatsapp business api') {
+                    $waSourceId = $status['STATUS_ID'];
+                    break;
+                }
+            }
+        }
+    }
+
     $leadFields = [
         'TITLE'     => ($campaign ? 'CAMPAIGN: ' . $campaign['template_name'] : 'WA Inquiry') . ': +' . $phone,
         'NAME'      => $name ?: 'WhatsApp User',
         'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
-        'SOURCE_ID' => 'WA_GUPSHUP',
+        'SOURCE_ID' => $waSourceId,
         'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
     ];
     
     if ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) {
         $leadFields['ASSIGNED_BY_ID'] = $campaign['responsible_id'];
+    }
+
+    if ($campaign && isset($campaign['template_name'])) {
+        static $waCampaignFieldId = null;
+        if ($waCampaignFieldId === null) {
+            $waCampaignFieldId = 'UF_CRM_WHATSPP_NAME'; // Fallback
+            $fieldsRes = bitrix24Call($webhookUrl, 'crm.lead.fields', []);
+            if (!empty($fieldsRes['result'])) {
+                foreach ($fieldsRes['result'] as $key => $field) {
+                    $title = strtolower(trim($field['title'] ?? ''));
+                    $formLabel = strtolower(trim($field['formLabel'] ?? ''));
+                    $listLabel = strtolower(trim($field['listLabel'] ?? ''));
+                    
+                    if ($title === 'whatsapp campaign name' || $formLabel === 'whatsapp campaign name' || $listLabel === 'whatsapp campaign name') {
+                        $waCampaignFieldId = $key;
+                        break;
+                    }
+                }
+            }
+        }
+        $leadFields[$waCampaignFieldId] = [$campaign['template_name']];
     }
 
     $createRes = bitrix24Call($webhookUrl, 'crm.lead.add', [
