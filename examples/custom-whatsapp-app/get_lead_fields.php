@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 /**
  * get_lead_fields.php
- * Fetches lead field definitions from Bitrix24 to find the dynamic "Segment" field.
+ * Fetches lead filter options from Bitrix24:
+ *   - sources (SOURCE_ID) from crm.status.list (entityId = SOURCE)
+ *   - statuses (STATUS_ID) from crm.status.list (entityId = STATUS)
+ *   - assigned users via user.get
+ * Returns JSON with arrays for each filter dimension.
  */
 
 header('Content-Type: application/json');
@@ -15,53 +19,57 @@ error_reporting(0);
 $whatsappConfig = require __DIR__ . '/../config.php';
 $webhookUrl = rtrim($whatsappConfig['webhook_url'], '/');
 
-$apiUrl = $webhookUrl . '/crm.lead.fields.json';
-
-$ch = curl_init($apiUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-if ($error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $error]);
-    exit;
+function bitrix24Get(string $webhookUrl, string $method, array $params = []): array {
+    $url = $webhookUrl . '/' . $method . '.json';
+    if (!empty($params)) {
+        $url .= '?' . http_build_query($params);
+    }
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($response, true);
+    return $data['result'] ?? [];
 }
 
-$data = json_decode($response, true);
-if (!isset($data['result'])) {
-    http_response_code($httpCode);
-    echo $response;
-    exit;
+// Fetch Sources (SOURCE)
+$sources = bitrix24Get($webhookUrl, 'crm.status.list', [
+    'filter' => ['ENTITY_ID' => 'SOURCE'],
+    'select' => ['STATUS_ID', 'NAME'],
+]);
+$sourceOptions = [];
+foreach ($sources as $s) {
+    $sourceOptions[] = ['id' => $s['STATUS_ID'], 'name' => $s['NAME']];
 }
 
-$segmentField = null;
-foreach ($data['result'] as $key => $field) {
-    $labels = [
-        $field['listLabel'] ?? '',
-        $field['formLabel'] ?? '',
-        $field['filterLabel'] ?? '',
-        $field['title'] ?? ''
-    ];
-    
-    foreach ($labels as $label) {
-        if ($label && stripos($label, 'Segment') !== false) {
-            $segmentField = [
-                'key' => $key,
-                'title' => $label,
-                'items' => $field['items'] ?? []
-            ];
-            break 2;
-        }
+// Fetch Statuses (STATUS)
+$statuses = bitrix24Get($webhookUrl, 'crm.status.list', [
+    'filter' => ['ENTITY_ID' => 'STATUS'],
+    'select' => ['STATUS_ID', 'NAME'],
+]);
+$statusOptions = [];
+foreach ($statuses as $s) {
+    $statusOptions[] = ['id' => $s['STATUS_ID'], 'name' => $s['NAME']];
+}
+
+// Fetch Active Users for "Assigned To" filter
+$users = bitrix24Get($webhookUrl, 'user.get', [
+    'filter' => ['ACTIVE' => true],
+    'select' => ['ID', 'NAME', 'LAST_NAME'],
+]);
+$userOptions = [];
+foreach ($users as $u) {
+    $name = trim(($u['NAME'] ?? '') . ' ' . ($u['LAST_NAME'] ?? ''));
+    if ($name) {
+        $userOptions[] = ['id' => $u['ID'], 'name' => $name];
     }
 }
 
 echo json_encode([
-    'success' => true,
-    'segmentField' => $segmentField
+    'success'       => true,
+    'sourceOptions' => $sourceOptions,
+    'statusOptions' => $statusOptions,
+    'userOptions'   => $userOptions,
 ]);

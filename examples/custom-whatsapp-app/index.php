@@ -579,27 +579,66 @@ if ($hasValidAuth) {
                                         
                                         <!-- Contact Selector -->
                                         <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded-lg bg-light overflow-hidden">
-                                            <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
-                                                <input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" style="width: 200px;" placeholder="Search names...">
-                                                <select id="contactSegmentFilter" class="form-control form-control-sm form-control-modern mx-2" style="width: 150px; display: none;">
-                                                    <option value="">All Segments</option>
-                                                </select>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="custom-control custom-checkbox mr-3">
-                                                        <input type="checkbox" class="custom-control-input" id="selectAllContacts">
-                                                        <label class="custom-control-label small" for="selectAllContacts">Select All</label>
+
+                                            <!-- Filter Bar -->
+                                            <div class="p-3 bg-white border-bottom">
+                                                <div class="d-flex flex-wrap align-items-end" style="gap: 8px;">
+                                                    <!-- Name Search -->
+                                                    <div style="flex: 1 1 160px; min-width: 140px;">
+                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Name</label>
+                                                        <input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search...">
                                                     </div>
-                                                    <button type="button" class="btn btn-sm btn-primary-modern py-1" id="applyContacts">Apply</button>
+                                                    <!-- Source -->
+                                                    <div style="flex: 1 1 150px; min-width: 130px;">
+                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Source</label>
+                                                        <select id="leadSourceFilter" class="form-control form-control-sm form-control-modern">
+                                                            <option value="">All Sources</option>
+                                                        </select>
+                                                    </div>
+                                                    <!-- Country -->
+                                                    <div style="flex: 1 1 140px; min-width: 120px;">
+                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Country</label>
+                                                        <input type="text" id="leadCountryFilter" class="form-control form-control-sm form-control-modern" placeholder="e.g. AE">
+                                                    </div>
+                                                    <!-- Status -->
+                                                    <div style="flex: 1 1 150px; min-width: 130px;">
+                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Status</label>
+                                                        <select id="leadStatusFilter" class="form-control form-control-sm form-control-modern">
+                                                            <option value="">All Statuses</option>
+                                                        </select>
+                                                    </div>
+                                                    <!-- Assigned To -->
+                                                    <div style="flex: 1 1 160px; min-width: 140px;">
+                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Assigned To</label>
+                                                        <select id="leadAssignedFilter" class="form-control form-control-sm form-control-modern">
+                                                            <option value="">Anyone</option>
+                                                        </select>
+                                                    </div>
+                                                    <!-- Reset -->
+                                                    <div style="flex: 0 0 auto; align-self: flex-end;">
+                                                        <button type="button" id="resetLeadFilters" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Clear all filters">
+                                                            <i class="fas fa-undo"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <!-- Row 2: select-all + count + apply -->
+                                                <div class="d-flex align-items-center justify-content-between mt-2 pt-2" style="border-top: 1px solid var(--border);">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="custom-control custom-checkbox mr-3">
+                                                            <input type="checkbox" class="custom-control-input" id="selectAllContacts">
+                                                            <label class="custom-control-label small" for="selectAllContacts">Select All Visible</label>
+                                                        </div>
+                                                        <span id="leadFilterCount" class="badge badge-light text-muted small">0 leads</span>
+                                                    </div>
+                                                    <button type="button" class="btn btn-sm btn-primary-modern py-1 px-3" id="applyContacts">Apply</button>
                                                 </div>
                                             </div>
+
                                             <div class="contact-list-container px-3" id="contactListContainer">
                                                 <div class="text-center p-4 text-muted small" id="contactsLoading">
-                                                    <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching your Bitrix24 contacts...
+                                                    <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching Bitrix24 leads...
                                                 </div>
                                                 <div id="contactList"></div>
-                                                <div class="text-center p-2" id="loadMoreContactsContainer" style="display:none;">
-                                                    <button type="button" class="btn btn-sm btn-link" id="loadMoreContacts">Load more...</button>
-                                                </div>
                                             </div>
                                         </div>
 
@@ -1506,21 +1545,18 @@ if ($hasValidAuth) {
                     });
 
                     // ============================================
-                    // BULK CAMPAIGN LOGIC
+                    // BULK CAMPAIGN LOGIC – LEAD FILTRATION
                     // ============================================
                     var allLeads = [];
-                    var nextStart = 0;
-                    var segmentFieldKey = null;
-
-                    var segmentFieldFetched = false;
+                    var leadFiltersFetched = false;
 
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
                         $('#contactSelectorSection').slideToggle();
                         if (!isVisible) {
-                            if (!segmentFieldFetched) {
-                                segmentFieldFetched = true;
-                                fetchSegmentField(function() {
+                            if (!leadFiltersFetched) {
+                                leadFiltersFetched = true;
+                                fetchLeadFilters(function() {
                                     if (allLeads.length === 0) fetchCampaignLeads();
                                 });
                             } else if (allLeads.length === 0) {
@@ -1529,108 +1565,142 @@ if ($hasValidAuth) {
                         }
                     });
 
-                    function fetchSegmentField(callback) {
-                        console.log('Fetching Lead segment field definitions...');
+                    // Fetch filter option lists from Bitrix24 (sources, statuses, users)
+                    function fetchLeadFilters(callback) {
                         $.ajax({
                             url: 'get_lead_fields.php',
                             method: 'GET',
                             dataType: 'json',
                             success: function(resp) {
-                                if (resp.success && resp.segmentField) {
-                                    console.log('Lead Segment field found:', resp.segmentField.key);
-                                    segmentFieldKey = resp.segmentField.key;
-                                    var $filter = $('#contactSegmentFilter');
-                                    $filter.empty().append('<option value="">All Segments</option>');
-                                    if (resp.segmentField.items) {
-                                        resp.segmentField.items.forEach(function(item) {
-                                            $filter.append('<option value="' + item.ID + '">' + item.VALUE + '</option>');
-                                        });
-                                    }
-                                    $filter.show();
-                                }
+                                if (!resp.success) { if (callback) callback(); return; }
+
+                                // Populate Source dropdown
+                                var $src = $('#leadSourceFilter');
+                                $src.find('option:not(:first)').remove();
+                                (resp.sourceOptions || []).forEach(function(s) {
+                                    $src.append('<option value="' + s.id + '">' + s.name + '</option>');
+                                });
+
+                                // Populate Status dropdown
+                                var $st = $('#leadStatusFilter');
+                                $st.find('option:not(:first)').remove();
+                                (resp.statusOptions || []).forEach(function(s) {
+                                    $st.append('<option value="' + s.id + '">' + s.name + '</option>');
+                                });
+
+                                // Populate Assigned To dropdown
+                                var $asgn = $('#leadAssignedFilter');
+                                $asgn.find('option:not(:first)').remove();
+                                (resp.userOptions || []).forEach(function(u) {
+                                    $asgn.append('<option value="' + u.id + '">' + u.name + '</option>');
+                                });
+
                                 if (callback) callback();
                             },
-                            error: function(xhr, status, err) {
-                                console.error('Error fetching Lead segments:', status, err);
+                            error: function() {
+                                console.error('Failed to load lead filter options');
                                 if (callback) callback();
                             }
                         });
                     }
 
-                    $('#contactSegmentFilter').change(function() {
-                        renderCampaignLeads($('#contactSearchInput').val());
+                    // Wire up all filter controls → re-render instantly
+                    $('#leadSourceFilter, #leadStatusFilter, #leadAssignedFilter').on('change', function() {
+                        renderCampaignLeads();
+                    });
+                    $('#contactSearchInput, #leadCountryFilter').on('input', function() {
+                        renderCampaignLeads();
+                    });
+
+                    // Reset all filters
+                    $('#resetLeadFilters').click(function() {
+                        $('#contactSearchInput').val('');
+                        $('#leadCountryFilter').val('');
+                        $('#leadSourceFilter').val('');
+                        $('#leadStatusFilter').val('');
+                        $('#leadAssignedFilter').val('');
+                        renderCampaignLeads();
                     });
 
                     function fetchCampaignLeads() {
                         $('#contactsLoading').show();
                         $('#contactList').hide();
-                        $('#loadMoreContactsContainer').hide();
                         allLeads = [];
 
                         $.ajax({
-                            url: 'get_leads.php?segmentField=' + (segmentFieldKey || ''),
+                            url: 'get_leads.php',
                             method: 'GET',
                             cache: false,
                             success: function(res) {
                                 allLeads = res.result || [];
-                                renderCampaignLeads($('#contactSearchInput').val());
+                                renderCampaignLeads();
                                 $('#contactsLoading').hide();
                                 $('#contactList').show();
                             },
                             error: function() {
-                                $('#contactsLoading').html('<span class="text-danger">Failed to load Leads. Ensure Bitrix24 is accessible.</span>');
+                                $('#contactsLoading').html('<span class="text-danger">Failed to load leads. Ensure Bitrix24 is accessible.</span>');
                             }
                         });
                     }
 
-                    $('#loadMoreContacts').click(function() {
-                        if (nextStart) {
-                            fetchCampaignContacts(nextStart);
-                        }
-                    });
+                    function renderCampaignLeads() {
+                        var nameFilter    = ($('#contactSearchInput').val() || '').toLowerCase().trim();
+                        var sourceFilter  = $('#leadSourceFilter').val();
+                        var countryFilter = ($('#leadCountryFilter').val() || '').toLowerCase().trim();
+                        var statusFilter  = $('#leadStatusFilter').val();
+                        var assignFilter  = $('#leadAssignedFilter').val();
 
-                    function renderCampaignLeads(search) {
-                        var html = '';
-                        var filter = (search || '').toLowerCase();
-                        var segment = $('#contactSegmentFilter').val();
-                        
                         var filtered = allLeads.filter(function(l) {
-                            var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '')).toLowerCase();
-                            var matchQuery = fullName.includes(filter);
-                            
-                            var matchSegment = true;
-                            if (segment && segmentFieldKey) {
-                                var val = l[segmentFieldKey];
-                                if (Array.isArray(val)) {
-                                    matchSegment = val.some(v => String(v) === String(segment));
-                                } else {
-                                    matchSegment = String(val) === String(segment);
-                                }
+                            // Name search
+                            if (nameFilter) {
+                                var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '') + ' ' + (l.TITLE || '')).toLowerCase();
+                                if (!fullName.includes(nameFilter)) return false;
                             }
-                            return matchQuery && matchSegment;
+                            // Source
+                            if (sourceFilter && l.SOURCE_ID !== sourceFilter) return false;
+                            // Country (partial match, case-insensitive)
+                            if (countryFilter && !(l.ADDRESS_COUNTRY || '').toLowerCase().includes(countryFilter)) return false;
+                            // Status
+                            if (statusFilter && l.STATUS_ID !== statusFilter) return false;
+                            // Assigned To
+                            if (assignFilter && String(l.ASSIGNED_BY_ID) !== assignFilter) return false;
+
+                            return true;
                         });
-                        
+
+                        // Update count badge
+                        $('#leadFilterCount').text(filtered.length + ' lead' + (filtered.length === 1 ? '' : 's'));
+
+                        var html = '';
                         if (filtered.length === 0) {
-                            html = '<div class="text-center p-3 text-muted">' + (allLeads.length > 0 ? 'No leads match your search.' : 'No leads with phone numbers found.') + '</div>';
+                            html = '<div class="text-center p-3 text-muted">' +
+                                   (allLeads.length > 0 ? 'No leads match your filters.' : 'No leads with phone numbers found.') +
+                                   '</div>';
                         } else {
                             filtered.forEach(function(l) {
+                                var displayName = ((l.NAME || '') + (l.LAST_NAME ? ' ' + l.LAST_NAME : '')).trim() || l.TITLE || 'No Name';
+                                var badge = '';
+                                if (l.SOURCE_ID)       badge += '<span class="badge badge-info ml-1" style="font-size:9px;">' + l.SOURCE_ID + '</span>';
+                                if (l.ADDRESS_COUNTRY) badge += '<span class="badge badge-secondary ml-1" style="font-size:9px;">' + l.ADDRESS_COUNTRY + '</span>';
+                                if (l.STATUS_ID)       badge += '<span class="badge badge-light ml-1" style="font-size:9px;">' + l.STATUS_ID + '</span>';
+
                                 l.PHONE.forEach(function(p, pIdx) {
                                     var uniqueId = 'lead_' + l.ID + '_' + pIdx;
                                     html += '<div class="contact-item font-weight-normal">' +
                                         '<div class="custom-control custom-checkbox">' +
                                             '<input type="checkbox" class="custom-control-input contact-checkbox" id="' + uniqueId + '" value="' + p.VALUE + '">' +
-                                            '<label class="custom-control-label small" for="' + uniqueId + '">' + (l.NAME || 'No Name') + (l.LAST_NAME ? ' ' + l.LAST_NAME : '') + ' <span class="text-muted">(' + p.VALUE + ')</span></label>' +
+                                            '<label class="custom-control-label small" for="' + uniqueId + '">' +
+                                                displayName + ' <span class="text-muted">(' + p.VALUE + ')</span>' + badge +
+                                            '</label>' +
                                         '</div>' +
                                     '</div>';
                                 });
                             });
                         }
                         $('#contactList').html(html);
+                        // Keep select-all in sync
+                        $('#selectAllContacts').prop('checked', false);
                     }
-
-                    $('#contactSearchInput').on('input', function() {
-                        renderCampaignLeads($(this).val());
-                    });
 
                     $('#selectAllContacts').change(function() {
                         var checked = $(this).prop('checked');
@@ -1642,17 +1712,17 @@ if ($hasValidAuth) {
                         $('.contact-checkbox:checked').each(function() {
                             selected.push($(this).val());
                         });
-                        
+
                         if (selected.length === 0) {
-                            showToast('Please select at least one contact', 'info');
+                            showToast('Please select at least one lead', 'info');
                             return;
                         }
-                        
+
                         var currentText = $('#campaignNumbersArea').val();
                         var existing = currentText.split('\n').filter(Boolean);
                         var combined = existing.concat(selected);
                         var unique = combined.filter(function(item, pos) { return combined.indexOf(item) === pos; });
-                        
+
                         $('#campaignNumbersArea').val(unique.join('\n')).trigger('input');
                         $('#contactSelectorSection').slideUp();
                     });
