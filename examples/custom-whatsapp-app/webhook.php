@@ -251,14 +251,22 @@ exit;
  * Searches jobs directory for a match for the incoming phone number.
  */
 function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
+    $cleanP = ltrim(preg_replace('/[^0-9]/', '', (string)$phone), '0'); // Strip any leading zeros
+    
+    // Sort files by modified time descending to get the most recent campaign job first
     $files = glob($jobDir . '/*.json');
+    if (!$files) return null;
+    usort($files, function($a, $b) {
+        return filemtime($b) - filemtime($a);
+    });
+
     foreach ($files as $file) {
         $data = json_decode(file_get_contents($file), true);
         if (!$data || !isset($data['targets'])) continue;
         foreach($data['targets'] as $t) {
-            $cleanT = preg_replace('/[^0-9]/', '', (string)$t['phone']);
-            $cleanP = preg_replace('/[^0-9]/', '', (string)$phone);
-            if ($cleanT === $cleanP) {
+            $cleanT = ltrim(preg_replace('/[^0-9]/', '', (string)$t['phone']), '0');
+            // Check if one ends with the other to handle country code prefix differences
+            if (str_ends_with($cleanP, $cleanT) || str_ends_with($cleanT, $cleanP)) {
                 return [
                     'job_id' => $data['job_id'],
                     'template_name' => $data['template_name'],
