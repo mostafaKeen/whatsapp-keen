@@ -1985,6 +1985,12 @@ if ($hasValidAuth) {
                             formData.push({name: 'csvData', value: JSON.stringify(window.currentCsvRows)});
                         }
 
+                        // Send Template Content
+                        if (selectedTemplate) {
+                            var tContent = selectedTemplate.data || selectedTemplate.content || '';
+                            formData.push({name: 'templateContent', value: tContent});
+                        }
+
                         $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);
                         $('#campaignStatusArea').slideDown();
                         $('#campaignStatusText').text('Initializing campaign job...').removeClass('text-danger text-success').addClass('text-info');

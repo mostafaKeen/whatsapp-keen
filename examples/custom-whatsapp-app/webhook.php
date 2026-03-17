@@ -192,7 +192,47 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
-                    
+
+                    // If this is a newly created Lead AND we matched a campaign, inject the outbound message FIRST!
+                    if (!empty($entity['is_new']) && $campaignInfo && !empty($campaignInfo['job_id'])) {
+                        $jobFile = $JOB_DIR . '/' . $campaignInfo['job_id'] . '.json';
+                        if (file_exists($jobFile)) {
+                            $jobData = json_decode(file_get_contents($jobFile), true);
+                            if ($jobData && isset($jobData['targets'])) {
+                                $targetParams = [];
+                                foreach ($jobData['targets'] as $t) {
+                                    $cleanT = ltrim(preg_replace('/[^0-9]/', '', (string)$t['phone']), '0');
+                                    $cleanP = ltrim($phone, '0');
+                                    if (str_ends_with($cleanP, $cleanT) || str_ends_with($cleanT, $cleanP)) {
+                                        $targetParams = $t['params'] ?? [];
+                                        break;
+                                    }
+                                }
+                                
+                                $compiledMsg = $jobData['template_content'] ?? ('Campaign: ' . $jobData['template_name']);
+                                if (!empty($targetParams)) {
+                                    $pVals = array_values($targetParams);
+                                    for ($i = 0; $i < count($pVals); $i++) {
+                                        $compiledMsg = str_replace('{{' . ($i + 1) . '}}', (string)$pVals[$i], $compiledMsg);
+                                    }
+                                }
+
+                                $history[] = [
+                                    'id'           => 'wa_sys_' . uniqid(),
+                                    'timestamp'    => date('Y-m-d H:i:s', (int)$timestamp - 1), // 1 second before reply
+                                    'phone'        => '+' . $phone,
+                                    'message'      => $compiledMsg,
+                                    'campaign_name'=> $campaignInfo['template_name'],
+                                    'message_type' => 'template',
+                                    'status'       => 'sent',
+                                    'direction'    => 'outbound',
+                                    'source'       => $jobData['source'] ?? 'whatsapp',
+                                    'external_url' => $jobData['media_url'] ?? null
+                                ];
+                            }
+                        }
+                    }
+
                     // Prevent duplicate inbound messages
                     foreach ($history as $existing) {
                         if (($existing['id'] ?? '') === $messageId) {
@@ -315,7 +355,7 @@ function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $tex
 /**
  * Search Bitrix24 for a Lead or Contact by phone.
  * Creates a new Lead if not found.
- * Returns ['type' => 'lead', 'id' => 123] or null.
+ * Returns ['type' => 'lead', 'id' => 123, 'is_new' => true/false] or null.
  */
 function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl, ?array $campaign = null): ?array {
 
@@ -333,7 +373,7 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     ]);
 
     if (!empty($res['result']['LEAD'])) {
-        return ['type' => 'lead', 'id' => (int)$res['result']['LEAD'][0]];
+        return ['type' => 'lead', 'id' => (int)$res['result']['LEAD'][0], 'is_new' => false];
     }
 
     // Not found — create new Lead
@@ -394,7 +434,7 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
 
     if (!empty($createRes['result'])) {
         error_log("Created new Lead ID: " . $createRes['result']);
-        return ['type' => 'lead', 'id' => (int)$createRes['result']];
+        return ['type' => 'lead', 'id' => (int)$createRes['result'], 'is_new' => true];
     }
 
     error_log("Failed to create Lead for +$phone: " . json_encode($createRes));

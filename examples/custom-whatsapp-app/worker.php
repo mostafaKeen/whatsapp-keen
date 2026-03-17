@@ -135,8 +135,18 @@ foreach ($jobData['targets'] as $index => &$target) {
         $target['message_id'] = $msgId;
         $jobData['success']++;
 
+        // Compile the actual message text
+        $compiledMsg = $jobData['template_content'] ?? ('Campaign: ' . $jobData['template_name']);
+        if (!empty($params)) {
+             $pVals = array_values($params);
+             for ($i = 0; $i < count($pVals); $i++) {
+                 $idx = $i + 1;
+                 $compiledMsg = str_replace('{{' . $idx . '}}', (string)$pVals[$i], $compiledMsg);
+             }
+        }
+
         // Log to history and update Bitrix
-        handleBitrixAndLogging($target['phone'], $msgId, $jobData, $whatsappConfig);
+        handleBitrixAndLogging($target['phone'], $msgId, $jobData, $compiledMsg, $whatsappConfig);
     } else {
         $target['status'] = 'failed';
         $target['error'] = $error ?: ($decoded['message'] ?? 'HTTP ' . $httpCode);
@@ -160,13 +170,13 @@ echo "Job completed.\n";
 /**
  * Logic extracted from send_campaign_batch.php
  */
-function handleBitrixAndLogging($phone, $msgId, $jobData, $config) {
+function handleBitrixAndLogging($phone, $msgId, $jobData, $compiledMsg, $config) {
     $lead = findLeadByPhone($phone, $config['webhook_url']);
     if ($lead) {
-        logToLeadHistory($lead['id'], $jobData['template_name'], $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
-        addCampaignActivityToBitrix($config['webhook_url'], $lead['id'], $jobData['template_name'], $jobData['source'], $jobData['media_url'] ?? null);
+        logToLeadHistory($lead['id'], $jobData['template_name'], $compiledMsg, $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
+        addCampaignActivityToBitrix($config['webhook_url'], $lead['id'], $jobData['template_name'], $compiledMsg, $jobData['source'], $jobData['media_url'] ?? null);
     }
-    logToGeneralHistory($jobData['template_name'], $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
+    logToGeneralHistory($jobData['template_name'], $compiledMsg, $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
 }
 
 function findLeadByPhone($phone, $webhookUrl) {
@@ -184,13 +194,13 @@ function findLeadByPhone($phone, $webhookUrl) {
     return null;
 }
 
-function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source, $mediaUrl, $config) {
+function logToLeadHistory($leadId, $templateName, $compiledMsg, $phone, $msgId, $source, $mediaUrl, $config) {
     $dir = ($config['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/messages';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $filename = $dir . '/lead_' . $leadId . '.json';
     $logEntry = [
         'id' => $msgId, 'timestamp' => date('Y-m-d H:i:s'), 'phone' => $phone,
-        'message' => 'Campaign: ' . $templateName, 'message_type' => 'template',
+        'message' => $compiledMsg, 'campaign_name' => $templateName, 'message_type' => 'template',
         'status' => 'sent', 'direction' => 'outbound', 'source' => $source, 'external_url' => $mediaUrl
     ];
     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
@@ -198,11 +208,11 @@ function logToLeadHistory($leadId, $templateName, $phone, $msgId, $source, $medi
     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
 }
 
-function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $source, $mediaUrl) {
+function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $compiledMsg, $source, $mediaUrl) {
     $fields = [
         'OWNER_TYPE_ID' => 1, 'OWNER_ID' => $leadId, 'TYPE_ID' => 1, 'COMMUNICATION_TYPE_ID' => 'PHONE',
         'DIRECTION' => 2, 'SUBJECT' => "WhatsApp Campaign: $templateName",
-        'DESCRIPTION' => "Sent template message via Gupshup ($source)" . ($mediaUrl ? "\nMedia: $mediaUrl" : ""),
+        'DESCRIPTION' => $compiledMsg . "\n\n(Sent via Gupshup : $source)" . ($mediaUrl ? "\nMedia: $mediaUrl" : ""),
         'COMPLETED' => 'Y', 'RESPONSIBLE_ID' => 1
     ];
     $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.activity.add.json');
@@ -214,13 +224,13 @@ function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $sourc
     curl_close($ch);
 }
 
-function logToGeneralHistory($templateName, $phone, $msgId, $source, $mediaUrl, $config) {
+function logToGeneralHistory($templateName, $compiledMsg, $phone, $msgId, $source, $mediaUrl, $config) {
     $dir = ($config['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/messages';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $filename = $dir . '/lead_bulk.json';
     $logEntry = [
         'id' => $msgId, 'timestamp' => date('Y-m-d H:i:s'), 'phone' => $phone,
-        'message' => 'Template: ' . $templateName, 'message_type' => 'template',
+        'message' => $compiledMsg, 'campaign_name' => $templateName, 'message_type' => 'template',
         'status' => 'sent', 'direction' => 'outbound', 'source' => $source, 'external_url' => $mediaUrl
     ];
     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
