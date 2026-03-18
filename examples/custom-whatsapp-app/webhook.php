@@ -380,16 +380,20 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     error_log("No Lead/Contact found for +$phone, creating new Lead...");
     
     static $waSourceId = null;
-    if ($waSourceId === null) {
+    static $waStageId = null;
+    if ($waSourceId === null || $waStageId === null) {
         $waSourceId = 'WA_GUPSHUP'; // default fallback
-        $statusRes = bitrix24Call($webhookUrl, 'crm.status.list', [
-            'filter' => ['ENTITY_ID' => 'SOURCE']
-        ]);
+        $statusRes = bitrix24Call($webhookUrl, 'crm.status.list', []);
         if (!empty($statusRes['result'])) {
             foreach ($statusRes['result'] as $status) {
-                if (strtolower(trim($status['NAME'])) === 'whatsapp business api') {
+                $entityId = $status['ENTITY_ID'] ?? '';
+                $statusName = strtolower(trim($status['NAME'] ?? ''));
+                
+                if ($entityId === 'SOURCE' && $statusName === 'whatsapp business api') {
                     $waSourceId = $status['STATUS_ID'];
-                    break;
+                }
+                if ($entityId === 'STATUS' && $statusName === 'whatsapp campaigns') {
+                    $waStageId = $status['STATUS_ID'];
                 }
             }
         }
@@ -402,6 +406,10 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
         'SOURCE_ID' => $waSourceId,
         'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
     ];
+
+    if ($waStageId) {
+        $leadFields['STATUS_ID'] = $waStageId;
+    }
     
     if ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) {
         $leadFields['ASSIGNED_BY_ID'] = $campaign['responsible_id'];
