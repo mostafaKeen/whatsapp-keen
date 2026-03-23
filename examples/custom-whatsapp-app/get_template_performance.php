@@ -139,6 +139,8 @@ if (!empty($missingDates)) {
             'job_id' => $jobId,
             'template_id' => $templateId,
             'range' => $range,
+            'total_range_days' => $range,
+            'cached_days' => count($allAnalytics), // How many days we already had
             'created_at' => date('Y-m-d H:i:s'),
             'total_chunks' => count($chunks),
             'processed_chunks' => 0,

@@ -2568,9 +2568,11 @@ if ($hasValidAuth) {
                                     renderAnalyticsPerformance(resp.template_analytics);
                                     
                                     if (resp.job_id) {
-                                        startAnalyticsPolling(resp.job_id);
+                                        if (!isPolling || currentPollingJobId !== resp.job_id) {
+                                           startAnalyticsPolling(resp.job_id);
+                                        }
                                     } else {
-                                        $('#analyticsProgressArea').slideUp();
+                                        stopAnalyticsPolling();
                                     }
                                 } else {
                                     var msg = resp.message || '';
@@ -2590,12 +2592,35 @@ if ($hasValidAuth) {
                         });
                     }
 
+                    function loadPerformanceOnly(templateId, range) {
+                        $.ajax({
+                            url: 'get_template_performance.php',
+                            method: 'GET',
+                            cache: false,
+                            data: {
+                                templateId: templateId,
+                                range: range
+                            },
+                            dataType: 'json',
+                            success: function(resp) {
+                                if (resp.status === 'success' && resp.template_analytics) {
+                                    renderAnalyticsPerformance(resp.template_analytics);
+                                }
+                            }
+                        });
+                    }
+
                     var analyticsPollingTimer = null;
+                    var isPolling = false;
+                    var currentPollingJobId = null;
                     function startAnalyticsPolling(jobId) {
                         clearTimeout(analyticsPollingTimer);
+                        isPolling = true;
+                        currentPollingJobId = jobId;
                         $('#analyticsProgressArea').slideDown();
                         
                         function poll() {
+                            if (!isPolling) return;
                             $.ajax({
                                 url: 'get_analytics_status.php',
                                 method: 'GET',
@@ -2603,18 +2628,22 @@ if ($hasValidAuth) {
                                 success: function(res) {
                                     if (res.status === 'success' && res.data) {
                                         var job = res.data;
-                                        var pct = job.total_chunks > 0 ? Math.round((job.processed_chunks / job.total_chunks) * 100) : 0;
+                                        
+                                        var totalRef = job.total_range_days || currentAnalyticsRange;
+                                        var currentlyLoaded = (job.cached_days || 0) + (job.processed_chunks || 0);
+                                        
+                                        var pct = totalRef > 0 ? Math.round((currentlyLoaded / totalRef) * 100) : 0;
+                                        if (pct > 100) pct = 100;
+
                                         $('#analyticsProgressBar').css('width', pct + '%');
-                                        $('#analyticsProgressText').text(job.processed_chunks + ' / ' + job.total_chunks + ' days (' + pct + '%)');
+                                        $('#analyticsProgressText').text(currentlyLoaded + ' / ' + totalRef + ' days (' + pct + '%)');
+                                        
+                                        // Refresh metrics in real-time as we progress
+                                        loadPerformanceOnly(currentAnalyticsId, currentAnalyticsRange);
                                         
                                         if (job.status === 'completed' || job.status === 'partial') {
-                                            $('#analyticsProgressArea').slideUp();
-                                        }
-                                        
-                                        // Refresh metrics in real-time as days are processed
-                                        loadAnalytics(currentAnalyticsId); 
-                                        
-                                        if (job.status !== 'completed' && job.status !== 'partial') {
+                                            stopAnalyticsPolling();
+                                        } else {
                                             analyticsPollingTimer = setTimeout(poll, 3000);
                                         }
                                     }
@@ -2622,6 +2651,13 @@ if ($hasValidAuth) {
                             });
                         }
                         poll();
+                    }
+
+                    function stopAnalyticsPolling() {
+                        isPolling = false;
+                        currentPollingJobId = null;
+                        clearTimeout(analyticsPollingTimer);
+                        $('#analyticsProgressArea').slideUp();
                     }
 
                     function resetAnalyticsUI() {
