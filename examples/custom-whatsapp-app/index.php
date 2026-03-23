@@ -805,16 +805,6 @@ if ($hasValidAuth) {
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="60">60 Days</button>
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="90">90 Days</button>
                         </div>
-                        <div class="text-right d-flex align-items-center">
-                            <button type="button" id="enableAnalyticsBtn" class="btn btn-sm btn-outline-info rounded-pill px-3 mr-3 shadow-sm">
-                                <i class="fas fa-power-off mr-1"></i> Enable API
-                            </button>
-                            <div>
-                                <small class="text-white-50 d-block">Comparison</small>
-                                <select id="analyticsComparisonSelect" class="form-control form-control-sm bg-transparent text-white border-0 p-0" style="height: auto; min-width:100px;">
-                                    <option value="">None</option>
-                                </select>
-                            </div>
                         </div>
                     </div>
 
@@ -858,33 +848,8 @@ if ($hasValidAuth) {
                             </div>
                         </div>
                         
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="metric-card-dark h-100">
-                                    <div class="metric-label text-white-50">Block Rate Performance</div>
-                                    <div class="d-flex align-items-baseline">
-                                        <div class="metric-value text-white" id="metricBlockRate">--</div>
-                                        <span id="diffBlockRate" class="comparison-badge"></span>
-                                    </div>
-                                    <div id="blockRateMeter" class="comparison-meter d-none">
-                                        <div id="blockRateFill" class="comparison-meter-fill"></div>
-                                    </div>
-                                    <small class="text-white-50 mt-2 d-block" id="reasonBlockRate">Top reason: --</small>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="metric-card-dark h-100">
-                                    <div class="metric-label text-white-50">Total Delivery Attempts (Compare API)</div>
-                                    <div class="d-flex align-items-baseline">
-                                        <div class="metric-value text-white" id="metricSends">--</div>
-                                        <span id="diffSends" class="comparison-badge"></span>
-                                    </div>
-                                    <div id="sendsMeter" class="comparison-meter d-none">
-                                        <div id="sendsFill" class="comparison-meter-fill bg-emerald"></div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
+                    </div>
                     </div>
 
                     <div id="analyticsLoader" class="text-center py-5 d-none">
@@ -2516,42 +2481,7 @@ if ($hasValidAuth) {
                             return;
                         }
 
-                        const compareId = $('#analyticsComparisonSelect').val();
-
-                        // Only call Compare API if we have a comparison target
-                        if (compareId) {
-                            xhrCompare = $.ajax({
-                                url: 'get_template_analytics.php',
-                                method: 'GET',
-                                cache: false,
-                                data: {
-                                    templateId: currentAnalyticsId,
-                                    templateList: compareId,
-                                    range: currentAnalyticsRange
-                                },
-                                dataType: 'json',
-                                success: function(resp) {
-                                    if (resp.status === 'success') {
-                                        renderAnalyticsCompare(resp.data, currentAnalyticsId, compareId);
-                                    } else if (resp.message && resp.message.indexOf('Requests') !== -1) {
-                                        $('#metricBlockRate, #metricSends').text('Rate Limit');
-                                    } else {
-                                        $('#metricBlockRate, #metricSends').text('Error');
-                                    }
-                                },
-                                error: function(xhr, status, err) {
-                                    if (status === 'abort') return;
-                                    if (xhr.status === 429) {
-                                        $('#metricBlockRate, #metricSends').text('Rate Limited');
-                                    } else {
-                                        $('#metricBlockRate, #metricSends').text('Fail');
-                                    }
-                                }
-                            });
-                        } else {
-                            // Reset compare UI if no comparison
-                            $('#metricBlockRate, #metricSends').text('--');
-                        }
+                        // Performance API call
                         
                         // Performance API call
                         xhrPerformance = $.ajax({
