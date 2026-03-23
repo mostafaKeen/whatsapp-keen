@@ -167,19 +167,20 @@ if (!empty($missingDates)) {
         file_put_contents($jobsDir . '/' . $jobId . '.json', json_encode($jobData, JSON_PRETTY_PRINT));
 
         // Start background worker
-        $phpPath = PHP_BINARY;
-        if (!$phpPath || !file_exists($phpPath)) $phpPath = 'php';
         $workerScript = __DIR__ . '/analytics_worker.php';
         
+        // Log the trigger attempt
+        error_log("Attempting to start analytics worker: php \"$workerScript\" \"$jobId\"");
+
         // OS specific background execution
         if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
-            // Windows
-            $cmd = "pstart /B $phpPath $workerScript $jobId";
-            // Alternatively use popen or background execute
-            pclose(popen("start /B $phpPath $workerScript $jobId", "r"));
+            // Windows - Use the same pattern that worked for campaigns
+            $cmd = "php \"$workerScript\" \"$jobId\"";
+            pclose(popen("start /B $cmd > NUL 2>&1", "r"));
         } else {
             // Linux/Unix
-            exec("nohup $phpPath $workerScript $jobId > /dev/null 2>&1 &");
+            $cmd = "php \"$workerScript\" \"$jobId\"";
+            exec("nohup $cmd > /dev/null 2>&1 &");
         }
     }
 }

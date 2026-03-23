@@ -51,94 +51,89 @@ $jobData['started_at'] = date('Y-m-d H:i:s');
 updateJobFile($jobFile, $jobData);
 
 $templateId = $jobData['template_id'];
-$missingChunks = $jobData['chunks'] ?? [];
 
 $url = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics";
 
-foreach ($missingChunks as $index => &$chunk) {
+foreach ($jobData['chunks'] as $index => &$chunk) {
     if ($chunk['status'] === 'completed') continue;
 
     // Check for pause/cancel
-    if ($index % 1 === 0) {
-        $checkData = json_decode(file_get_contents($jobFile), true);
-        if ($checkData && ($checkData['status'] === 'paused' || $checkData['status'] === 'cancelled')) {
-            echo "Job " . $checkData['status'] . ". Exiting.\n";
-            exit;
+    $checkData = json_decode(file_get_contents($jobFile), true);
+    if ($checkData && ($checkData['status'] === 'paused' || $checkData['status'] === 'cancelled')) {
+        echo "Job " . $checkData['status'] . ". Exiting.\n";
+        exit;
+    }
+
+    // Process chunk day by day to be absolutely safe with 429s as requested
+    $chunkStart = (int)$chunk['start'];
+    $chunkEnd = (int)$chunk['end'];
+    
+    $currentDayTs = $chunkStart;
+    while ($currentDayTs < $chunkEnd) {
+        $dayStart = $currentDayTs;
+        $dayEnd = min($dayStart + 86399, $chunkEnd);
+        $dateStr = date('Y-m-d', $dayStart);
+        
+        echo "Fetching date $dateStr (" . ($index+1) . "/" . count($jobData['chunks']) . ")\n";
+        
+        $queryParams = [
+            'start'         => $dayStart,
+            'end'           => $dayEnd,
+            'granularity'   => 'DAILY',
+            'metric_types'  => 'SENT,DELIVERED,READ,CLICKED',
+            'template_ids'  => $templateId,
+            'product_type'  => 'MARKETING_MESSAGES_LITE_API'
+        ];
+
+        $ch = curl_init($url . '?' . http_build_query($queryParams));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: ' . $apiToken, 'accept: application/json']);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error    = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode === 429) {
+            echo "429 Too Many Requests on $dateStr. Waiting 60 seconds...\n";
+            sleep(60);
+            continue; // Retry this day
         }
-    }
 
-    $queryParams = [
-        'start'         => $chunk['start'],
-        'end'           => $chunk['end'],
-        'granularity'   => 'DAILY',
-        'metric_types'  => 'SENT,DELIVERED,READ,CLICKED',
-        'template_ids'  => $templateId,
-        'product_type'  => 'MARKETING_MESSAGES_LITE_API',
-        'limit'         => 100 // Requesting up to 90/100 days
-    ];
-
-    $fullUrl = $url . '?' . http_build_query($queryParams);
-    echo "Fetching chunk " . ($index + 1) . "/" . count($missingChunks) . ": " . date('Y-m-d', (int)$chunk['start']) . " to " . date('Y-m-d', (int)$chunk['end']) . "\n";
-
-    $ch = curl_init($fullUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: ' . $apiToken,
-        'accept: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error    = curl_error($ch);
-    curl_close($ch);
-
-    if ($httpCode === 429) {
-        echo "429 Too Many Requests. Sleeping for 60 seconds...\n";
-        sleep(60);
-        // Continue and retry this chunk in next loop or just wait?
-        // Let's marking it for retry
-        continue;
-    }
-
-    if (!$error && $httpCode === 200) {
-        $decoded = json_decode((string)$response, true);
-        if (isset($decoded['template_analytics']) && is_array($decoded['template_analytics'])) {
-            $templateCacheDir = $cacheDir . '/' . $templateId;
-            if (!is_dir($templateCacheDir)) mkdir($templateCacheDir, 0777, true);
-
-            foreach ($decoded['template_analytics'] as $dayData) {
-                // Determine the date from the start timestamp
-                // Gupshup results often have 'start' as timestamp
-                $timestamp = (int)($dayData['start'] ?? 0);
-                if ($timestamp > 0) {
-                    $dateStr = date('Y-m-d', $timestamp);
-                    // Only cache if it's NOT today's date
-                    if ($dateStr !== date('Y-m-d')) {
-                        $cacheFile = $templateCacheDir . '/' . $dateStr . '.json';
-                        file_put_contents($cacheFile, json_encode($dayData));
-                    }
+        if (!$error && $httpCode === 200) {
+            $decoded = json_decode((string)$response, true);
+            if (isset($decoded['template_analytics'][0])) {
+                $dayData = $decoded['template_analytics'][0];
+                $templateCacheDir = $cacheDir . '/' . $templateId;
+                if (!is_dir($templateCacheDir)) mkdir($templateCacheDir, 0777, true);
+                
+                // Only cache if it's NOT today's date
+                if ($dateStr !== date('Y-m-d')) {
+                    $cacheFile = $templateCacheDir . '/' . $dateStr . '.json';
+                    file_put_contents($cacheFile, json_encode($dayData));
                 }
             }
-            $chunk['status'] = 'completed';
-            $jobData['processed_chunks']++;
+            $currentDayTs += 86400; // Move to next day
+            echo "Done. Waiting 7 seconds...\n";
+            sleep(7);
         } else {
+            echo "Error on $dateStr: " . ($error ?: "HTTP $httpCode") . "\n";
+            // If it's a non-retriable error, we might want to skip or mark chunk as error
             $chunk['status'] = 'error';
-            $chunk['message'] = 'Unexpected response structure';
+            break 2; // Exit while and foreach
         }
-    } else {
-        $chunk['status'] = 'error';
-        $chunk['message'] = $error ?: "HTTP $httpCode";
     }
 
+    if ($chunk['status'] !== 'error') {
+        $chunk['status'] = 'completed';
+        $jobData['processed_chunks']++;
+    }
     updateJobFile($jobFile, $jobData);
-
-    // Rate limiting: wait 6 seconds between successful requests (10 per minute)
-    echo "Waiting 7 seconds to respect rate limit...\n";
-    sleep(7);
 }
 
-// Final Check
+// Final Job Status Update
 $allDone = true;
 foreach ($jobData['chunks'] as $c) {
     if ($c['status'] !== 'completed') $allDone = false;
@@ -148,7 +143,7 @@ if ($allDone) {
     $jobData['status'] = 'completed';
     $jobData['completed_at'] = date('Y-m-d H:i:s');
 } else {
-    $jobData['status'] = 'partial'; // Some chunks failed
+    $jobData['status'] = 'partial';
 }
 
 updateJobFile($jobFile, $jobData);
