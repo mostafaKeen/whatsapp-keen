@@ -1520,7 +1520,7 @@ if ($hasValidAuth) {
                     var allLeads = [];
                     var leadFiltersFetched = false;
                     var bitrixFields = [];
-                    var visibleFields = JSON.parse(localStorage.getItem('keen_visible_filters') || '["TITLE","SOURCE_ID","STATUS_ID","ASSIGNED_BY_ID"]');
+                    var visibleFields = []; // Loaded from server
 
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
@@ -1528,14 +1528,30 @@ if ($hasValidAuth) {
                         if (!isVisible) {
                             if (!leadFiltersFetched) {
                                 leadFiltersFetched = true;
-                                loadBitrixFields(function() {
-                                    if (allLeads.length === 0) fetchCampaignLeads();
+                                loadUserPreferences(function() {
+                                    loadBitrixFields(function() {
+                                        if (allLeads.length === 0) fetchCampaignLeads();
+                                    });
                                 });
                             } else if (allLeads.length === 0) {
                                 fetchCampaignLeads();
                             }
                         }
                     });
+
+                    function loadUserPreferences(callback) {
+                        $.get('get_user_preferences.php', function(resp) {
+                            if (resp.status === 'success') {
+                                visibleFields = resp.visibleFields;
+                            } else {
+                                visibleFields = ["TITLE", "SOURCE_ID", "STATUS_ID", "ASSIGNED_BY_ID"];
+                            }
+                            if (callback) callback();
+                        }).fail(function() {
+                            visibleFields = ["TITLE", "SOURCE_ID", "STATUS_ID", "ASSIGNED_BY_ID"];
+                            if (callback) callback();
+                        });
+                    }
 
                     function loadBitrixFields(callback) {
                         $.get('get_bitrix_fields.php', function(resp) {
@@ -1622,11 +1638,24 @@ if ($hasValidAuth) {
                         $('.field-toggle-checkbox:checked').each(function() {
                             selected.push($(this).val());
                         });
-                        visibleFields = selected;
-                        localStorage.setItem('keen_visible_filters', JSON.stringify(visibleFields));
-                        renderDynamicFilters();
-                        $('#filterSettingsModal').modal('hide');
-                        fetchCampaignLeads(); // Refetch to get new fields if needed
+                        
+                        // Save to server
+                        $.ajax({
+                            url: 'save_user_preferences.php',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ visibleFields: selected }),
+                            success: function(resp) {
+                                if (resp.status === 'success') {
+                                    visibleFields = selected;
+                                    renderDynamicFilters();
+                                    $('#filterSettingsModal').modal('hide');
+                                    fetchCampaignLeads(); // Refetch to get new fields if needed
+                                } else {
+                                    alert('Failed to save preferences: ' + resp.message);
+                                }
+                            }
+                        });
                     });
 
                     $(document).on('input change', '.dynamic-filter-input, #contactSearchInput', function() {
