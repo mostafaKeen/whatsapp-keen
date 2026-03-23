@@ -146,7 +146,8 @@ foreach ($jobData['targets'] as $index => &$target) {
         }
 
         // Log to history and update Bitrix
-        handleBitrixAndLogging($target['phone'], $msgId, $jobData, $compiledMsg, $whatsappConfig);
+        $respId = $target['responsible_id'] ?? ($jobData['responsible_id'] ?? null);
+        handleBitrixAndLogging($target['phone'], $msgId, $jobData, $compiledMsg, $whatsappConfig, $respId);
     } else {
         $target['status'] = 'failed';
         $target['error'] = $error ?: ($decoded['message'] ?? 'HTTP ' . $httpCode);
@@ -170,11 +171,15 @@ echo "Job completed.\n";
 /**
  * Logic extracted from send_campaign_batch.php
  */
-function handleBitrixAndLogging($phone, $msgId, $jobData, $compiledMsg, $config) {
+function handleBitrixAndLogging($phone, $msgId, $jobData, $compiledMsg, $config, $respId = null) {
+    if ($respId === 'round_robin') $respId = null; // Should be specific by now
     $lead = findLeadByPhone($phone, $config['webhook_url']);
     if ($lead) {
+        if ($respId) {
+            updateLeadAssignment($config['webhook_url'], $lead['id'], $respId);
+        }
         logToLeadHistory($lead['id'], $jobData['template_name'], $compiledMsg, $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
-        addCampaignActivityToBitrix($config['webhook_url'], $lead['id'], $jobData['template_name'], $compiledMsg, $jobData['source'], $jobData['media_url'] ?? null);
+        addCampaignActivityToBitrix($config['webhook_url'], $lead['id'], $jobData['template_name'], $compiledMsg, $jobData['source'], $jobData['media_url'] ?? null, $respId);
     }
     logToGeneralHistory($jobData['template_name'], $compiledMsg, $phone, $msgId, $jobData['source'], $jobData['media_url'] ?? null, $config);
 }
@@ -208,12 +213,26 @@ function logToLeadHistory($leadId, $templateName, $compiledMsg, $phone, $msgId, 
     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
 }
 
-function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $compiledMsg, $source, $mediaUrl) {
+function updateLeadAssignment($webhookUrl, $leadId, $respId) {
+    if (!$respId) return;
+    $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.lead.update.json');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'id' => $leadId,
+        'fields' => ['ASSIGNED_BY_ID' => $respId]
+    ]));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
+function addCampaignActivityToBitrix($webhookUrl, $leadId, $templateName, $compiledMsg, $source, $mediaUrl, $respId = null) {
     $fields = [
         'OWNER_TYPE_ID' => 1, 'OWNER_ID' => $leadId, 'TYPE_ID' => 1, 'COMMUNICATION_TYPE_ID' => 'PHONE',
         'DIRECTION' => 2, 'SUBJECT' => "WhatsApp Campaign: $templateName",
         'DESCRIPTION' => $compiledMsg . "\n\n(Sent via Gupshup : $source)" . ($mediaUrl ? "\nMedia: $mediaUrl" : ""),
-        'COMPLETED' => 'Y', 'RESPONSIBLE_ID' => 1
+        'COMPLETED' => 'Y', 'RESPONSIBLE_ID' => $respId ?: 1
     ];
     $ch = curl_init(rtrim($webhookUrl, '/') . '/crm.activity.add.json');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

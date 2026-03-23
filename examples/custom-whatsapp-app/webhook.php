@@ -311,7 +311,7 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
                     'job_id' => $data['job_id'],
                     'template_name' => $data['template_name'],
                     'template_id' => $data['template_id'],
-                    'responsible_id' => $data['responsible_id'] ?? null
+                    'responsible_id' => $t['responsible_id'] ?? ($data['responsible_id'] ?? null)
                 ];
             }
         }

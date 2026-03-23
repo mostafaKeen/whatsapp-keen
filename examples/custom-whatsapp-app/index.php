@@ -549,6 +549,7 @@ if ($hasValidAuth) {
                                         <label class="font-weight-600 small text-muted text-uppercase">Responsible Person</label>
                                         <select name="responsibleId" id="campaignResponsibleSelect" class="form-control form-control-modern">
                                             <option value="">-- Lead will be unassigned (default) --</option>
+                                            <option value="round_robin">Round Robin (Queue Assignment)</option>
                                         </select>
                                         <small class="text-muted">Users created from this campaign will be assigned to this person.</small>
                                     </div>
@@ -1943,6 +1944,18 @@ if ($hasValidAuth) {
                         formData.push({name: 'templateName', value: templateName});
                         if (selectedTemplate) {
                             formData.push({name: 'templateType', value: selectedTemplate.templateType});
+                        }
+
+                        var respId = $('#campaignResponsibleSelect').val();
+                        if (respId === 'round_robin') {
+                            var users = [];
+                            $('#campaignResponsibleSelect option').each(function() {
+                                var v = $(this).val();
+                                if (v && v !== 'round_robin') {
+                                    users.push(v);
+                                }
+                            });
+                            formData.push({name: 'roundRobinUsers', value: JSON.stringify(users)});
                         }
 
                         // Collect variable mappings

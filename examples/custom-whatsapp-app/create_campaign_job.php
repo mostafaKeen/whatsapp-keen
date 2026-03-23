@@ -110,29 +110,39 @@ function findCsvRow($phone, $csvData) {
     return null;
 }
 
+$roundRobinUsers = json_decode($_POST['roundRobinUsers'] ?? '[]', true);
+$rrIndex = 0;
+$rrCount = count($roundRobinUsers);
+
 foreach ($numbers as $num) {
     $cleanNum = preg_replace('/[^0-9]/', '', $num);
     if (!empty($cleanNum) && !isset($processedNumbers[$cleanNum])) {
         $params = [];
         if (!empty($varMappings)) {
             $csvRow = findCsvRow($cleanNum, $csvData);
-            // varMappings is sorted by num
             foreach ($varMappings as $m) {
                 if ($m['type'] === 'static') {
                     $params[] = $m['value'] ?? '';
                 } else if ($m['type'] === 'csv' && $csvRow) {
                     $params[] = $csvRow[$m['value']] ?? '';
                 } else {
-                    $params[] = ''; // Fallback
+                    $params[] = '';
                 }
             }
+        }
+
+        $targetRespId = $responsibleId;
+        if ($responsibleId === 'round_robin' && $rrCount > 0) {
+            $targetRespId = $roundRobinUsers[$rrIndex % $rrCount];
+            $rrIndex++;
         }
 
         $jobData['targets'][] = [
             'phone' => $cleanNum,
             'status' => 'pending', 
             'error' => null,
-            'params' => $params
+            'params' => $params,
+            'responsible_id' => $targetRespId
         ];
         $processedNumbers[$cleanNum] = true;
     }
