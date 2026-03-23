@@ -822,7 +822,7 @@ if ($hasValidAuth) {
                     <div id="analyticsProgressArea" style="display:none;" class="mb-4 p-3 border rounded-lg" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small text-info font-weight-600"><i class="fas fa-sync fa-spin mr-1"></i> Background Processing...</span>
-                            <span id="analyticsProgressText" class="small text-white-50 font-weight-600">0 / 0 chunks</span>
+                            <span id="analyticsProgressText" class="small text-white-50 font-weight-600">0 / 0 days (0%)</span>
                         </div>
                         <div class="progress" style="height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1);">
                             <div id="analyticsProgressBar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
@@ -2605,7 +2605,7 @@ if ($hasValidAuth) {
                                         var job = res.data;
                                         var pct = job.total_chunks > 0 ? Math.round((job.processed_chunks / job.total_chunks) * 100) : 0;
                                         $('#analyticsProgressBar').css('width', pct + '%');
-                                        $('#analyticsProgressText').text(job.processed_chunks + ' / ' + job.total_chunks + ' chunks');
+                                        $('#analyticsProgressText').text(job.processed_chunks + ' / ' + job.total_chunks + ' days (' + pct + '%)');
                                         
                                         if (job.status === 'completed' || job.status === 'partial') {
                                             $('#analyticsProgressArea').slideUp();

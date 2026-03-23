@@ -110,31 +110,12 @@ foreach ($dateRange as $date) {
 
 $jobId = null;
 if (!empty($missingDates)) {
-    // Group missing dates into chunks of 90 days for API efficiency
+    // Create one chunk per missing day for granular progress tracking as requested
     $chunks = [];
-    sort($missingDates);
-    
-    $currentStart = null;
-    $previousDate = null;
-    
     foreach ($missingDates as $ts) {
-        if ($currentStart === null) {
-            $currentStart = $ts;
-        } else if ($ts - $previousDate > 86400 || (new DateTime(date('Y-m-d', $currentStart)))->diff(new DateTime(date('Y-m-d', $ts)))->days >= 90) {
-            $chunks[] = [
-                'start' => $currentStart,
-                'end' => $previousDate + 86399, // End of the previous day
-                'status' => 'pending'
-            ];
-            $currentStart = $ts;
-        }
-        $previousDate = $ts;
-    }
-    // Add last chunk
-    if ($currentStart !== null) {
         $chunks[] = [
-            'start' => $currentStart,
-            'end' => $previousDate + 86399,
+            'start' => $ts,
+            'end' => $ts + 86399,
             'status' => 'pending'
         ];
     }
