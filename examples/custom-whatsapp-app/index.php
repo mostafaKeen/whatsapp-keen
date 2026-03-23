@@ -790,7 +790,12 @@ if ($hasValidAuth) {
                         <h5 class="modal-title font-weight-bold text-white">
                             <i class="fas fa-chart-line text-info mr-2"></i>Template Performance
                         </h5>
-                        <small class="text-white-50" id="analyticsTemplateName"></small>
+                        <span class="d-flex align-items-center">
+                            <small class="text-white-50 mr-2" id="analyticsTemplateName"></small>
+                            <button type="button" class="btn btn-xs btn-link text-white-50 p-0" id="clearAnalyticsCacheBtn" title="Clear Cache & Refresh">
+                                <i class="fas fa-sync-alt small"></i>
+                            </button>
+                        </span>
                     </div>
                     <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
@@ -2462,8 +2467,13 @@ if ($hasValidAuth) {
                         }, 300);
                     }
 
-                    function executeLoadAnalytics() {
-                        console.log('[Analytics] executeLoadAnalytics called. ID:', currentAnalyticsId, 'Range:', currentAnalyticsRange);
+                    $(document).on('click', '#clearAnalyticsCacheBtn', function(e) {
+                        e.preventDefault();
+                        executeLoadAnalytics(true);
+                    });
+
+                    function executeLoadAnalytics(clearCache = false) {
+                        console.log('[Analytics] executeLoadAnalytics called. ID:', currentAnalyticsId, 'Range:', currentAnalyticsRange, 'Clear:', clearCache);
                         
                         // Abort pending requests
                         if (xhrCompare && xhrCompare.readyState !== 4) xhrCompare.abort();
@@ -2480,15 +2490,14 @@ if ($hasValidAuth) {
                         }
 
                         // Performance API call
-                        
-                        // Performance API call
                         xhrPerformance = $.ajax({
                             url: 'get_template_performance.php',
                             method: 'GET',
                             cache: false,
                             data: {
                                 templateId: currentAnalyticsId,
-                                range: currentAnalyticsRange
+                                range: currentAnalyticsRange,
+                                clearCache: clearCache ? 1 : 0
                             },
                             dataType: 'json',
                             success: function(resp) {

@@ -54,14 +54,26 @@ $templateId = $jobData['template_id'];
 
 $url = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics";
 
-foreach ($jobData['chunks'] as $index => &$chunk) {
-    if ($chunk['status'] === 'completed') continue;
-
+$chunkIndex = 0;
+while (true) {
+    // Reload job data to see if headers/chunks were added by the API
+    $jobData = json_decode(file_get_contents($jobFile), true);
+    if (!$jobData) break;
+    
     // Check for pause/cancel
-    $checkData = json_decode(file_get_contents($jobFile), true);
-    if ($checkData && ($checkData['status'] === 'paused' || $checkData['status'] === 'cancelled')) {
-        echo "Job " . $checkData['status'] . ". Exiting.\n";
+    if (in_array($jobData['status'], ['paused', 'cancelled'])) {
+        echo "Job " . $jobData['status'] . ". Exiting.\n";
         exit;
+    }
+
+    if ($chunkIndex >= count($jobData['chunks'])) {
+        break; // No more chunks for now
+    }
+
+    $chunk = &$jobData['chunks'][$chunkIndex];
+    if ($chunk['status'] === 'completed') {
+        $chunkIndex++;
+        continue;
     }
 
     // Process chunk day by day to be absolutely safe with 429s as requested
@@ -129,16 +141,22 @@ foreach ($jobData['chunks'] as $index => &$chunk) {
 
     if ($chunk['status'] !== 'error') {
         $chunk['status'] = 'completed';
-        $jobData['processed_chunks']++;
     }
+    
+    // Increment index and save
+    $chunkIndex++;
     updateJobFile($jobFile, $jobData);
 }
 
-// Final Job Status Update
+// Final Job Status Update - Reload one last time
+$jobData = json_decode(file_get_contents($jobFile), true);
 $allDone = true;
+$processedCount = 0;
 foreach ($jobData['chunks'] as $c) {
     if ($c['status'] !== 'completed') $allDone = false;
+    else $processedCount++;
 }
+$jobData['processed_chunks'] = $processedCount;
 
 if ($allDone) {
     $jobData['status'] = 'completed';

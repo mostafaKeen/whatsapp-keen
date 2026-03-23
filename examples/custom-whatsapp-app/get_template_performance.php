@@ -108,41 +108,95 @@ foreach ($dateRange as $date) {
     }
 }
 
+// Support clearing cache
+$clearCache = isset($_GET['clearCache']) && $_GET['clearCache'] == '1';
+if ($clearCache) {
+    // Delete cache folder
+    $templateCacheDir = $cacheDir . '/' . $templateId;
+    if (is_dir($templateCacheDir)) {
+        $files = glob($templateCacheDir . '/*');
+        foreach ($files as $file) if (is_file($file)) unlink($file);
+        rmdir($templateCacheDir);
+    }
+    // Cancel/Delete active jobs for this template to start fresh
+    $files = scandir($jobsDir);
+    foreach ($files as $file) {
+        if (strpos($file, 'job_analytics_') === 0 && substr($file, -5) === '.json') {
+            $jd = json_decode(file_get_contents($jobsDir . '/' . $file), true);
+            if ($jd && $jd['template_id'] === $templateId && in_array($jd['status'], ['running', 'queued'])) {
+                $jd['status'] = 'cancelled';
+                file_put_contents($jobsDir . '/' . $file, json_encode($jd));
+            }
+        }
+    }
+    // Re-run missing dates check as cache is now gone
+    $allAnalytics = [];
+    $missingDates = [];
+    for ($i = 0; $i < $range; $i++) {
+        $ts = strtotime("-" . $i . " days", $todayStart);
+        $dateStr = date('Y-m-d', $ts);
+        if ($dateStr === date('Y-m-d')) continue;
+        $missingDates[] = $ts;
+    }
+}
+
 $jobId = null;
 if (!empty($missingDates)) {
-    // Create one chunk per missing day for granular progress tracking as requested
-    $chunks = [];
-    foreach ($missingDates as $ts) {
-        $chunks[] = [
-            'start' => $ts,
-            'end' => $ts + 86399,
-            'status' => 'pending'
-        ];
-    }
-
-    // Check for existing active job for this template with the SAME range
+    // Check for existing active job for this template
+    $existingJobFile = null;
     $files = scandir($jobsDir);
     foreach ($files as $file) {
         if (strpos($file, 'job_analytics_') === 0 && substr($file, -5) === '.json') {
             $existingJobData = json_decode(file_get_contents($jobsDir . '/' . $file), true);
             if ($existingJobData && 
                 $existingJobData['template_id'] === $templateId && 
-                (int)$existingJobData['range'] === (int)$range && // Match range!
                 in_array($existingJobData['status'], ['running', 'queued'])) {
                 $jobId = $existingJobData['job_id'];
+                $existingJobFile = $jobsDir . '/' . $file;
                 break;
             }
         }
     }
 
-    if (!$jobId) {
+    if ($jobId && $existingJobFile) {
+        // ENHANCEMENT: Merge new missing dates into existing job
+        $jobData = json_decode(file_get_contents($existingJobFile), true);
+        $existingStarts = array_column($jobData['chunks'], 'start');
+        $added = 0;
+        foreach ($missingDates as $ts) {
+            if (!in_array($ts, $existingStarts)) {
+                $jobData['chunks'][] = [
+                    'start' => $ts,
+                    'end' => $ts + 86399,
+                    'status' => 'pending'
+                ];
+                $added++;
+            }
+        }
+        if ($added > 0) {
+            $jobData['total_chunks'] = count($jobData['chunks']);
+            $jobData['range'] = max((int)$jobData['range'], $range);
+            $jobData['total_range_days'] = max((int)$jobData['total_range_days'], $range);
+            file_put_contents($existingJobFile, json_encode($jobData, JSON_PRETTY_PRINT));
+        }
+    } else {
+        // Create one chunk per missing day for granular progress tracking
+        $chunks = [];
+        foreach ($missingDates as $ts) {
+            $chunks[] = [
+                'start' => $ts,
+                'end' => $ts + 86399,
+                'status' => 'pending'
+            ];
+        }
+
         $jobId = 'job_analytics_' . time() . '_' . substr(md5($templateId . microtime()), 0, 8);
         $jobData = [
             'job_id' => $jobId,
             'template_id' => $templateId,
             'range' => $range,
             'total_range_days' => $range,
-            'cached_days' => count($allAnalytics), // How many days we already had
+            'cached_days' => count($allAnalytics),
             'created_at' => date('Y-m-d H:i:s'),
             'total_chunks' => count($chunks),
             'processed_chunks' => 0,
@@ -153,17 +207,10 @@ if (!empty($missingDates)) {
 
         // Start background worker
         $workerScript = __DIR__ . '/analytics_worker.php';
-        
-        // Log the trigger attempt
-        error_log("Attempting to start analytics worker: php \"$workerScript\" \"$jobId\"");
-
-        // OS specific background execution
         if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
-            // Windows - Use the same pattern that worked for campaigns
             $cmd = "php \"$workerScript\" \"$jobId\"";
             pclose(popen("start /B $cmd > NUL 2>&1", "r"));
         } else {
-            // Linux/Unix
             $cmd = "php \"$workerScript\" \"$jobId\"";
             exec("nohup $cmd > /dev/null 2>&1 &");
         }
