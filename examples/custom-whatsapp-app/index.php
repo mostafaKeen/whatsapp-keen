@@ -2609,9 +2609,12 @@ if ($hasValidAuth) {
                                         
                                         if (job.status === 'completed' || job.status === 'partial') {
                                             $('#analyticsProgressArea').slideUp();
-                                            // Refresh data once done to show final numbers
-                                            loadAnalytics(currentAnalyticsId); 
-                                        } else {
+                                        }
+                                        
+                                        // Refresh metrics in real-time as days are processed
+                                        loadAnalytics(currentAnalyticsId); 
+                                        
+                                        if (job.status !== 'completed' && job.status !== 'partial') {
                                             analyticsPollingTimer = setTimeout(poll, 3000);
                                         }
                                     }
