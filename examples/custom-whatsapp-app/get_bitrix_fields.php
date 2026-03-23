@@ -34,10 +34,18 @@ $excludeFields = ['ID', 'PHONE', 'EMAIL', 'WEB', 'IM'];
 $filteredFields = [];
 foreach ($fields as $key => $f) {
     if (in_array($f['type'], $allowedTypes) && !in_array($key, $excludeFields)) {
+        $title = $f['title'] 
+               ?? $f['editFormLabel'] 
+               ?? $f['listColumnLabel'] 
+               ?? $f['listFilterLabel'] 
+               ?? $f['formLabel'] 
+               ?? $f['listLabel'] 
+               ?? $key;
+
         $filteredFields[$key] = [
-            'id' => $key,
-            'title' => $f['title'] ?: $f['formLabel'] ?: $f['listLabel'] ?: $key,
-            'type' => $f['type'],
+            'id'    => $key,
+            'title' => $title,
+            'type'  => $f['type'],
             'items' => $f['items'] ?? null
         ];
     }

@@ -160,6 +160,64 @@ if ($hasValidAuth) {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
+        /* Filter UI Polish */
+        .filter-item-container {
+            flex: 1 1 180px;
+            min-width: 150px;
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+        .filter-item-container:focus-within {
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+        }
+        .filter-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 6px;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .contact-list-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+        }
+        .contact-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s ease;
+        }
+        .contact-item:hover {
+            background: #f8fafc;
+        }
+        .contact-item:last-child {
+            border-bottom: none;
+        }
+        .field-toggle-list {
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .field-toggle-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .field-toggle-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
         .header-section {
             display: flex;
             justify-content: space-between;
@@ -622,8 +680,9 @@ if ($hasValidAuth) {
                                                 </div>
                                             </div>
 
-                                            <div class="contact-list-container px-3" id="contactListContainer">
-                                                <div class="text-center p-4 text-muted small" id="contactsLoading">
+                                            <div class="px-3" id="contactListContainer">
+                                                <div class="contact-list-container border-0" style="background:#f1f5f9; padding: 5px;">
+                                                    <div class="text-center p-4 text-muted small" id="contactsLoading">
                                                     <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching Bitrix24 leads...
                                                 </div>
                                                 <div id="contactList"></div>
@@ -1570,7 +1629,12 @@ if ($hasValidAuth) {
                         var $list = $('#fieldCheckboxList').empty();
                         var search = ($('#fieldSearchInput').val() || '').toLowerCase();
                         
-                        bitrixFields.forEach(function(f) {
+                        // Sort fields alphabetically by title
+                        var sortedFields = [...bitrixFields].sort(function(a, b) {
+                            return (a.title || '').localeCompare(b.title || '');
+                        });
+
+                        sortedFields.forEach(function(f) {
                             if (search && !f.title.toLowerCase().includes(search) && !f.id.toLowerCase().includes(search)) return;
                             
                             var checked = visibleFields.includes(f.id) ? 'checked' : '';
@@ -1586,29 +1650,31 @@ if ($hasValidAuth) {
                         var $bar = $('#dynamicFilterBar').empty();
                         
                         // Add hardcoded Search field first
-                        $bar.append('<div style="flex: 1 1 160px; min-width: 140px;">' +
-                                        '<label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Search (Name/Phone)</label>' +
-                                        '<input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search...">' +
+                        $bar.append('<div class="filter-item-container">' +
+                                        '<label class="filter-label">Search (Name/Phone)</label>' +
+                                        '<input type="text" id="contactSearchInput" class="form-control form-control-sm border-0 bg-transparent p-0" style="box-shadow:none;" placeholder="Type to search...">' +
                                     '</div>');
 
                         visibleFields.forEach(function(fieldId) {
                             var f = bitrixFields.find(function(x) { return x.id === fieldId; });
                             if (!f) return;
 
-                            var html = '<div style="flex: 1 1 150px; min-width: 130px;">' +
-                                            '<label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">'+f.title+'</label>';
+                            var html = '<div class="filter-item-container">' +
+                                            '<label class="filter-label" title="'+f.title+'">'+f.title+'</label>';
+                            
+                            var commonStyle = 'class="form-control form-control-sm border-0 bg-transparent p-0 dynamic-filter-input" style="box-shadow:none;" data-field="'+f.id+'"';
                             
                             if (f.items && Array.isArray(f.items)) {
-                                html += '<select class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'">' +
+                                html += '<select '+commonStyle+'>' +
                                             '<option value="">All</option>';
                                 f.items.forEach(function(item) {
                                     html += '<option value="'+item.ID+'">'+item.VALUE+'</option>';
                                 });
                                 html += '</select>';
                             } else if (f.type === 'date' || f.type === 'datetime') {
-                                html += '<input type="date" class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'">';
+                                html += '<input type="date" '+commonStyle+'>';
                             } else {
-                                html += '<input type="text" class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'" placeholder="...">';
+                                html += '<input type="text" '+commonStyle+' placeholder="...">';
                             }
                             
                             html += '</div>';
@@ -1616,9 +1682,9 @@ if ($hasValidAuth) {
                         });
                         
                         // Add Reset button
-                        $bar.append('<div style="flex: 0 0 auto; align-self: flex-end;">' +
-                                        '<button type="button" id="resetLeadFilters" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Clear all filters">' +
-                                            '<i class="fas fa-undo"></i>' +
+                        $bar.append('<div style="flex: 0 0 auto; align-self: center; margin-left: auto;">' +
+                                        '<button type="button" id="resetLeadFilters" class="btn btn-sm btn-light border-0 shadow-none text-muted" title="Clear all filters">' +
+                                            '<i class="fas fa-times-circle"></i>' +
                                         '</button>' +
                                     '</div>');
                     }
@@ -3115,7 +3181,7 @@ if ($hasValidAuth) {
                     <div class="p-3 bg-white border-bottom sticky-top">
                         <input type="text" id="fieldSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search fields...">
                     </div>
-                    <div id="fieldCheckboxList" class="p-3" style="max-height: 400px; overflow-y: auto;">
+                    <div id="fieldCheckboxList" class="field-toggle-list p-3">
                         <!-- Dynamically populated -->
                         <div class="text-center p-4">
                             <span class="spinner-border spinner-border-sm text-primary"></span>
