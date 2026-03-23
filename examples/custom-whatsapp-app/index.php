@@ -599,43 +599,15 @@ if ($hasValidAuth) {
 
                                             <!-- Filter Bar -->
                                             <div class="p-3 bg-white border-bottom">
-                                                <div class="d-flex flex-wrap align-items-end" style="gap: 8px;">
-                                                    <!-- Name Search -->
-                                                    <div style="flex: 1 1 160px; min-width: 140px;">
-                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Name</label>
-                                                        <input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search...">
-                                                    </div>
-                                                    <!-- Source -->
-                                                    <div style="flex: 1 1 150px; min-width: 130px;">
-                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Source</label>
-                                                        <select id="leadSourceFilter" class="form-control form-control-sm form-control-modern">
-                                                            <option value="">All Sources</option>
-                                                        </select>
-                                                    </div>
-                                                    <!-- Country -->
-                                                    <div style="flex: 1 1 140px; min-width: 120px;">
-                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Country</label>
-                                                        <input type="text" id="leadCountryFilter" class="form-control form-control-sm form-control-modern" placeholder="e.g. AE">
-                                                    </div>
-                                                    <!-- Status -->
-                                                    <div style="flex: 1 1 150px; min-width: 130px;">
-                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Status</label>
-                                                        <select id="leadStatusFilter" class="form-control form-control-sm form-control-modern">
-                                                            <option value="">All Statuses</option>
-                                                        </select>
-                                                    </div>
-                                                    <!-- Assigned To -->
-                                                    <div style="flex: 1 1 160px; min-width: 140px;">
-                                                        <label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Assigned To</label>
-                                                        <select id="leadAssignedFilter" class="form-control form-control-sm form-control-modern">
-                                                            <option value="">Anyone</option>
-                                                        </select>
-                                                    </div>
-                                                    <!-- Reset -->
-                                                    <div style="flex: 0 0 auto; align-self: flex-end;">
-                                                        <button type="button" id="resetLeadFilters" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Clear all filters">
-                                                            <i class="fas fa-undo"></i>
-                                                        </button>
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 class="mb-0 font-weight-700 text-uppercase small letter-spacing-1 text-muted">Filter Contacts</h6>
+                                                    <button type="button" class="btn btn-xs btn-light border" id="manageFiltersBtn">
+                                                        <i class="fas fa-cog mr-1"></i> Manage Filters
+                                                    </button>
+                                                </div>
+                                                <div id="dynamicFilterBar" class="d-flex flex-wrap align-items-end" style="gap: 8px;">
+                                                    <!-- Dynamic Filters Will Be Injected Here -->
+                                                </div>
                                                     </div>
                                                 </div>
                                                 <!-- Row 2: select-all + count + apply -->
@@ -1543,8 +1515,13 @@ if ($hasValidAuth) {
                     // ============================================
                     // BULK CAMPAIGN LOGIC – LEAD FILTRATION
                     // ============================================
+                    // ============================================
+                    // BULK CAMPAIGN LOGIC – LEAD FILTRATION
+                    // ============================================
                     var allLeads = [];
                     var leadFiltersFetched = false;
+                    var bitrixFields = [];
+                    var visibleFields = JSON.parse(localStorage.getItem('keen_visible_filters') || '["TITLE","SOURCE_ID","STATUS_ID","ASSIGNED_BY_ID"]');
 
                     $('#toggleContactSelector').click(function() {
                         var isVisible = $('#contactSelectorSection').is(':visible');
@@ -1552,7 +1529,7 @@ if ($hasValidAuth) {
                         if (!isVisible) {
                             if (!leadFiltersFetched) {
                                 leadFiltersFetched = true;
-                                fetchLeadFilters(function() {
+                                loadBitrixFields(function() {
                                     if (allLeads.length === 0) fetchCampaignLeads();
                                 });
                             } else if (allLeads.length === 0) {
@@ -1561,60 +1538,105 @@ if ($hasValidAuth) {
                         }
                     });
 
-                    // Fetch filter option lists from Bitrix24 (sources, statuses, users)
-                    function fetchLeadFilters(callback) {
-                        $.ajax({
-                            url: 'get_lead_fields.php',
-                            method: 'GET',
-                            dataType: 'json',
-                            success: function(resp) {
-                                if (!resp.success) { if (callback) callback(); return; }
-
-                                // Populate Source dropdown
-                                var $src = $('#leadSourceFilter');
-                                $src.find('option:not(:first)').remove();
-                                (resp.sourceOptions || []).forEach(function(s) {
-                                    $src.append('<option value="' + s.id + '">' + s.name + '</option>');
-                                });
-
-                                // Populate Status dropdown
-                                var $st = $('#leadStatusFilter');
-                                $st.find('option:not(:first)').remove();
-                                (resp.statusOptions || []).forEach(function(s) {
-                                    $st.append('<option value="' + s.id + '">' + s.name + '</option>');
-                                });
-
-                                // Populate Assigned To dropdown
-                                var $asgn = $('#leadAssignedFilter');
-                                $asgn.find('option:not(:first)').remove();
-                                (resp.userOptions || []).forEach(function(u) {
-                                    $asgn.append('<option value="' + u.id + '">' + u.name + '</option>');
-                                });
-
-                                if (callback) callback();
-                            },
-                            error: function() {
-                                console.error('Failed to load lead filter options');
-                                if (callback) callback();
+                    function loadBitrixFields(callback) {
+                        $.get('get_bitrix_fields.php', function(resp) {
+                            if (resp.status === 'success') {
+                                bitrixFields = resp.fields;
+                                renderManageFiltersModal();
+                                renderDynamicFilters();
                             }
+                            if (callback) callback();
+                        }).fail(function() {
+                            if (callback) callback();
                         });
                     }
 
-                    // Wire up all filter controls → re-render instantly
-                    $('#leadSourceFilter, #leadStatusFilter, #leadAssignedFilter').on('change', function() {
-                        renderCampaignLeads();
+                    function renderManageFiltersModal() {
+                        var $list = $('#fieldCheckboxList').empty();
+                        var search = ($('#fieldSearchInput').val() || '').toLowerCase();
+                        
+                        bitrixFields.forEach(function(f) {
+                            if (search && !f.title.toLowerCase().includes(search) && !f.id.toLowerCase().includes(search)) return;
+                            
+                            var checked = visibleFields.includes(f.id) ? 'checked' : '';
+                            var html = '<div class="custom-control custom-checkbox mb-2 field-item">' +
+                                            '<input type="checkbox" class="custom-control-input field-toggle-checkbox" id="field_chk_'+f.id+'" value="'+f.id+'" '+checked+'>' +
+                                            '<label class="custom-control-label small font-weight-600" for="field_chk_'+f.id+'">'+f.title+' <span class="text-xs text-muted">('+f.id+')</span></label>' +
+                                       '</div>';
+                            $list.append(html);
+                        });
+                    }
+
+                    function renderDynamicFilters() {
+                        var $bar = $('#dynamicFilterBar').empty();
+                        
+                        // Add hardcoded Search field first
+                        $bar.append('<div style="flex: 1 1 160px; min-width: 140px;">' +
+                                        '<label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">Search (Name/Phone)</label>' +
+                                        '<input type="text" id="contactSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search...">' +
+                                    '</div>');
+
+                        visibleFields.forEach(function(fieldId) {
+                            var f = bitrixFields.find(function(x) { return x.id === fieldId; });
+                            if (!f) return;
+
+                            var html = '<div style="flex: 1 1 150px; min-width: 130px;">' +
+                                            '<label class="small font-weight-600 text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.04em;">'+f.title+'</label>';
+                            
+                            if (f.items && Array.isArray(f.items)) {
+                                html += '<select class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'">' +
+                                            '<option value="">All</option>';
+                                f.items.forEach(function(item) {
+                                    html += '<option value="'+item.ID+'">'+item.VALUE+'</option>';
+                                });
+                                html += '</select>';
+                            } else if (f.type === 'date' || f.type === 'datetime') {
+                                html += '<input type="date" class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'">';
+                            } else {
+                                html += '<input type="text" class="form-control form-control-sm form-control-modern dynamic-filter-input" data-field="'+f.id+'" placeholder="...">';
+                            }
+                            
+                            html += '</div>';
+                            $bar.append(html);
+                        });
+                        
+                        // Add Reset button
+                        $bar.append('<div style="flex: 0 0 auto; align-self: flex-end;">' +
+                                        '<button type="button" id="resetLeadFilters" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Clear all filters">' +
+                                            '<i class="fas fa-undo"></i>' +
+                                        '</button>' +
+                                    '</div>');
+                    }
+
+                    $('#manageFiltersBtn').on('click', function(e) {
+                        e.stopPropagation();
+                        $('#filterSettingsModal').modal('show');
+                        renderManageFiltersModal();
                     });
-                    $('#contactSearchInput, #leadCountryFilter').on('input', function() {
+
+                    $('#fieldSearchInput').on('input', function() {
+                        renderManageFiltersModal();
+                    });
+
+                    $('#saveFilterSettingsBtn').on('click', function() {
+                        var selected = [];
+                        $('.field-toggle-checkbox:checked').each(function() {
+                            selected.push($(this).val());
+                        });
+                        visibleFields = selected;
+                        localStorage.setItem('keen_visible_filters', JSON.stringify(visibleFields));
+                        renderDynamicFilters();
+                        $('#filterSettingsModal').modal('hide');
+                        fetchCampaignLeads(); // Refetch to get new fields if needed
+                    });
+
+                    $(document).on('input change', '.dynamic-filter-input, #contactSearchInput', function() {
                         renderCampaignLeads();
                     });
 
-                    // Reset all filters
-                    $('#resetLeadFilters').click(function() {
+                    $(document).on('click', '#resetLeadFilters', function() {
+                        $('.dynamic-filter-input').val('');
                         $('#contactSearchInput').val('');
-                        $('#leadCountryFilter').val('');
-                        $('#leadSourceFilter').val('');
-                        $('#leadStatusFilter').val('');
-                        $('#leadAssignedFilter').val('');
                         renderCampaignLeads();
                     });
 
@@ -1623,9 +1645,13 @@ if ($hasValidAuth) {
                         $('#contactList').hide();
                         allLeads = [];
 
+                        // Build select parameter based on visible fields
+                        var select = visibleFields.join(',');
+
                         $.ajax({
                             url: 'get_leads.php',
                             method: 'GET',
+                            data: { select: select },
                             cache: false,
                             success: function(res) {
                                 allLeads = res.result || [];
@@ -1640,27 +1666,35 @@ if ($hasValidAuth) {
                     }
 
                     function renderCampaignLeads() {
-                        var nameFilter    = ($('#contactSearchInput').val() || '').toLowerCase().trim();
-                        var sourceFilter  = $('#leadSourceFilter').val();
-                        var countryFilter = ($('#leadCountryFilter').val() || '').toLowerCase().trim();
-                        var statusFilter  = $('#leadStatusFilter').val();
-                        var assignFilter  = $('#leadAssignedFilter').val();
+                        var search = ($('#contactSearchInput').val() || '').toLowerCase().trim();
+                        var filterValues = {};
+                        $('.dynamic-filter-input').each(function() {
+                            var val = $(this).val();
+                            if (val) filterValues[$(this).data('field')] = val;
+                        });
 
                         var filtered = allLeads.filter(function(l) {
-                            // Name search
-                            if (nameFilter) {
-                                var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '') + ' ' + (l.TITLE || '')).toLowerCase();
-                                if (!fullName.includes(nameFilter)) return false;
+                            // Search (Name/Phone)
+                            if (search) {
+                                var phoneStr = l.PHONE ? l.PHONE.map(p => p.VALUE).join(' ') : '';
+                                var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '') + ' ' + (l.TITLE || '') + ' ' + phoneStr).toLowerCase();
+                                if (!fullName.includes(search)) return false;
                             }
-                            // Source
-                            if (sourceFilter && l.SOURCE_ID !== sourceFilter) return false;
-                            // Country (partial match, case-insensitive)
-                            if (countryFilter && !(l.ADDRESS_COUNTRY || '').toLowerCase().includes(countryFilter)) return false;
-                            // Status
-                            if (statusFilter && l.STATUS_ID !== statusFilter) return false;
-                            // Assigned To
-                            if (assignFilter && String(l.ASSIGNED_BY_ID) !== assignFilter) return false;
 
+                            // Dynamic Filters
+                            for (var fieldId in filterValues) {
+                                var targetVal = filterValues[fieldId];
+                                var leadVal = l[fieldId];
+                                
+                                // Handle special case for PHONE if it's used as a dynamic filter
+                                if (fieldId === 'PHONE' && Array.isArray(leadVal)) {
+                                    leadVal = leadVal[0].VALUE;
+                                }
+
+                                if (!leadVal || !String(leadVal).toLowerCase().includes(String(targetVal).toLowerCase())) {
+                                    return false;
+                                }
+                            }
                             return true;
                         });
 
@@ -1676,9 +1710,17 @@ if ($hasValidAuth) {
                             filtered.forEach(function(l) {
                                 var displayName = ((l.NAME || '') + (l.LAST_NAME ? ' ' + l.LAST_NAME : '')).trim() || l.TITLE || 'No Name';
                                 var badge = '';
-                                if (l.SOURCE_ID)       badge += '<span class="badge badge-info ml-1" style="font-size:9px;">' + l.SOURCE_ID + '</span>';
-                                if (l.ADDRESS_COUNTRY) badge += '<span class="badge badge-secondary ml-1" style="font-size:9px;">' + l.ADDRESS_COUNTRY + '</span>';
-                                if (l.STATUS_ID)       badge += '<span class="badge badge-light ml-1" style="font-size:9px;">' + l.STATUS_ID + '</span>';
+                                
+                                // Show first 3 active filters as badges for context
+                                var badgeCount = 0;
+                                for (var fieldId in filterValues) {
+                                    if (badgeCount >= 3) break;
+                                    var f = bitrixFields.find(x => x.id === fieldId);
+                                    if (f) {
+                                        badge += '<span class="badge badge-light ml-1" style="font-size:9px;">' + f.title + ': ' + (l[fieldId] || '-') + '</span>';
+                                        badgeCount++;
+                                    }
+                                }
 
                                 l.PHONE.forEach(function(p, pIdx) {
                                     var uniqueId = 'lead_' + l.ID + '_' + pIdx;
@@ -1694,7 +1736,6 @@ if ($hasValidAuth) {
                             });
                         }
                         $('#contactList').html(html);
-                        // Keep select-all in sync
                         $('#selectAllContacts').prop('checked', false);
                     }
 
@@ -3031,6 +3072,34 @@ if ($hasValidAuth) {
             });
         </script>
 
+    </div>
+    <!-- Manage Filters Modal -->
+    <div class="modal fade" id="filterSettingsModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title font-weight-700 text-uppercase small letter-spacing-1">Manage Filters</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="p-3 bg-white border-bottom sticky-top">
+                        <input type="text" id="fieldSearchInput" class="form-control form-control-sm form-control-modern" placeholder="Search fields...">
+                    </div>
+                    <div id="fieldCheckboxList" class="p-3" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Dynamically populated -->
+                        <div class="text-center p-4">
+                            <span class="spinner-border spinner-border-sm text-primary"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-2">
+                    <button type="button" class="btn btn-sm btn-secondary font-weight-600 rounded-pill px-3" data-dismiss="modal">Close</button>
+                    <button type="button" id="saveFilterSettingsBtn" class="btn btn-sm btn-primary font-weight-600 rounded-pill px-3 shadow-none">Save & Apply</button>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

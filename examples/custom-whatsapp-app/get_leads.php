@@ -29,18 +29,23 @@ function bitrix24Call(string $url, array $params): array {
 }
 
 // Fields needed for display + all filter dimensions
-$select = [
+$defaultFields = [
     'ID',
     'NAME',
     'LAST_NAME',
     'PHONE',
-    'SOURCE_ID',          // Lead source  (filter)
-    'ADDRESS_COUNTRY',    // Country       (filter)
-    'STATUS_ID',          // Lead status   (filter)
-    'ASSIGNED_BY_ID',     // Responsible   (filter)
-    'DATE_CREATE',        // Creation date (filter / display)
-    'TITLE',              // Fallback name
+    'TITLE',
+    'SOURCE_ID',
+    'STATUS_ID',
+    'ASSIGNED_BY_ID',
+    'DATE_CREATE'
 ];
+
+$requestedFields = explode(',', $_GET['select'] ?? '');
+$select = array_values(array_unique(array_filter(array_merge($defaultFields, $requestedFields))));
+
+if (!in_array('ID', $select)) $select[] = 'ID';
+if (!in_array('PHONE', $select)) $select[] = 'PHONE';
 
 do {
     $params = [
