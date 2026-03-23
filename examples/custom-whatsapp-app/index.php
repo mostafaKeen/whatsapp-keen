@@ -218,6 +218,37 @@ if ($hasValidAuth) {
             border-radius: 10px;
         }
 
+        /* btn-xs not in Bootstrap 4 */
+        .btn-xs {
+            padding: 2px 8px;
+            font-size: 11px;
+            border-radius: 8px;
+            line-height: 1.5;
+        }
+
+        /* Filter bar responsiveness */
+        .filter-item-container {
+            max-width: 220px;
+        }
+        @media (max-width: 576px) {
+            .filter-item-container {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+            #dynamicFilterBar {
+                flex-direction: column;
+            }
+        }
+
+        /* Contact selector scrollbar */
+        .contact-list-container::-webkit-scrollbar { width: 5px; }
+        .contact-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* Modal responsive fix */
+        @media (max-width: 576px) {
+            .modal-dialog.modal-lg { max-width: 98%; margin: 10px auto; }
+        }
+
         .header-section {
             display: flex;
             justify-content: space-between;
@@ -654,10 +685,9 @@ if ($hasValidAuth) {
                                         
                                         <!-- Contact Selector -->
                                         <div id="contactSelectorSection" style="display:none;" class="mb-3 border rounded-lg bg-light overflow-hidden">
-
                                             <!-- Filter Bar -->
                                             <div class="p-3 bg-white border-bottom">
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="d-flex flex-wrap justify-content-between align-items-center mb-2" style="gap:8px;">
                                                     <h6 class="mb-0 font-weight-700 text-uppercase small letter-spacing-1 text-muted">Filter Contacts</h6>
                                                     <button type="button" class="btn btn-xs btn-light border" id="manageFiltersBtn">
                                                         <i class="fas fa-cog mr-1"></i> Manage Filters
@@ -666,9 +696,8 @@ if ($hasValidAuth) {
                                                 <div id="dynamicFilterBar" class="d-flex flex-wrap align-items-end" style="gap: 8px;">
                                                     <!-- Dynamic Filters Will Be Injected Here -->
                                                 </div>
-                                                </div>
                                                 <!-- Row 2: select-all + count + apply -->
-                                                <div class="d-flex align-items-center justify-content-between mt-2 pt-2" style="border-top: 1px solid var(--border);">
+                                                <div class="d-flex flex-wrap align-items-center justify-content-between mt-2 pt-2" style="border-top: 1px solid var(--border); gap:8px;">
                                                     <div class="d-flex align-items-center">
                                                         <div class="custom-control custom-checkbox mr-3">
                                                             <input type="checkbox" class="custom-control-input" id="selectAllContacts">
@@ -679,13 +708,14 @@ if ($hasValidAuth) {
                                                     <button type="button" class="btn btn-sm btn-primary-modern py-1 px-3" id="applyContacts">Apply</button>
                                                 </div>
                                             </div>
-
-                                            <div class="px-3" id="contactListContainer">
-                                                <div class="contact-list-container border-0" style="background:#f1f5f9; padding: 5px;">
+                                            <!-- Contact List -->
+                                            <div class="px-3 pb-3" id="contactListContainer">
+                                                <div class="contact-list-container" style="background:#f8fafc;">
                                                     <div class="text-center p-4 text-muted small" id="contactsLoading">
-                                                    <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching Bitrix24 leads...
+                                                        <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Fetching Bitrix24 leads...
+                                                    </div>
+                                                    <div id="contactList"></div>
                                                 </div>
-                                                <div id="contactList"></div>
                                             </div>
                                         </div>
 
@@ -1573,9 +1603,6 @@ if ($hasValidAuth) {
                     // ============================================
                     // BULK CAMPAIGN LOGIC – LEAD FILTRATION
                     // ============================================
-                    // ============================================
-                    // BULK CAMPAIGN LOGIC – LEAD FILTRATION
-                    // ============================================
                     var allLeads = [];
                     var leadFiltersFetched = false;
                     var bitrixFields = [];
@@ -1770,22 +1797,21 @@ if ($hasValidAuth) {
                         var filtered = allLeads.filter(function(l) {
                             // Search (Name/Phone)
                             if (search) {
-                                var phoneStr = l.PHONE ? l.PHONE.map(p => p.VALUE).join(' ') : '';
+                                var phoneStr = Array.isArray(l.PHONE) ? l.PHONE.map(function(p){ return p.VALUE; }).join(' ') : '';
                                 var fullName = ((l.NAME || '') + ' ' + (l.LAST_NAME || '') + ' ' + (l.TITLE || '') + ' ' + phoneStr).toLowerCase();
                                 if (!fullName.includes(search)) return false;
                             }
 
                             // Dynamic Filters
                             for (var fieldId in filterValues) {
-                                var targetVal = filterValues[fieldId];
+                                var targetVal = String(filterValues[fieldId]).toLowerCase();
                                 var leadVal = l[fieldId];
-                                
-                                // Handle special case for PHONE if it's used as a dynamic filter
+
                                 if (fieldId === 'PHONE' && Array.isArray(leadVal)) {
-                                    leadVal = leadVal[0].VALUE;
+                                    leadVal = leadVal.map(function(p){ return p.VALUE; }).join(' ');
                                 }
 
-                                if (!leadVal || !String(leadVal).toLowerCase().includes(String(targetVal).toLowerCase())) {
+                                if (leadVal === null || leadVal === undefined || !String(leadVal).toLowerCase().includes(targetVal)) {
                                     return false;
                                 }
                             }
@@ -1802,14 +1828,16 @@ if ($hasValidAuth) {
                                    '</div>';
                         } else {
                             filtered.forEach(function(l) {
+                                if (!Array.isArray(l.PHONE) || l.PHONE.length === 0) return;
+
                                 var displayName = ((l.NAME || '') + (l.LAST_NAME ? ' ' + l.LAST_NAME : '')).trim() || l.TITLE || 'No Name';
                                 var badge = '';
-                                
+
                                 // Show first 3 active filters as badges for context
                                 var badgeCount = 0;
                                 for (var fieldId in filterValues) {
                                     if (badgeCount >= 3) break;
-                                    var f = bitrixFields.find(x => x.id === fieldId);
+                                    var f = bitrixFields.find(function(x){ return x.id === fieldId; });
                                     if (f) {
                                         badge += '<span class="badge badge-light ml-1" style="font-size:9px;">' + f.title + ': ' + (l[fieldId] || '-') + '</span>';
                                         badgeCount++;
