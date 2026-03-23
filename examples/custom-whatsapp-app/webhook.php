@@ -189,6 +189,9 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 if ($entity) {
                     // 2C. Add the message as a comment/TIMELINE entry to the found lead
                     addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo, null, $mediaId);
+                    
+                    // 2D. Notify the responsible agent
+                    sendAgentNotification($WEBHOOK_URL, $entity['responsible_id'] ?? null, $entity['id'], $senderName, $text);
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
@@ -373,7 +376,10 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     ]);
 
     if (!empty($res['result']['LEAD'])) {
-        return ['type' => 'lead', 'id' => (int)$res['result']['LEAD'][0], 'is_new' => false];
+        $leadId = (int)$res['result']['LEAD'][0];
+        $resp = bitrix24Call($webhookUrl, 'crm.lead.get', ['id' => $leadId]);
+        $responsibleId = $resp['result']['ASSIGNED_BY_ID'] ?? 1;
+        return ['type' => 'lead', 'id' => $leadId, 'is_new' => false, 'responsible_id' => $responsibleId];
     }
 
     // Not found — create new Lead
@@ -399,22 +405,21 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
         }
     }
 
+    $defaultRespId = ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) ? $campaign['responsible_id'] : 1;
+
     $leadFields = [
         'TITLE'     => ($campaign ? 'CAMPAIGN: ' . $campaign['template_name'] : 'WA Inquiry') . ': +' . $phone,
         'NAME'      => $name ?: 'WhatsApp User',
         'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
         'SOURCE_ID' => $waSourceId,
         'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
+        'ASSIGNED_BY_ID' => $defaultRespId
     ];
 
     if ($waStageId) {
         $leadFields['STATUS_ID'] = $waStageId;
     }
     
-    if ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) {
-        $leadFields['ASSIGNED_BY_ID'] = $campaign['responsible_id'];
-    }
-
     if ($campaign && isset($campaign['template_name'])) {
         static $waCampaignFieldId = null;
         if ($waCampaignFieldId === null) {
@@ -441,8 +446,9 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     ]);
 
     if (!empty($createRes['result'])) {
-        error_log("Created new Lead ID: " . $createRes['result']);
-        return ['type' => 'lead', 'id' => (int)$createRes['result'], 'is_new' => true];
+        $newId = (int)$createRes['result'];
+        error_log("Created new Lead ID: " . $newId);
+        return ['type' => 'lead', 'id' => $newId, 'is_new' => true, 'responsible_id' => $defaultRespId];
     }
 
     error_log("Failed to create Lead for +$phone: " . json_encode($createRes));
@@ -472,6 +478,22 @@ function bitrix24Call(string $webhookUrl, string $method, array $params = []): a
     }
 
     return json_decode($response, true) ?: [];
+}
+
+/**
+ * Sends a system notification to the responsible agent in Bitrix24.
+ */
+function sendAgentNotification(string $webhookUrl, $responsibleId, $leadId, string $senderName, string $text): void {
+    if (!$responsibleId) return;
+
+    $cleanText = mb_strimwidth($text, 0, 100, "...");
+    $message = "New WhatsApp message from [b]{$senderName}[/b]: \"{$cleanText}\"\n";
+    $message .= "View Lead: https://westgate.bitrix24.com/crm/lead/details/{$leadId}/";
+
+    bitrix24Call($webhookUrl, 'im.notify.system.add', [
+        'USER_ID' => $responsibleId,
+        'MESSAGE' => $message,
+    ]);
 }
 
 /**
