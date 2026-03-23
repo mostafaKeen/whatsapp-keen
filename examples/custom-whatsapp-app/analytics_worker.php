@@ -120,9 +120,10 @@ foreach ($jobData['chunks'] as $index => &$chunk) {
             sleep(7);
         } else {
             echo "Error on $dateStr: " . ($error ?: "HTTP $httpCode") . "\n";
-            // If it's a non-retriable error, we might want to skip or mark chunk as error
+            // If it's a non-retriable error, we mark chunk as error but continue to next days
             $chunk['status'] = 'error';
-            break 2; // Exit while and foreach
+            $currentDayTs += 86400; // Skip this day and move to next
+            continue; 
         }
     }
 

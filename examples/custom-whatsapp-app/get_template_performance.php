@@ -120,14 +120,16 @@ if (!empty($missingDates)) {
         ];
     }
 
-    // Check for existing active job for this template to avoid redundant workers
-    $activeJob = null;
+    // Check for existing active job for this template with the SAME range
     $files = scandir($jobsDir);
     foreach ($files as $file) {
         if (strpos($file, 'job_analytics_') === 0 && substr($file, -5) === '.json') {
-            $jobData = json_decode(file_get_contents($jobsDir . '/' . $file), true);
-            if ($jobData && $jobData['template_id'] === $templateId && in_array($jobData['status'], ['running', 'queued'])) {
-                $jobId = $jobData['job_id'];
+            $existingJobData = json_decode(file_get_contents($jobsDir . '/' . $file), true);
+            if ($existingJobData && 
+                $existingJobData['template_id'] === $templateId && 
+                (int)$existingJobData['range'] === (int)$range && // Match range!
+                in_array($existingJobData['status'], ['running', 'queued'])) {
+                $jobId = $existingJobData['job_id'];
                 break;
             }
         }
