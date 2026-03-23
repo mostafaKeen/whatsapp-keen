@@ -28,7 +28,7 @@ $fieldsRes = bitrix24Call($webhookUrl, 'crm.lead.fields');
 $fields = $fieldsRes['result'] ?? [];
 
 // 2. Filter out internal or unwanted fields
-$allowedTypes = ['string', 'enumeration', 'date', 'datetime', 'char', 'integer', 'double', 'boolean'];
+$allowedTypes = ['string', 'enumeration', 'date', 'datetime', 'char', 'integer', 'double', 'boolean', 'status', 'user'];
 $excludeFields = ['ID', 'PHONE', 'EMAIL', 'WEB', 'IM'];
 
 $filteredFields = [];

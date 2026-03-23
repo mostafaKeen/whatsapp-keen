@@ -608,7 +608,6 @@ if ($hasValidAuth) {
                                                 <div id="dynamicFilterBar" class="d-flex flex-wrap align-items-end" style="gap: 8px;">
                                                     <!-- Dynamic Filters Will Be Injected Here -->
                                                 </div>
-                                                    </div>
                                                 </div>
                                                 <!-- Row 2: select-all + count + apply -->
                                                 <div class="d-flex align-items-center justify-content-between mt-2 pt-2" style="border-top: 1px solid var(--border);">
