@@ -552,6 +552,19 @@ if ($hasValidAuth) {
                                             <option value="round_robin">Round Robin (Queue Assignment)</option>
                                         </select>
                                         <small class="text-muted">Users created from this campaign will be assigned to this person.</small>
+                                        
+                                        <div id="roundRobinUsersContainer" class="mt-3 p-3 border rounded bg-light" style="display:none;">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="font-weight-600 small text-muted text-uppercase mb-0">Select Agents for Round Robin</label>
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input" id="rrSelectAll" checked>
+                                                    <label class="custom-control-label small" for="rrSelectAll">Select All</label>
+                                                </div>
+                                            </div>
+                                            <div id="roundRobinUserList" class="d-flex flex-wrap gap-2" style="max-height: 150px; overflow-y: auto;">
+                                                <!-- Populated via JS -->
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="form-group mb-4" id="campaignMediaUrlGroup" style="display:none;">
                                         <label class="font-weight-600 small text-muted text-uppercase">Media Header URL *</label>
@@ -1725,7 +1738,7 @@ if ($hasValidAuth) {
                         }
 
                         var $respSel = $('#campaignResponsibleSelect');
-                        if ($respSel.children('option').length <= 1) { // Only the default option exists
+                        if ($respSel.children('option').length <= 2) { // Default + Round Robin
                             $respSel.empty().append('<option value="">Loading users...</option>');
                             $.ajax({
                                 url: 'https://westgate.bitrix24.com/rest/9034/nks666y4mpf9ppx6/user.get.json',
@@ -1733,11 +1746,23 @@ if ($hasValidAuth) {
                                 dataType: 'json',
                                 success: function(resp) {
                                     $respSel.empty().append('<option value="">-- Lead will be unassigned (default) --</option>');
+                                    $respSel.append('<option value="round_robin">Round Robin (Queue Assignment)</option>');
+                                    
+                                    var $rrList = $('#roundRobinUserList').empty();
                                     if (resp && resp.result && Array.isArray(resp.result)) {
                                         resp.result.forEach(function(user) {
                                             if (user.ACTIVE) {
                                                 var nameStr = (user.NAME || '') + (user.NAME && user.LAST_NAME ? ' ' : '') + (user.LAST_NAME || '');
                                                 $respSel.append('<option value="' + user.ID + '">' + nameStr + '</option>');
+                                                
+                                                var rrId = 'rr_user_' + user.ID;
+                                                var rrHtml = '<div class="contact-item border-0 p-1 m-0" style="flex: 0 0 calc(50% - 8px);">' +
+                                                                '<div class="custom-control custom-checkbox">' +
+                                                                    '<input type="checkbox" class="custom-control-input rr-user-checkbox" id="' + rrId + '" value="' + user.ID + '" checked>' +
+                                                                    '<label class="custom-control-label small" for="' + rrId + '">' + nameStr + '</label>' +
+                                                                '</div>' +
+                                                             '</div>';
+                                                $rrList.append(rrHtml);
                                             }
                                         });
                                     }
@@ -1748,6 +1773,19 @@ if ($hasValidAuth) {
                                 }
                             });
                         }
+
+                        // Handle Round Robin selection toggle
+                        $('#campaignResponsibleSelect').on('change', function() {
+                            if ($(this).val() === 'round_robin') {
+                                $('#roundRobinUsersContainer').slideDown();
+                            } else {
+                                $('#roundRobinUsersContainer').slideUp();
+                            }
+                        }).trigger('change');
+
+                        $(document).on('change', '#rrSelectAll', function() {
+                            $('.rr-user-checkbox').prop('checked', $(this).is(':checked'));
+                        });
                     });
 
                     $('#campaignTemplateSelect').on('change', function() {
@@ -1949,12 +1987,14 @@ if ($hasValidAuth) {
                         var respId = $('#campaignResponsibleSelect').val();
                         if (respId === 'round_robin') {
                             var users = [];
-                            $('#campaignResponsibleSelect option').each(function() {
-                                var v = $(this).val();
-                                if (v && v !== 'round_robin') {
-                                    users.push(v);
-                                }
+                            $('.rr-user-checkbox:checked').each(function() {
+                                users.push($(this).val());
                             });
+                            
+                            if (users.length === 0) {
+                                showToast('Please select at least one agent for Round Robin', 'warning');
+                                return;
+                            }
                             formData.push({name: 'roundRobinUsers', value: JSON.stringify(users)});
                         }
 
