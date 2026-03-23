@@ -796,7 +796,8 @@ if ($hasValidAuth) {
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
-                <div class="modal-body pt-4">
+                <div class="modal-body pt-3">
+
                     <!-- Range Selector -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div class="btn-group btn-group-sm" role="group">
@@ -805,11 +806,10 @@ if ($hasValidAuth) {
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="60">60 Days</button>
                             <button type="button" class="btn btn-outline-light analytics-range-btn" data-range="90">90 Days</button>
                         </div>
-                        </div>
                     </div>
 
                     <!-- Analytics Progress -->
-                    <div id="analyticsProgressArea" style="display:none;" class="mb-4 p-3 border rounded-lg" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);">
+                    <div id="analyticsProgressArea" style="display:none; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);" class="mb-4 p-3 border rounded-lg">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small text-info font-weight-600"><i class="fas fa-sync fa-spin mr-1"></i> Background Processing...</span>
                             <span id="analyticsProgressText" class="small text-white-50 font-weight-600">0 / 0 days (0%)</span>
@@ -819,42 +819,40 @@ if ($hasValidAuth) {
                         </div>
                     </div>
 
-                    <!-- Metrics Grid -->
-                    <div id="analyticsContent">
-                        <div class="row mb-3">
-                            <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                <div class="metric-card-dark h-100 text-center">
-                                    <div class="metric-label text-white-50">Sent</div>
-                                    <div class="metric-value text-info" id="metricSent">--</div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                <div class="metric-card-dark h-100 text-center">
-                                    <div class="metric-label text-white-50">Delivered</div>
-                                    <div class="metric-value text-success" id="metricDelivered">--</div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="metric-card-dark h-100 text-center">
-                                    <div class="metric-label text-white-50">Read</div>
-                                    <div class="metric-value text-primary" id="metricRead">--</div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="metric-card-dark h-100 text-center">
-                                    <div class="metric-label text-white-50">Clicked</div>
-                                    <div class="metric-value text-warning" id="metricClicked">--</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        </div>
-                    </div>
-                    </div>
-
-                    <div id="analyticsLoader" class="text-center py-5 d-none">
+                    <!-- Loader -->
+                    <div id="analyticsLoader" class="text-center py-5">
                         <div class="spinner-border text-info" role="status"></div>
                         <p class="mt-2 text-white-50">Analyzing data...</p>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div id="analyticsContent" class="d-none">
+                        <div class="row">
+                            <div class="col-6 col-md-3 mb-4">
+                                <div class="metric-card-dark h-100 text-center p-4">
+                                    <div class="metric-label text-white-50 mb-2"><i class="fas fa-paper-plane mr-1"></i> Sent</div>
+                                    <div class="metric-value text-info display-4 font-weight-700" id="metricSent">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-4">
+                                <div class="metric-card-dark h-100 text-center p-4">
+                                    <div class="metric-label text-white-50 mb-2"><i class="fas fa-check-double mr-1"></i> Delivered</div>
+                                    <div class="metric-value text-success display-4 font-weight-700" id="metricDelivered">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-4">
+                                <div class="metric-card-dark h-100 text-center p-4">
+                                    <div class="metric-label text-white-50 mb-2"><i class="fas fa-eye mr-1"></i> Read</div>
+                                    <div class="metric-value text-primary display-4 font-weight-700" id="metricRead">--</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-4">
+                                <div class="metric-card-dark h-100 text-center p-4">
+                                    <div class="metric-label text-white-50 mb-2"><i class="fas fa-mouse-pointer mr-1"></i> Clicked</div>
+                                    <div class="metric-value text-warning display-4 font-weight-700" id="metricClicked">--</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
