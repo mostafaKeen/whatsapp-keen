@@ -3,6 +3,7 @@
  * get_template_performance.php
  * ----------------------------------------------------
  * Proxy for fetching detailed Gupshup Template Performance Analytics.
+ * Implements Caching and Background Processing to handle 10 req/min limit.
  */
 
 header('Content-Type: application/json');
@@ -34,62 +35,161 @@ $totalDiff = $range * 86400;
 $totalEnd  = time();
 $totalStart = $totalEnd - $totalDiff;
 
-$allAnalytics = [];
-$chunkSize = 5 * 86400; // 5 days in seconds
+$BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+$cacheDir = $BASE_VAR_DIR . '/analytics_cache/' . $templateId;
+$jobsDir = $BASE_VAR_DIR . '/analytics_jobs';
 
-// Fetch in 5-day chunks to avoid rate limit/timeout on large ranges
-for ($currentStart = $totalStart; $currentStart < $totalEnd; $currentStart += $chunkSize) {
-    $currentEnd = min($currentStart + $chunkSize, $totalEnd);
-    
-    $url = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics";
-    $queryParams = [
-        'start'         => $currentStart,
-        'end'           => $currentEnd,
+if (!is_dir($cacheDir)) mkdir($cacheDir, 0777, true);
+if (!is_dir($jobsDir)) mkdir($jobsDir, 0777, true);
+
+$allAnalytics = [];
+$missingDates = [];
+
+$startDateObj = new DateTime(date('Y-m-d', $totalStart));
+$endDateObj = new DateTime(date('Y-m-d', $totalEnd));
+$interval = new DateInterval('P1D');
+$dateRange = new DatePeriod($startDateObj, $interval, $endDateObj->add($interval));
+
+$todayAnalytics = null;
+$fetchToday = false;
+
+// Check if today is within our requested range
+if ($endDateObj->format('Y-m-d') === date('Y-m-d')) {
+    $fetchToday = true;
+}
+
+if ($fetchToday) {
+    // Attempt to fetch fresh data for today (Synchronous)
+    $todayStartTs = strtotime('today');
+    $todayEndTs   = time();
+    $todayUrl = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics?" . http_build_query([
+        'start'         => $todayStartTs,
+        'end'           => $todayEndTs,
         'granularity'   => 'DAILY',
         'metric_types'  => 'SENT,DELIVERED,READ,CLICKED',
         'template_ids'  => $templateId,
-        'limit'         => 30,
         'product_type'  => 'MARKETING_MESSAGES_LITE_API'
-    ];
-
-    $fullUrl = $url . '?' . http_build_query($queryParams);
-
-    $ch = curl_init($fullUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: ' . $apiToken,
-        'accept: application/json'
     ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
-    $response = curl_exec($ch);
+    $ch = curl_init($todayUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: ' . $apiToken, 'accept: application/json']);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+    $resp = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error    = curl_error($ch);
     curl_close($ch);
 
-    if (!$error && $httpCode === 200) {
-        $decoded = json_decode($response, true);
-        if (isset($decoded['template_analytics']) && is_array($decoded['template_analytics'])) {
-            $allAnalytics = array_merge($allAnalytics, $decoded['template_analytics']);
+    if ($httpCode === 200) {
+        $decoded = json_decode((string)$resp, true);
+        if (!empty($decoded['template_analytics'][0])) {
+            $todayAnalytics = $decoded['template_analytics'][0];
+            $allAnalytics[] = $todayAnalytics;
         }
-    } else {
-        // If a chunk fails, we log it but continue (or we could bail)
-        error_log("Analytics chunk failed: " . ($error ?: "HTTP $httpCode"));
-    }
-
-    // Small sleep to stay under rate limit if range is large
-    if ($range > 7) {
-        usleep(200000); // 200ms
     }
 }
 
-// deduplicate by template_id + start if necessary, 
-// though DAILY granularity over non-overlapping chunks should be clean.
+foreach ($dateRange as $date) {
+    $dateStr = $date->format('Y-m-d');
+    
+    // Skip today since we handled it fresh above
+    if ($dateStr === date('Y-m-d')) continue;
+
+    $cacheFile = $cacheDir . '/' . $dateStr . '.json';
+    if (file_exists($cacheFile)) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if ($cached) {
+            $allAnalytics[] = $cached;
+        } else {
+            $missingDates[] = $date->getTimestamp();
+        }
+    } else {
+        $missingDates[] = $date->getTimestamp();
+    }
+}
+
+$jobId = null;
+if (!empty($missingDates)) {
+    // Group missing dates into chunks of 90 days for API efficiency
+    $chunks = [];
+    sort($missingDates);
+    
+    $currentStart = null;
+    $previousDate = null;
+    
+    foreach ($missingDates as $ts) {
+        if ($currentStart === null) {
+            $currentStart = $ts;
+        } else if ($ts - $previousDate > 86400 || (new DateTime(date('Y-m-d', $currentStart)))->diff(new DateTime(date('Y-m-d', $ts)))->days >= 90) {
+            $chunks[] = [
+                'start' => $currentStart,
+                'end' => $previousDate + 86399, // End of the previous day
+                'status' => 'pending'
+            ];
+            $currentStart = $ts;
+        }
+        $previousDate = $ts;
+    }
+    // Add last chunk
+    if ($currentStart !== null) {
+        $chunks[] = [
+            'start' => $currentStart,
+            'end' => $previousDate + 86399,
+            'status' => 'pending'
+        ];
+    }
+
+    // Check for existing active job for this template to avoid redundant workers
+    $activeJob = null;
+    $files = scandir($jobsDir);
+    foreach ($files as $file) {
+        if (strpos($file, 'job_analytics_') === 0 && substr($file, -5) === '.json') {
+            $jobData = json_decode(file_get_contents($jobsDir . '/' . $file), true);
+            if ($jobData && $jobData['template_id'] === $templateId && in_array($jobData['status'], ['running', 'queued'])) {
+                $jobId = $jobData['job_id'];
+                break;
+            }
+        }
+    }
+
+    if (!$jobId) {
+        $jobId = 'job_analytics_' . time() . '_' . substr(md5($templateId . microtime()), 0, 8);
+        $jobData = [
+            'job_id' => $jobId,
+            'template_id' => $templateId,
+            'range' => $range,
+            'created_at' => date('Y-m-d H:i:s'),
+            'total_chunks' => count($chunks),
+            'processed_chunks' => 0,
+            'status' => 'queued',
+            'chunks' => $chunks
+        ];
+        file_put_contents($jobsDir . '/' . $jobId . '.json', json_encode($jobData, JSON_PRETTY_PRINT));
+
+        // Start background worker
+        $phpPath = PHP_BINARY;
+        if (!$phpPath || !file_exists($phpPath)) $phpPath = 'php';
+        $workerScript = __DIR__ . '/analytics_worker.php';
+        
+        // OS specific background execution
+        if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
+            // Windows
+            $cmd = "pstart /B $phpPath $workerScript $jobId";
+            // Alternatively use popen or background execute
+            pclose(popen("start /B $phpPath $workerScript $jobId", "r"));
+        } else {
+            // Linux/Unix
+            exec("nohup $phpPath $workerScript $jobId > /dev/null 2>&1 &");
+        }
+    }
+}
 
 echo json_encode([
     'product_type' => 'MARKETING_MESSAGES_LITE_API',
     'status' => 'success',
     'template_analytics' => $allAnalytics,
     'range' => $range,
-    'chunks' => ceil($totalDiff / $chunkSize)
+    'job_id' => $jobId,
+    'cached_days' => count($allAnalytics),
+    'missing_days' => count($missingDates)
 ]);

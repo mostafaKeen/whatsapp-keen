@@ -818,6 +818,17 @@ if ($hasValidAuth) {
                         </div>
                     </div>
 
+                    <!-- Analytics Progress -->
+                    <div id="analyticsProgressArea" style="display:none;" class="mb-4 p-3 border rounded-lg" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small text-info font-weight-600"><i class="fas fa-sync fa-spin mr-1"></i> Background Processing...</span>
+                            <span id="analyticsProgressText" class="small text-white-50 font-weight-600">0 / 0 chunks</span>
+                        </div>
+                        <div class="progress" style="height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1);">
+                            <div id="analyticsProgressBar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
                     <!-- Metrics Grid -->
                     <div id="analyticsContent">
                         <div class="row mb-3">
@@ -2555,6 +2566,12 @@ if ($hasValidAuth) {
                             success: function(resp) {
                                 if (resp.status === 'success' && resp.template_analytics) {
                                     renderAnalyticsPerformance(resp.template_analytics);
+                                    
+                                    if (resp.job_id) {
+                                        startAnalyticsPolling(resp.job_id);
+                                    } else {
+                                        $('#analyticsProgressArea').slideUp();
+                                    }
                                 } else {
                                     var msg = resp.message || '';
                                     var label = (msg.indexOf('Requests') !== -1) ? 'Rate Limit' : 'Error';
@@ -2571,6 +2588,37 @@ if ($hasValidAuth) {
                                 $('#analyticsContent').removeClass('d-none');
                             }
                         });
+                    }
+
+                    var analyticsPollingTimer = null;
+                    function startAnalyticsPolling(jobId) {
+                        clearTimeout(analyticsPollingTimer);
+                        $('#analyticsProgressArea').slideDown();
+                        
+                        function poll() {
+                            $.ajax({
+                                url: 'get_analytics_status.php',
+                                method: 'GET',
+                                data: { job_id: jobId },
+                                success: function(res) {
+                                    if (res.status === 'success' && res.data) {
+                                        var job = res.data;
+                                        var pct = job.total_chunks > 0 ? Math.round((job.processed_chunks / job.total_chunks) * 100) : 0;
+                                        $('#analyticsProgressBar').css('width', pct + '%');
+                                        $('#analyticsProgressText').text(job.processed_chunks + ' / ' + job.total_chunks + ' chunks');
+                                        
+                                        if (job.status === 'completed' || job.status === 'partial') {
+                                            $('#analyticsProgressArea').slideUp();
+                                            // Refresh data once done to show final numbers
+                                            loadAnalytics(currentAnalyticsId); 
+                                        } else {
+                                            analyticsPollingTimer = setTimeout(poll, 3000);
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        poll();
                     }
 
                     function resetAnalyticsUI() {

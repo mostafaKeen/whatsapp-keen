@@ -39,9 +39,9 @@ $output .= "\n=== Step 2: Performance API for test12355 (ID: $targetId) ===\n";
 $end = time();
 $start = $end - (7 * 86400);
 $perfUrl = "https://partner.gupshup.io/partner/app/{$appId}/template/analytics?" . http_build_query([
-    'start' => $start, 'end' => $end, 'granularity' => 'DAILY',
+    'start' => $start, 'end' => $end, 'granularity' => 'AGGREGATED',
     'metric_types' => 'SENT,DELIVERED,READ,CLICKED', 'template_ids' => $targetId,
-    'limit' => 30, 'product_type' => 'MARKETING_MESSAGES_LITE_API'
+    'product_type' => 'MARKETING_MESSAGES_LITE_API'
 ]);
 
 $ch = curl_init($perfUrl);
