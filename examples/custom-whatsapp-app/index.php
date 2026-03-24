@@ -1648,15 +1648,21 @@ if ($hasValidAuth) {
                     }
 
                     function loadBitrixFields(callback) {
-                        $.get('get_bitrix_fields.php', function(resp) {
-                            if (resp.status === 'success') {
-                                bitrixFields = resp.fields;
-                                renderManageFiltersModal();
-                                renderDynamicFilters();
+                        $.ajax({
+                            url: 'get_bitrix_fields.php',
+                            method: 'GET',
+                            cache: false,
+                            success: function(resp) {
+                                if (resp.status === 'success') {
+                                    bitrixFields = resp.fields;
+                                    renderManageFiltersModal();
+                                    renderDynamicFilters();
+                                }
+                                if (callback) callback();
+                            },
+                            error: function() {
+                                if (callback) callback();
                             }
-                            if (callback) callback();
-                        }).fail(function() {
-                            if (callback) callback();
                         });
                     }
 
@@ -1673,9 +1679,18 @@ if ($hasValidAuth) {
                             if (search && !f.title.toLowerCase().includes(search) && !f.id.toLowerCase().includes(search)) return;
                             
                             var checked = visibleFields.includes(f.id) ? 'checked' : '';
+                            // Show a small type badge to help distinguish field types
+                            var typeBadge = '';
+                            if (f.items && Array.isArray(f.items) && f.items.length > 0) {
+                                typeBadge = '<span class="badge badge-info ml-1" style="font-size:9px;">list('+f.items.length+')</span>';
+                            } else if (f.type === 'date' || f.type === 'datetime') {
+                                typeBadge = '<span class="badge badge-secondary ml-1" style="font-size:9px;">date</span>';
+                            } else if (f.type === 'boolean') {
+                                typeBadge = '<span class="badge badge-warning ml-1" style="font-size:9px;">bool</span>';
+                            }
                             var html = '<div class="custom-control custom-checkbox mb-2 field-item">' +
                                             '<input type="checkbox" class="custom-control-input field-toggle-checkbox" id="field_chk_'+f.id+'" value="'+f.id+'" '+checked+'>' +
-                                            '<label class="custom-control-label small font-weight-600" for="field_chk_'+f.id+'">'+f.title+' <span class="text-xs text-muted">('+f.id+')</span></label>' +
+                                            '<label class="custom-control-label small font-weight-600" for="field_chk_'+f.id+'">'+f.title+typeBadge+' <span class="text-xs text-muted">('+f.id+')</span></label>' +
                                        '</div>';
                             $list.append(html);
                         });
