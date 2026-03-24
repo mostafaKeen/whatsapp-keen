@@ -1697,7 +1697,7 @@ if ($hasValidAuth) {
                             var html = '<div class="filter-item-container">' +
                                             '<label class="filter-label" title="'+f.title+'">'+f.title+'</label>';
                             
-                            var commonStyle = 'class="form-control form-control-sm border-0 bg-transparent p-0 dynamic-filter-input" style="box-shadow:none;" data-field="'+f.id+'"';
+                            var commonStyle = 'class="form-control form-control-sm border-0 bg-transparent p-0 dynamic-filter-input" style="box-shadow:none;" data-field="'+f.id+'" data-type="'+(f.type || 'string')+'"';
                             
                             if (f.items && Array.isArray(f.items)) {
                                 html += '<select '+commonStyle+'>' +
@@ -1708,6 +1708,16 @@ if ($hasValidAuth) {
                                 html += '</select>';
                             } else if (f.type === 'date' || f.type === 'datetime') {
                                 html += '<input type="date" '+commonStyle+'>';
+                            } else if (f.type === 'boolean') {
+                                // Although boolean usually comes as enumeration items from my PHP, 
+                                // this is a fallback for raw boolean types.
+                                html += '<select '+commonStyle+'>' +
+                                            '<option value="">All</option>' +
+                                            '<option value="Y">Yes</option>' +
+                                            '<option value="N">No</option>' +
+                                        '</select>';
+                            } else if (f.type === 'integer' || f.type === 'double' || f.type === 'money') {
+                                html += '<input type="number" '+commonStyle+' placeholder="...">';
                             } else {
                                 html += '<input type="text" '+commonStyle+' placeholder="...">';
                             }
@@ -1814,13 +1824,36 @@ if ($hasValidAuth) {
                             for (var fieldId in filterValues) {
                                 var targetVal = String(filterValues[fieldId]).toLowerCase();
                                 var leadVal = l[fieldId];
+                                
+                                // Find field metadata to check type
+                                var f = bitrixFields.find(function(x){ return x.id === fieldId; });
+                                var isSelect = f && (f.items || f.type === 'enumeration' || f.type === 'crm_status' || f.type === 'boolean');
 
-                                if (fieldId === 'PHONE' && Array.isArray(leadVal)) {
-                                    leadVal = leadVal.map(function(p){ return p.VALUE; }).join(' ');
-                                }
+                                if (leadVal === null || leadVal === undefined) return false;
 
-                                if (leadVal === null || leadVal === undefined || !String(leadVal).toLowerCase().includes(targetVal)) {
-                                    return false;
+                                // Handle multi-fields (PHONE, EMAIL etc) - they are usually arrays of objects
+                                if (Array.isArray(leadVal)) {
+                                    var matchFound = false;
+                                    for (var i = 0; i < leadVal.length; i++) {
+                                        var item = leadVal[i];
+                                        var valToCompare = (typeof item === 'object' && item !== null) ? (item.VALUE || '') : item;
+                                        var strToCompare = String(valToCompare).toLowerCase();
+                                        
+                                        if (isSelect) {
+                                            if (strToCompare === targetVal) { matchFound = true; break; }
+                                        } else {
+                                            if (strToCompare.includes(targetVal)) { matchFound = true; break; }
+                                        }
+                                    }
+                                    if (!matchFound) return false;
+                                } else {
+                                    // Single value
+                                    var leadStr = String(leadVal).toLowerCase();
+                                    if (isSelect) {
+                                        if (leadStr !== targetVal) return false;
+                                    } else {
+                                        if (!leadStr.includes(targetVal)) return false;
+                                    }
                                 }
                             }
                             return true;

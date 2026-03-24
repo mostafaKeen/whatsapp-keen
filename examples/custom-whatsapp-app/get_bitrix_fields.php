@@ -28,25 +28,41 @@ $fieldsRes = bitrix24Call($webhookUrl, 'crm.lead.fields');
 $fields = $fieldsRes['result'] ?? [];
 
 // 2. Filter out internal or unwanted fields
-$allowedTypes = ['string', 'enumeration', 'date', 'datetime', 'char', 'integer', 'double', 'boolean', 'status', 'user'];
-$excludeFields = ['ID', 'PHONE', 'EMAIL', 'WEB', 'IM'];
+$allowedTypes = [
+    'string', 'enumeration', 'date', 'datetime', 'char', 'integer', 'double', 'boolean', 
+    'status', 'user', 'crm_status', 'crm_currency', 'money', 'url', 'file'
+];
+$excludeFields = ['ID', 'PHONE', 'EMAIL', 'WEB', 'IM', 'LINK'];
 
 $filteredFields = [];
 foreach ($fields as $key => $f) {
-    if (in_array($f['type'], $allowedTypes) && !in_array($key, $excludeFields)) {
+    // Normalize type for enumeration/crm_status
+    $type = $f['type'];
+    
+    if (in_array($type, $allowedTypes) && !in_array($key, $excludeFields)) {
         $title = $f['title'] 
-               ?? $f['editFormLabel'] 
-               ?? $f['listColumnLabel'] 
-               ?? $f['listFilterLabel'] 
                ?? $f['formLabel'] 
                ?? $f['listLabel'] 
+               ?? $f['filterLabel'] 
+               ?? $f['editFormLabel'] 
+               ?? $f['listColumnLabel'] 
                ?? $key;
+
+        $items = $f['items'] ?? null;
+        
+        // Handle boolean fields which might not have items but we want a Yes/No select
+        if ($type === 'boolean' && !$items) {
+            $items = [
+                ['ID' => '1', 'VALUE' => 'Yes'],
+                ['ID' => '0', 'VALUE' => 'No']
+            ];
+        }
 
         $filteredFields[$key] = [
             'id'    => $key,
             'title' => $title,
-            'type'  => $f['type'],
-            'items' => $f['items'] ?? null
+            'type'  => $type,
+            'items' => $items
         ];
     }
 }
