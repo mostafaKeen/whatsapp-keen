@@ -244,9 +244,17 @@ if ($hasValidAuth) {
         .contact-list-container::-webkit-scrollbar { width: 5px; }
         .contact-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-        /* Modal responsive fix */
+        /* Modal responsive fixes */
+        #campaignModal .modal-body {
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
+        
         @media (max-width: 576px) {
             .modal-dialog.modal-lg { max-width: 98%; margin: 10px auto; }
+            #campaignModal .modal-body {
+                max-height: calc(100vh - 120px);
+            }
         }
 
         .header-section {
