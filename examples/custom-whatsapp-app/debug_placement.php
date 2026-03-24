@@ -19,7 +19,7 @@ echo "=== DEBUG PLACEMENT BINDING (App OAuth Mode) ===\n\n";
 if (!file_exists($settingsFile)) {
     echo "❌ ERROR: settings.json NOT FOUND.\n";
     echo "The app was never installed properly (install.php never ran).\n";
-    echo "You must open your Bitrix24 app list, find KEEN WABA, and REINSTALL it.\n";
+    echo "You must open your Bitrix24 app list, find KEEN Nexus, and REINSTALL it.\n";
     echo "That triggers install.php and saves the OAuth token to settings.json.\n";
     echo '</pre>';
     exit;
@@ -94,7 +94,7 @@ foreach ($placements as $placement) {
 }
 
 echo "=== DONE ===\n";
-echo "Now open a Lead or Deal in Bitrix24 and look for the KEEN WABA tab!\n";
+echo "Now open a Lead or Deal in Bitrix24 and look for the KEEN Nexus tab!\n";
 echo '</pre>';
 
 function callAppMethod($clientEndpoint, $accessToken, $method, $params = []) {

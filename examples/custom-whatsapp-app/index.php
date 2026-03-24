@@ -111,7 +111,7 @@ if ($hasValidAuth) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KEEN WABA</title>
+    <title>KEEN Nexus</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
@@ -529,7 +529,7 @@ if ($hasValidAuth) {
         <div class="header-section">
             <div class="app-logo">
                 <i class="fab fa-whatsapp"></i>
-                <span>KEEN WABA</span>
+                <span>KEEN Nexus</span>
             </div>
             <?php if (!$errorMessage): ?>
                 <div class="badge-active">
@@ -2964,7 +2964,7 @@ if ($hasValidAuth) {
                         <div id="chatEmptyState" class="flex-column justify-content-center align-items-center w-100 h-100" style="background: #f0f2f5; z-index: 1; display: flex;">
                             <div class="text-center">
                                 <i class="fab fa-whatsapp text-muted mb-3" style="font-size: 5rem; opacity: 0.2;"></i>
-                                <h4 class="text-muted" style="color: #41525d;">KEEN WABA for Bitrix24</h4>
+                                <h4 class="text-muted" style="color: #41525d;">KEEN Nexus for Bitrix24</h4>
                                 <p class="text-muted small">Select a conversation to start messaging.<br>Send and receive messages directly from your CRM.</p>
                             </div>
                         </div>

@@ -55,7 +55,7 @@ if ($install_result['install'] === true) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>KEEN WABA - Setup</title>
+    <title>KEEN Nexus - Setup</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
@@ -99,7 +99,7 @@ if ($install_result['install'] === true) {
             <div class="mb-4">
                 <i class="fab fa-whatsapp fa-4x text-primary"></i>
             </div>
-            <h1 class="mb-3">Welcome to KEEN WABA</h1>
+            <h1 class="mb-3">Welcome to KEEN Nexus</h1>
             
             <?php if ($error_message): ?>
                 <div class="alert alert-danger"><?= $error_message ?></div>
@@ -120,7 +120,7 @@ if ($install_result['install'] === true) {
                 <div class="text-left mt-4 text-muted">
                     <p><span class="badge badge-primary mr-2">1</span> Close this window.</p>
                     <p><span class="badge badge-primary mr-2">2</span> <b>Refresh your Bitrix24 page.</b></p>
-                    <p><span class="badge badge-primary mr-2">3</span> Open any <b>Lead</b> or <b>Deal</b> to find the <b>"KEEN WABA"</b> tab.</p>
+                    <p><span class="badge badge-primary mr-2">3</span> Open any <b>Lead</b> or <b>Deal</b> to find the <b>"KEEN Nexus"</b> tab.</p>
                 </div>
             </div>
         </div>
