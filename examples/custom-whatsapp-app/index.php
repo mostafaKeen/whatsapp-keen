@@ -1960,7 +1960,7 @@ if ($hasValidAuth) {
                         if ($respSel.children('option').length <= 2) { // Default + Round Robin
                             $respSel.empty().append('<option value="">Loading users...</option>');
                             $.ajax({
-                                url: 'https://westgate.bitrix24.com/rest/9034/nks666y4mpf9ppx6/user.get.json',
+                                url: '<?php echo $whatsappConfig['webhook_url']; ?>user.get.json',
                                 method: 'GET',
                                 dataType: 'json',
                                 success: function(resp) {

@@ -488,7 +488,8 @@ function sendAgentNotification(string $webhookUrl, $responsibleId, $leadId, stri
 
     $cleanText = mb_strimwidth($text, 0, 100, "...");
     $message = "New WhatsApp message from [b]{$senderName}[/b]: \"{$cleanText}\"\n";
-    $message .= "View Lead: https://westgate.bitrix24.com/crm/lead/details/{$leadId}/";
+    $baseUrl = explode('.com', $webhookUrl)[0] . '.com';
+    $message .= "View Lead: {$baseUrl}/crm/lead/details/{$leadId}/";
 
     bitrix24Call($webhookUrl, 'im.notify.system.add', [
         'USER_ID' => $responsibleId,
