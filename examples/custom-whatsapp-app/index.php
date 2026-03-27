@@ -25,15 +25,55 @@ ob_start();
 $errorMessage = null;
 $isRegistered = true; // Always active, no connector required
 
+$configFile = __DIR__ . '/../config.php';
+$configExists = file_exists($configFile);
+$setupMode = isset($_GET['setup']) || !$configExists;
+$saveSuccess = false;
+$saveError = null;
+
+// Handle Configuration Save
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_config') {
+    $newConfig = [
+        'webhook_url' => $_POST['webhook_url'] ?? '',
+        'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $_POST['client_id'] ?? '',
+        'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $_POST['client_secret'] ?? '',
+        'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $_POST['scope'] ?? 'imconnector,im,crm,placement',
+        'gupshup_app_id' => $_POST['gupshup_app_id'] ?? '',
+        'gupshup_api_token' => $_POST['gupshup_api_token'] ?? '',
+        'gupshup_source' => $_POST['gupshup_source'] ?? '',
+        'gupshup_app_name' => $_POST['gupshup_app_name'] ?? '',
+    ];
+
+    $configContent = "<?php\nreturn [\n";
+    foreach ($newConfig as $key => $value) {
+        $configContent .= "    '$key' => '" . addslashes((string)$value) . "',\n";
+    }
+    // Add var_dir with raw __DIR__ expression
+    $configContent .= "    'var_dir' => __DIR__ . '/../var',\n";
+    $configContent .= "];\n";
+
+    if (file_put_contents($configFile, $configContent)) {
+        $saveSuccess = true;
+        // Force refresh of the configuration
+        clearstatcache(true, $configFile);
+        $setupMode = false;
+    } else {
+        $saveError = "Failed to write to config.php. Please check file permissions of the parent directory.";
+    }
+}
+
 try {
     require_once __DIR__ . '/../../vendor/autoload.php';
-    $whatsappConfig = require __DIR__ . '/../config.php';
-
-$appProfile = ApplicationProfile::initFromArray([
-    'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'],
-    'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'],
-    'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'],
-]);
+    
+    // Only proceed with Bitrix24 init if NOT in setup mode
+    if (!$setupMode) {
+        $whatsappConfig = require $configFile;
+        
+        $appProfile = ApplicationProfile::initFromArray([
+            'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'] ?? '',
+            'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'] ?? '',
+            'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'] ?? '',
+        ]);
 
 // Use custom session manager instead of PHP sessions for reliability on shared hosting
 require_once __DIR__ . '/SessionManager.php';
@@ -103,6 +143,10 @@ if ($hasValidAuth) {
 } else {
     $errorMessage = 'No valid authorization found. Please close this window and open the app from Bitrix24 menu.';
 }
+    } else {
+        // In setup mode, we don't try to load the full app logic
+        $whatsappConfig = $configExists ? require $configFile : [];
+    }
 } catch (\Exception $e) {
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
@@ -539,6 +583,115 @@ if ($hasValidAuth) {
             <?php endif; ?>
         </div>
 
+        <?php if ($setupMode): ?>
+            <!-- Setup Form Section -->
+            <div class="glass-card mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h3 class="mb-1">Application Configuration</h3>
+                        <p class="text-muted small mb-0">Set up your Bitrix24 and Gupshup credentials to begin.</p>
+                    </div>
+                    <?php if ($configExists): ?>
+                        <button type="button" class="btn btn-modern btn-outline-modern" onclick="window.location.href='index.php'">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    <?php endif; ?>
+                </div>
+
+                <?php if ($saveError): ?>
+                    <div class="alert alert-danger rounded-lg mb-4">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> <?= $saveError ?>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" id="setupForm">
+                    <input type="hidden" name="action" value="save_config">
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-4">
+                            <h6 class="font-weight-700 text-uppercase small text-primary letter-spacing-1 mb-3">Bitrix24 Settings</h6>
+                            <div class="form-group">
+                                <label class="font-weight-600 small text-muted text-uppercase">Webhook URL / Portal URL</label>
+                                <input type="url" name="webhook_url" class="form-control form-control-modern" 
+                                       value="<?= htmlspecialchars($whatsappConfig['webhook_url'] ?? '') ?>" 
+                                       placeholder="https://company.bitrix24.com/rest/..." required>
+                                <small class="text-muted">Direct webhook URL or portal URL.</small>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Application Client ID</label>
+                                    <input type="text" name="client_id" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'] ?? '') ?>" 
+                                           placeholder="local.XXXXXX..." required>
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Application Client Secret</label>
+                                    <input type="password" name="client_secret" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'] ?? '') ?>" 
+                                           placeholder="****************" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="font-weight-600 small text-muted text-uppercase">Application Scope</label>
+                                <input type="text" name="scope" class="form-control form-control-modern" 
+                                       value="<?= htmlspecialchars($whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'] ?? 'imconnector,im,crm,placement') ?>" required>
+                                <small class="text-muted">Comma-separated permissions (e.g., crm,im,placement).</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-12 mb-4">
+                            <h6 class="font-weight-700 text-uppercase small text-success letter-spacing-1 mb-3">Gupshup Settings</h6>
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Gupshup App ID</label>
+                                    <input type="text" name="gupshup_app_id" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['gupshup_app_id'] ?? '') ?>" required>
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Gupshup API Token</label>
+                                    <input type="password" name="gupshup_api_token" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['gupshup_api_token'] ?? '') ?>" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Gupshup Source Number</label>
+                                    <input type="text" name="gupshup_source" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['gupshup_source'] ?? '') ?>" placeholder="971..." required>
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label class="font-weight-600 small text-muted text-uppercase">Gupshup App Name</label>
+                                    <input type="text" name="gupshup_app_name" class="form-control form-control-modern" 
+                                           value="<?= htmlspecialchars($whatsappConfig['gupshup_app_name'] ?? '') ?>" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <?php if ($configExists): ?>
+                            <button type="button" class="btn btn-modern btn-outline-modern" id="useOldSettingsBtn">
+                                <i class="fas fa-history mr-2"></i> Use Old Settings
+                            </button>
+                        <?php else: ?>
+                            <div></div>
+                        <?php endif; ?>
+                        <button type="submit" class="btn btn-modern btn-primary-modern">
+                            <i class="fas fa-save mr-2"></i> Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <script>
+                document.getElementById('useOldSettingsBtn')?.addEventListener('click', function() {
+                    if (confirm('Revert all changes to existing saved settings?')) {
+                        window.location.reload();
+                    }
+                });
+            </script>
+        <?php endif; ?>
+
         <!-- Alerts Section -->
         <?php if ($errorMessage): ?>
             <div class="glass-card border-left border-danger" style="border-left-width: 4px !important;">
@@ -624,6 +777,13 @@ if ($hasValidAuth) {
                         <span id="apiResponseTitle" class="small flex-grow-1"></span>
                         <button type="button" class="close" onclick="$('#apiResponseBanner').hide()">&times;</button>
                     </div>
+                </div>
+
+                <!-- Settings Trigger Button -->
+                <div class="text-right mt-4">
+                    <a href="index.php?setup=1" class="btn btn-sm btn-outline-modern">
+                        <i class="fas fa-cog mr-1"></i> Developer Settings
+                    </a>
                 </div>
             </div>
                 <!-- Campaign Modal -->
