@@ -606,6 +606,13 @@ if ($hasValidAuth) {
 
                 <form method="POST" id="setupForm">
                     <input type="hidden" name="action" value="save_config">
+                    <!-- Preserve Bitrix24 Context -->
+                    <input type="hidden" name="DOMAIN" value="<?= htmlspecialchars($_REQUEST['DOMAIN'] ?? '') ?>">
+                    <input type="hidden" name="AUTH_ID" value="<?= htmlspecialchars($_REQUEST['AUTH_ID'] ?? '') ?>">
+                    <input type="hidden" name="REFRESH_ID" value="<?= htmlspecialchars($_REQUEST['REFRESH_ID'] ?? '') ?>">
+                    <input type="hidden" name="AUTH_EXPIRES" value="<?= htmlspecialchars($_REQUEST['AUTH_EXPIRES'] ?? '') ?>">
+                    <input type="hidden" name="PROTOCOL" value="<?= htmlspecialchars($_REQUEST['PROTOCOL'] ?? '') ?>">
+                    <input type="hidden" name="SERVER_ENDPOINT" value="<?= htmlspecialchars($_REQUEST['SERVER_ENDPOINT'] ?? '') ?>">
                     
                     <div class="row">
                         <div class="col-md-12 mb-4">
@@ -781,7 +788,12 @@ if ($hasValidAuth) {
 
                 <!-- Settings Trigger Button -->
                 <div class="text-right mt-4">
-                    <a href="index.php?setup=1" class="btn btn-sm btn-outline-modern">
+                    <?php
+                        $setupParams = $_GET;
+                        $setupParams['setup'] = '1';
+                        $setupUrl = 'index.php?' . http_build_query($setupParams);
+                    ?>
+                    <a href="<?= htmlspecialchars($setupUrl) ?>" class="btn btn-sm btn-outline-modern">
                         <i class="fas fa-cog mr-1"></i> Developer Settings
                     </a>
                 </div>
