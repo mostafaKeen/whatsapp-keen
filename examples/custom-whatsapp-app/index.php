@@ -1487,16 +1487,16 @@ if ($hasValidAuth) {
                         });
                         $('#buttonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
                         
-                        // Client-side validation for IMAGE types
+                        // Client-side validation for Media types
                         var templateType = $('#templateType').val();
                         var mediaUrl = $('input[name="mediaUrl"]').val();
-                        if (templateType === 'IMAGE') {
+                        if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(templateType) !== -1) {
                             if (!mediaUrl || mediaUrl.trim() === '') {
-                                $('#createError').html('<strong>Error:</strong> Image URL is required').show();
+                                $('#createError').html('<strong>Error:</strong> ' + templateType + ' URL is required').show();
                                 return false;
                             }
                             if (!mediaUrl.toLowerCase().startsWith('https://')) {
-                                $('#createError').html('<strong>Error:</strong> Image URL must be a public HTTPS link').show();
+                                $('#createError').html('<strong>Error:</strong> ' + templateType + ' URL must be a public HTTPS link').show();
                                 return false;
                             }
                         }

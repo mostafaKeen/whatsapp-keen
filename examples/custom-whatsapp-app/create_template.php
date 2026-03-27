@@ -41,16 +41,59 @@ $vertical = $category;
 if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
 if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
 
-// Logic for IMAGE header examples
-if ($templateType === 'IMAGE') {
+// Logic for Media Templates (IMAGE, VIDEO, DOCUMENT, GIF)
+if (in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'])) {
     if (empty($mediaUrl)) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'mediaUrl is required for IMAGE template']);
+        echo json_encode(['status' => 'error', 'message' => 'mediaUrl is required for ' . $templateType . ' template']);
         exit;
     }
-    $example = json_encode([
-        "header_handle" => [$mediaUrl]
+
+    // 1. Upload media to Gupshup to get handleId
+    $uploadUrl = "https://partner.gupshup.io/partner/app/$appId/upload/media";
+    $mimeMap = [
+        'IMAGE' => 'image/jpeg',
+        'VIDEO' => 'video/mp4',
+        'DOCUMENT' => 'application/pdf',
+        'GIF' => 'video/mp4'
+    ];
+    $fileType = $mimeMap[$templateType] ?? 'image/jpeg';
+
+    $uploadCh = curl_init($uploadUrl);
+    curl_setopt($uploadCh, CURLOPT_POST, true);
+    curl_setopt($uploadCh, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($uploadCh, CURLOPT_HTTPHEADER, ["Authorization: $apiToken"]);
+    
+    // Gupshup upload/media accepts a URL as the 'file' parameter
+    curl_setopt($uploadCh, CURLOPT_POSTFIELDS, [
+        'file' => $mediaUrl,
+        'file_type' => $fileType
     ]);
+    curl_setopt($uploadCh, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+
+    $uploadResponse = curl_exec($uploadCh);
+    $uploadHttpCode = curl_getinfo($uploadCh, CURLINFO_HTTP_CODE);
+    $uploadError = curl_error($uploadCh);
+    curl_close($uploadCh);
+
+    if ($uploadError || $uploadHttpCode !== 200) {
+        http_response_code(500);
+        $msg = $uploadError ?: "Media upload failed with HTTP $uploadHttpCode: $uploadResponse";
+        echo json_encode(['status' => 'error', 'message' => $msg]);
+        exit;
+    }
+
+    $uploadData = json_decode($uploadResponse, true);
+    $mediaHandle = $uploadData['handleId']['message'] ?? '';
+
+    if (empty($mediaHandle)) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'Could not retrieve media handle from Gupshup response.']);
+        exit;
+    }
+
+    // 2. Set exampleMedia for template creation
+    $exampleMedia = $mediaHandle;
 }
 
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
@@ -74,21 +117,15 @@ if (!empty($buttons)) {
     $postData['buttons'] = $buttons;
 }
 
-if ($templateType !== 'IMAGE') {
+// Map exampleMedia for media templates
+if (!empty($exampleMedia)) {
+    $postData['exampleMedia'] = $exampleMedia;
+}
+
+// Include regular header if not a media template
+if (!in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'])) {
     if (!empty($header)) {
         $postData['header'] = $header;
-    }
-    if (!empty($exampleHeader)) {
-        $postData['exampleHeader'] = $exampleHeader;
-    }
-    if (!empty($exampleMedia)) {
-        $postData['exampleMedia'] = $exampleMedia;
-    }
-    if (!empty($mediaUrl)) {
-        $postData['mediaUrl'] = $mediaUrl;
-    }
-    if (!empty($mediaId)) {
-        $postData['mediaId'] = $mediaId;
     }
 }
 
