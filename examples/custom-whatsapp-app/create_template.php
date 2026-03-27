@@ -37,11 +37,16 @@ if (empty($elementName) || empty($content)) {
     exit;
 }
 
-// Gupshup vertical usually needs to be TRANSACTIONAL, MARKETING, or OTP.
-// For self-serve accounts, category and vertical often align.
 $vertical = $category;
 if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
 if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
+
+// Logic for IMAGE header examples
+if ($templateType === 'IMAGE' && !empty($mediaUrl)) {
+    $example = json_encode([
+        "header_handle" => [$mediaUrl]
+    ]);
+}
 
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
 
@@ -57,7 +62,11 @@ $postData = [
     'allowTemplateCategoryChange' => $_POST['allowTemplateCategoryChange'] ?? 'false'
 ];
 
-if (!empty($header)) {
+if ($templateType === 'IMAGE') {
+    $postData['header'] = json_encode([
+        "type" => "IMAGE"
+    ]);
+} elseif (!empty($header)) {
     $postData['header'] = $header;
 }
 if (!empty($footer)) {
