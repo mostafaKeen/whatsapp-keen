@@ -20,16 +20,14 @@ $apiToken = $whatsappConfig['gupshup_api_token'];
 $elementName = $_POST['elementName'] ?? '';
 $languageCode = $_POST['languageCode'] ?? 'en_US';
 $category = $_POST['category'] ?? 'MARKETING';
-$templateType = $_POST['templateType'] ?? 'TEXT';
+$templateType = $_POST['templateType'] ?? 'TEXT'; // UI value: TEXT, IMAGE, VIDEO, DOCUMENT, GIF
 $content = $_POST['content'] ?? '';
 $example = $_POST['example'] ?? '';
-$header = $_POST['header'] ?? '';
+$headerText = $_POST['header'] ?? '';
 $footer = $_POST['footer'] ?? '';
 $buttons = $_POST['buttons'] ?? ''; // JSON string from UI
 $exampleHeader = $_POST['exampleHeader'] ?? '';
-$exampleMedia = $_POST['exampleMedia'] ?? ''; // Media handle if already uploaded or URL
-$mediaUrl = $_POST['mediaUrl'] ?? '';
-$mediaId = $_POST['mediaId'] ?? '';
+$exampleMedia = $_POST['exampleMedia'] ?? ''; // Sample media URL for media templates
 
 if (empty($elementName) || empty($content)) {
     http_response_code(400);
@@ -38,63 +36,72 @@ if (empty($elementName) || empty($content)) {
 }
 
 // For media templates, exampleMedia (sample URL) is required by Gupshup
-if ($templateType !== 'TEXT' && empty($exampleMedia)) {
+$mediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'];
+$isMediaTemplate = in_array($templateType, $mediaTypes);
+
+if ($isMediaTemplate && empty($exampleMedia)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Templates with a ' . $templateType . ' header type require a Sample Media URL. Please provide a direct HTTPS link to a sample file for this template type.']);
+    echo json_encode(['status' => 'error', 'message' => 'Templates with a ' . $templateType . ' header type require a Sample Media URL. Please provide a direct HTTPS link to a sample file.']);
     exit;
 }
 
-// Gupshup vertical usually needs to be TRANSACTIONAL, MARKETING, or OTP.
-// For self-serve accounts, category and vertical often align.
+// Gupshup vertical mapping
 $vertical = $category;
 if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
 if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
 
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/templates';
 
+// Gupshup Partner API requires:
+//   - templateType = "MEDIA" for all image/video/document/gif headers
+//   - a nested "header" object: {"type":"IMAGE","example":{"header_handle":["https://..."]}}
 $postData = [
-    'elementName' => $elementName,
-    'languageCode' => $languageCode,
-    'category' => $category,
-    'templateType' => $templateType,
-    'vertical' => $vertical,
-    'content' => $content,
-    'example' => $example,
-    'enableSample' => 'true',
-    'allowTemplateCategoryChange' => $_POST['allowTemplateCategoryChange'] ?? 'false'
+    'elementName'                  => $elementName,
+    'languageCode'                 => $languageCode,
+    'category'                     => $category,
+    'templateType'                 => $isMediaTemplate ? 'MEDIA' : $templateType,
+    'vertical'                     => $vertical,
+    'content'                      => $content,
+    'example'                      => $example,
+    'enableSample'                 => true,
+    'allowTemplateCategoryChange'  => ($_POST['allowTemplateCategoryChange'] ?? 'false') === 'true',
 ];
 
-if (!empty($header)) {
-    $postData['header'] = $header;
+// Build the header object for media templates
+if ($isMediaTemplate) {
+    $postData['header'] = [
+        'type'    => $templateType, // IMAGE, VIDEO, DOCUMENT, GIF
+        'example' => [
+            'header_handle' => [$exampleMedia],
+        ],
+    ];
+} elseif (!empty($headerText)) {
+    // Text-only templates can have a plain text header
+    $postData['header'] = $headerText;
 }
+
 if (!empty($footer)) {
     $postData['footer'] = $footer;
 }
 if (!empty($buttons)) {
-    $postData['buttons'] = $buttons;
+    $decodedButtons = json_decode($buttons, true);
+    if (is_array($decodedButtons)) {
+        $postData['buttons'] = $decodedButtons;
+    }
 }
 if (!empty($exampleHeader)) {
     $postData['exampleHeader'] = $exampleHeader;
 }
-if (!empty($exampleMedia)) {
-    $postData['exampleMedia'] = $exampleMedia;
-}
-if (!empty($mediaUrl)) {
-    $postData['mediaUrl'] = $mediaUrl;
-}
-if (!empty($mediaId)) {
-    $postData['mediaId'] = $mediaId;
-}
 
+// Switch to JSON body so nested objects (header, buttons) serialize correctly
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
-// Gupshup documentation says: application/x-www-form-urlencoded
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
     'Authorization: ' . $apiToken,
-    'Content-Type: application/x-www-form-urlencoded'
+    'Content-Type: application/json',
 ]);
 
 $response = curl_exec($ch);
