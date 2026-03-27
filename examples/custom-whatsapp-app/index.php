@@ -1132,8 +1132,7 @@ if ($hasValidAuth) {
                                     <div class="row">
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Template Name *</label>
-                                            <input type="text" name="elementName" id="elementNameInput" class="form-control form-control-modern" placeholder="e.g. order_alert" required>
-                                            <small class="text-muted">Lowercase letters, numbers and underscores only. Spaces auto-converted.</small>
+                                            <input type="text" name="elementName" class="form-control form-control-modern" placeholder="e.g. order_alert" required>
                                         </div>
                                         <div class="col-md-3 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Category *</label>
@@ -1181,7 +1180,7 @@ if ($hasValidAuth) {
                                         <h6 class="font-weight-bold text-info small text-uppercase mb-3"><i class="fas fa-photo-video mr-2"></i> Media Requirements</h6>
                                         <div class="form-group mb-0">
                                             <label class="small font-weight-bold">Sample Media URL / Property *</label>
-                                            <input type="text" name="exampleMedia" id="exampleMediaInput" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
+                                            <input type="text" name="exampleMedia" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
                                         </div>
                                     </div>
 
@@ -1423,34 +1422,21 @@ if ($hasValidAuth) {
                     loadTemplates();
                     $('#refreshTemplates').off('click').on('click', function() { loadTemplates(); });
 
-                    // Auto-sanitize template name: lowercase, spaces→underscore, strip invalid chars
-                    $(document).on('input', '#elementNameInput', function() {
-                        var pos = this.selectionStart;
-                        var cleaned = $(this).val()
-                            .toLowerCase()
-                            .replace(/[\s\-]+/g, '_')
-                            .replace(/[^a-z0-9_]/g, '');
-                        $(this).val(cleaned);
-                        this.setSelectionRange(pos, pos);
-                    });
-
                     // Handle Template Type change (create form)
                     $('#templateType').change(function() {
                         var type = $(this).val();
                         if (type !== 'TEXT') {
                             $('#mediaExampleSection').show();
-                            $('#exampleMediaInput').prop('required', true);
                             $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
                             
                             // Adjust placeholder for GIF
                             if (type === 'GIF') {
-                                $('#exampleMediaInput').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
+                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
                             } else {
-                                $('#exampleMediaInput').attr('placeholder', 'HTTPS Link to a sample file');
+                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample file');
                             }
                         } else {
                             $('#mediaExampleSection').hide();
-                            $('#exampleMediaInput').prop('required', false).val('');
                             $('#headerField').prop('disabled', false).attr('placeholder', '60 characters max');
                         }
                     });
