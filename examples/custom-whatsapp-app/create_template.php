@@ -42,7 +42,12 @@ if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
 if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
 
 // Logic for IMAGE header examples
-if ($templateType === 'IMAGE' && !empty($mediaUrl)) {
+if ($templateType === 'IMAGE') {
+    if (empty($mediaUrl)) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'mediaUrl is required for IMAGE template']);
+        exit;
+    }
     $example = json_encode([
         "header_handle" => [$mediaUrl]
     ]);
@@ -62,30 +67,29 @@ $postData = [
     'allowTemplateCategoryChange' => $_POST['allowTemplateCategoryChange'] ?? 'false'
 ];
 
-if ($templateType === 'IMAGE') {
-    $postData['header'] = json_encode([
-        "type" => "IMAGE"
-    ]);
-} elseif (!empty($header)) {
-    $postData['header'] = $header;
-}
 if (!empty($footer)) {
     $postData['footer'] = $footer;
 }
 if (!empty($buttons)) {
     $postData['buttons'] = $buttons;
 }
-if (!empty($exampleHeader)) {
-    $postData['exampleHeader'] = $exampleHeader;
-}
-if (!empty($exampleMedia)) {
-    $postData['exampleMedia'] = $exampleMedia;
-}
-if (!empty($mediaUrl)) {
-    $postData['mediaUrl'] = $mediaUrl;
-}
-if (!empty($mediaId)) {
-    $postData['mediaId'] = $mediaId;
+
+if ($templateType !== 'IMAGE') {
+    if (!empty($header)) {
+        $postData['header'] = $header;
+    }
+    if (!empty($exampleHeader)) {
+        $postData['exampleHeader'] = $exampleHeader;
+    }
+    if (!empty($exampleMedia)) {
+        $postData['exampleMedia'] = $exampleMedia;
+    }
+    if (!empty($mediaUrl)) {
+        $postData['mediaUrl'] = $mediaUrl;
+    }
+    if (!empty($mediaId)) {
+        $postData['mediaId'] = $mediaId;
+    }
 }
 
 $ch = curl_init($url);
