@@ -1180,7 +1180,7 @@ if ($hasValidAuth) {
                                         <h6 class="font-weight-bold text-info small text-uppercase mb-3"><i class="fas fa-photo-video mr-2"></i> Media Requirements</h6>
                                         <div class="form-group mb-0">
                                             <label class="small font-weight-bold">Sample Media URL / Property *</label>
-                                            <input type="text" name="exampleMedia" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
+                                            <input type="text" name="mediaUrl" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
                                         </div>
                                     </div>
 
@@ -1431,9 +1431,9 @@ if ($hasValidAuth) {
                             
                             // Adjust placeholder for GIF
                             if (type === 'GIF') {
-                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
+                                $('input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
                             } else {
-                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample file');
+                                $('input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample file');
                             }
                         } else {
                             $('#mediaExampleSection').hide();
@@ -1486,6 +1486,21 @@ if ($hasValidAuth) {
                             btns.push(item);
                         });
                         $('#buttonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
+                        
+                        // Client-side validation for IMAGE types
+                        var templateType = $('#templateType').val();
+                        var mediaUrl = $('input[name="mediaUrl"]').val();
+                        if (templateType === 'IMAGE') {
+                            if (!mediaUrl || mediaUrl.trim() === '') {
+                                $('#createError').html('<strong>Error:</strong> Image URL is required').show();
+                                return false;
+                            }
+                            if (!mediaUrl.toLowerCase().startsWith('https://')) {
+                                $('#createError').html('<strong>Error:</strong> Image URL must be a public HTTPS link').show();
+                                return false;
+                            }
+                        }
+
                         $('#submitTemplateBtn').prop('disabled', true).text('Processing...');
                         $('#createError').hide();
 
@@ -1636,8 +1651,8 @@ if ($hasValidAuth) {
                             if (meta) {
                                 $form.find('[name="footer"]').val(meta.footer || '');
                                 $form.find('[name="header"]').val(meta.header || '');
-                                $form.find('[name="exampleMedia"]').val(meta.sampleMedia || '');
-                                $form.find('[name="exampleHeader"]').val(meta.sampleText || '');
+                                $form.find('[name="mediaUrl"]').val(meta.sampleMedia || '');
+                                 $form.find('[name="exampleHeader"]').val(meta.sampleText || '');
                                  $('#editMediaExampleSection').toggle(['IMAGE','VIDEO','DOCUMENT','GIF'].indexOf(t.templateType) !== -1);
                                 $('#editButtonsContainer').empty();
                                 if (meta.buttons && meta.buttons.length > 0) {
