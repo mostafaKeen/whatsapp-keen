@@ -1431,9 +1431,9 @@ if ($hasValidAuth) {
                             
                             // Adjust placeholder for GIF
                             if (type === 'GIF') {
-                                $('input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
+                                $('#createTemplateForm input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
                             } else {
-                                $('input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample file');
+                                $('#createTemplateForm input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample file');
                             }
                         } else {
                             $('#mediaExampleSection').hide();
@@ -1489,7 +1489,7 @@ if ($hasValidAuth) {
                         
                         // Client-side validation for Media types
                         var templateType = $('#templateType').val();
-                        var mediaUrl = $('input[name="mediaUrl"]').val();
+                        var mediaUrl = $('#createTemplateForm input[name="mediaUrl"]').val();
                         if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(templateType) !== -1) {
                             if (!mediaUrl || mediaUrl.trim() === '') {
                                 $('#createError').html('<strong>Error:</strong> ' + templateType + ' URL is required').show();
