@@ -37,6 +37,13 @@ if (empty($elementName) || empty($content)) {
     exit;
 }
 
+// For media templates, exampleMedia (sample URL) is required by Gupshup
+if ($templateType !== 'TEXT' && empty($exampleMedia)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Templates with a ' . $templateType . ' header type require a Sample Media URL. Please provide a direct HTTPS link to a sample file for this template type.']);
+    exit;
+}
+
 // Gupshup vertical usually needs to be TRANSACTIONAL, MARKETING, or OTP.
 // For self-serve accounts, category and vertical often align.
 $vertical = $category;

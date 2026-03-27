@@ -1180,7 +1180,7 @@ if ($hasValidAuth) {
                                         <h6 class="font-weight-bold text-info small text-uppercase mb-3"><i class="fas fa-photo-video mr-2"></i> Media Requirements</h6>
                                         <div class="form-group mb-0">
                                             <label class="small font-weight-bold">Sample Media URL / Property *</label>
-                                            <input type="text" name="exampleMedia" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
+                                            <input type="text" name="exampleMedia" id="exampleMediaInput" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
                                         </div>
                                     </div>
 
@@ -1427,16 +1427,18 @@ if ($hasValidAuth) {
                         var type = $(this).val();
                         if (type !== 'TEXT') {
                             $('#mediaExampleSection').show();
+                            $('#exampleMediaInput').prop('required', true);
                             $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
                             
                             // Adjust placeholder for GIF
                             if (type === 'GIF') {
-                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
+                                $('#exampleMediaInput').attr('placeholder', 'HTTPS Link to a sample MP4/GIF file');
                             } else {
-                                $('input[name="exampleMedia"]').attr('placeholder', 'HTTPS Link to a sample file');
+                                $('#exampleMediaInput').attr('placeholder', 'HTTPS Link to a sample file');
                             }
                         } else {
                             $('#mediaExampleSection').hide();
+                            $('#exampleMediaInput').prop('required', false).val('');
                             $('#headerField').prop('disabled', false).attr('placeholder', '60 characters max');
                         }
                     });
