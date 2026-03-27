@@ -35,6 +35,13 @@ if (empty($elementName) || empty($content)) {
     exit;
 }
 
+// Gupshup requires: lowercase, alphanumeric + underscores only
+if (!preg_match('/^[a-z0-9_]+$/', $elementName)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Invalid template name "' . $elementName . '". Use lowercase letters, numbers, and underscores only (no spaces, hyphens, or uppercase).']);
+    exit;
+}
+
 // For media templates, exampleMedia (sample URL) is required by Gupshup
 $mediaTypes = ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'];
 $isMediaTemplate = in_array($templateType, $mediaTypes);

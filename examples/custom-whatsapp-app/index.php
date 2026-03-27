@@ -1132,7 +1132,8 @@ if ($hasValidAuth) {
                                     <div class="row">
                                         <div class="col-md-6 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Template Name *</label>
-                                            <input type="text" name="elementName" class="form-control form-control-modern" placeholder="e.g. order_alert" required>
+                                            <input type="text" name="elementName" id="elementNameInput" class="form-control form-control-modern" placeholder="e.g. order_alert" required>
+                                            <small class="text-muted">Lowercase letters, numbers and underscores only. Spaces auto-converted.</small>
                                         </div>
                                         <div class="col-md-3 form-group">
                                             <label class="font-weight-600 small text-muted text-uppercase">Category *</label>
@@ -1421,6 +1422,17 @@ if ($hasValidAuth) {
                 $(document).ready(function() {
                     loadTemplates();
                     $('#refreshTemplates').off('click').on('click', function() { loadTemplates(); });
+
+                    // Auto-sanitize template name: lowercase, spaces→underscore, strip invalid chars
+                    $(document).on('input', '#elementNameInput', function() {
+                        var pos = this.selectionStart;
+                        var cleaned = $(this).val()
+                            .toLowerCase()
+                            .replace(/[\s\-]+/g, '_')
+                            .replace(/[^a-z0-9_]/g, '');
+                        $(this).val(cleaned);
+                        this.setSelectionRange(pos, pos);
+                    });
 
                     // Handle Template Type change (create form)
                     $('#templateType').change(function() {
