@@ -128,7 +128,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     'interactive' => match($msg['interactive']['type'] ?? '') {
                         'button_reply' => $msg['interactive']['button_reply']['title'] ?? '[Button Reply]',
                         'list_reply'   => $msg['interactive']['list_reply']['title']   ?? '[List Selection]',
-                        'nfm_reply'    => $msg['interactive']['nfm_reply']['body']     ?? '[Flow Response]',
+                        'nfm_reply'    => ($msg['interactive']['nfm_reply']['name'] ? $msg['interactive']['nfm_reply']['name'] . ': ' : '') . ($msg['interactive']['nfm_reply']['body'] ?? 'Sent'),
                         default        => '[Interactive Message]'
                     },
                     'button'   => $msg['button']['text'] ?? '[Button Click]',

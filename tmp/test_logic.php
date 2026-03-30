@@ -15,9 +15,9 @@ $text = match($type) {
     'location' => '[Location: ' . ($msg['location']['name'] ?? $msg['location']['address'] ?? ($msg['location']['latitude'] . ',' . $msg['location']['longitude'])) . ']',
     'contacts' => '[Contact: ' . ($msg['contacts'][0]['name']['formatted_name'] ?? 'Contact Card') . ']',
     'interactive' => match($msg['interactive']['type'] ?? '') {
-        'button_reply' => $msg['interactive']['button_reply']['title'] ?? '[Button Reply]',
-        'list_reply'   => $msg['interactive']['list_reply']['title']   ?? '[List Selection]',
-        'nfm_reply'    => $msg['interactive']['nfm_reply']['body']     ?? '[Flow Response]',
+        'button_reply' => $msg['interactive']['button_reply']['title']   ?? '[Button Reply]',
+        'list_reply'   => $msg['interactive']['list_reply']['title']     ?? '[List Selection]',
+        'nfm_reply'    => ($msg['interactive']['nfm_reply']['name'] ? $msg['interactive']['nfm_reply']['name'] . ': ' : '') . ($msg['interactive']['nfm_reply']['body'] ?? 'Sent'),
         default        => '[Interactive Message]'
     },
     'button'   => $msg['button']['text'] ?? '[Button Click]',
@@ -45,9 +45,9 @@ if ($type === 'location') {
 echo "Detected Text: " . $text . "\n";
 echo "Extra Data: " . json_encode($extraData, JSON_PRETTY_PRINT) . "\n";
 
-if ($text === "Sent" && $extraData['flow_name'] === "flow") {
+if ($text === "flow: Sent" && $extraData['flow_name'] === "flow") {
     echo "SUCCESS: Logic works as expected.\n";
 } else {
-    echo "FAILURE: Logic did not produce expected results.\n";
+    echo "FAILURE: Logic did not produce expected results (Text: $text).\n";
     exit(1);
 }
