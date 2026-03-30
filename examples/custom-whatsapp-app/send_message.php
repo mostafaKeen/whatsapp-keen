@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Dubai');
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

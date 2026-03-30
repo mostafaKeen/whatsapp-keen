@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Dubai');
 require_once (__DIR__.'/crest.php');
 
 // LOG ACCESS FOR DEBUGGING

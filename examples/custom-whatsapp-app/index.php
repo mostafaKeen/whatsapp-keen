@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+date_default_timezone_set('Asia/Dubai');
+
 use Bitrix24\SDK\Services\ServiceBuilderFactory;
 use Bitrix24\SDK\Services\ServiceBuilder;
 use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
