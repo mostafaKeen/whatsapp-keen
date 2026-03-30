@@ -215,6 +215,9 @@ foreach ($curls as $i => $ch) {
         // Log for debugging
         logDetailedError($jobId, $batch[$i], $postDataMap[$i] ?? [], $response, $httpCode, $error);
     }
+
+    // Rate limiting: Delay between 200ms and 500ms to avoid spam flagging
+    usleep(rand(200000, 500000));
 }
 
 if ($rateLimited) {

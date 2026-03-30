@@ -160,8 +160,8 @@ foreach ($jobData['targets'] as $index => &$target) {
     
     echo "Processed: " . $target['phone'] . " | Status: " . $target['status'] . "\n";
 
-    // Rate limiting: Gupshup recommends a small delay
-    usleep(500000); // 0.5 seconds
+    // Rate limiting: Delay between 200ms and 500ms to avoid spam flagging
+    usleep(rand(200000, 500000)); 
 }
 
 $jobData['status'] = 'completed';
