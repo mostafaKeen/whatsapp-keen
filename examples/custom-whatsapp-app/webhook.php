@@ -128,6 +128,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     'interactive' => match($msg['interactive']['type'] ?? '') {
                         'button_reply' => $msg['interactive']['button_reply']['title'] ?? '[Button Reply]',
                         'list_reply'   => $msg['interactive']['list_reply']['title']   ?? '[List Selection]',
+                        'nfm_reply'    => $msg['interactive']['nfm_reply']['body']     ?? '[Flow Response]',
                         default        => '[Interactive Message]'
                     },
                     'button'   => $msg['button']['text'] ?? '[Button Click]',
@@ -158,7 +159,9 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 } elseif ($type === 'interactive') {
                     $extraData = [
                         'interactive_type' => $msg['interactive']['type'] ?? null,
-                        'reply_id'         => $msg['interactive']['button_reply']['id'] ?? $msg['interactive']['list_reply']['id'] ?? null
+                        'reply_id'         => $msg['interactive']['button_reply']['id'] ?? $msg['interactive']['list_reply']['id'] ?? null,
+                        'flow_name'        => $msg['interactive']['nfm_reply']['name'] ?? null,
+                        'flow_response'    => $msg['interactive']['nfm_reply']['response_json'] ?? null
                     ];
                 } elseif ($type === 'contacts') {
                     $extraData = [
