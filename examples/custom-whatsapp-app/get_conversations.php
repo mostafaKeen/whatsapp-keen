@@ -73,9 +73,15 @@ usort($conversations, function($a, $b) {
     return (int)strtotime($b['last_message_timestamp'] ?: 'now') - (int)strtotime($a['last_message_timestamp'] ?: 'now');
 });
 
-// Filter out deleted leads/contacts
+// Filter out deleted leads/contacts AND respect ownership
 if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
+    require_once __DIR__ . '/SessionManager.php';
+    $sessionManager = new SessionManager();
+    $storedAuth = $sessionManager->getAuth();
+    
     $batch = [];
+    $batch['me'] = 'user.current'; // Get current browsing user ID and admin status
+    
     foreach ($conversations as $index => $conv) {
         if ($conv['type'] === 'lead') {
             $batch['check_' . $index] = 'crm.lead.get?id=' . $conv['id'];
@@ -85,33 +91,54 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
     }
 
     if (!empty($batch)) {
-        $batchUrl = rtrim($whatsappConfig['webhook_url'], '/') . '/batch.json';
+        // Use the browsing user's auth if available, otherwise fallback to the system webhook
+        if ($storedAuth && !empty($storedAuth['AUTH_ID']) && !empty($storedAuth['DOMAIN'])) {
+            $domain = htmlspecialchars($storedAuth['DOMAIN']);
+            $batchUrl = 'https://' . $domain . '/rest/batch.json';
+            $postFields = http_build_query([
+                'cmd' => $batch, 
+                'halt' => 0,
+                'auth' => $storedAuth['AUTH_ID']
+            ]);
+        } else {
+            $batchUrl = rtrim($whatsappConfig['webhook_url'], '/') . '/batch.json';
+            $postFields = http_build_query(['cmd' => $batch, 'halt' => 0]);
+        }
+
         $ch = curl_init($batchUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['cmd' => $batch, 'halt' => 0]));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
         $response = curl_exec($ch);
         curl_close($ch);
 
         $resData = json_decode($response, true);
         $results = $resData['result']['result'] ?? [];
-        $errors = $resData['result']['result_error'] ?? [];
+        $me = $results['me'] ?? null;
+        $currentUserId = $me ? (int)$me['ID'] : 0;
+        $isAdmin = $me && ($me['ADMIN'] === true);
 
         $filteredConversations = [];
         foreach ($conversations as $index => $conv) {
             $key = 'check_' . $index;
             
-            // If it's a generic phone-only chat, keep it
+            // If it's a generic phone-only chat, only show to admins
             if ($conv['type'] === 'phone') {
-                $filteredConversations[] = $conv;
+                if ($isAdmin) {
+                    $filteredConversations[] = $conv;
+                }
                 continue;
             }
 
-            // If Bitrix found the record and it's not null, keep it
+            // Check record assignment
             if (isset($results[$key]) && !empty($results[$key])) {
-                $filteredConversations[] = $conv;
+                $record = $results[$key];
+                $assignedId = (int)($record['ASSIGNED_BY_ID'] ?? 0);
+                
+                if ($isAdmin || ($currentUserId > 0 && $assignedId === $currentUserId)) {
+                    $filteredConversations[] = $conv;
+                }
             }
-            // If there's no error AND no result, or an explicit 'not found' error, it's deleted
         }
 
         // Final Deduplication by Phone Number
