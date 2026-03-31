@@ -80,7 +80,8 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
     $storedAuth = $sessionManager->getAuth();
     
     $batch = [];
-    $batch['me'] = 'user.current'; // Get current browsing user ID and admin status
+    $batch['me'] = 'user.current'; // Get current browsing user ID
+    $batch['is_admin'] = 'user.admin'; // Check if current user is admin
     
     foreach ($conversations as $index => $conv) {
         if ($conv['type'] === 'lead') {
@@ -116,7 +117,7 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
         $results = $resData['result']['result'] ?? [];
         $me = $results['me'] ?? null;
         $currentUserId = $me ? (int)$me['ID'] : 0;
-        $isAdmin = $me && ($me['ADMIN'] === true);
+        $isAdmin = isset($results['is_admin']) && $results['is_admin'] === true;
 
         $filteredConversations = [];
         foreach ($conversations as $index => $conv) {
