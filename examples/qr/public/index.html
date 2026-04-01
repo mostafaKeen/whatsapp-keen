@@ -7,6 +7,7 @@
     <meta name="description" content="Self-hosted WhatsApp session management portal.">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="//api.bitrix24.com/api/v1/"></script>
 </head>
 <body>
     <div class="app-container">
@@ -108,17 +109,27 @@
     <script>
         // Bitrix Layout Adjustment
         window.addEventListener('load', () => {
+            if (typeof BX24 !== 'undefined') {
+                BX24.init(() => {
+                    console.log('BX24 Initialized');
+                });
+            }
+
             const params = new URLSearchParams(window.location.search);
             const domain = params.get('DOMAIN') || params.get('domain');
+            
             if (domain) {
-                document.getElementById('sidebar-sessions').style.display = 'none';
-                // Adjust layout for narrow frames
-                document.querySelector('.app-container').style.gridTemplateColumns = '350px 1fr';
+                const sidebar = document.getElementById('sidebar-sessions');
+                if (sidebar) sidebar.style.display = 'none';
+                
+                // Adjust layout for narrow frames (sidebar 250px)
+                const container = document.querySelector('.app-container');
+                if (container) container.style.gridTemplateColumns = '280px 1fr';
                 
                 // Auto-init for this domain
                 setTimeout(() => {
                     initiateSession(domain);
-                }, 500);
+                }, 100);
             }
         });
     </script>

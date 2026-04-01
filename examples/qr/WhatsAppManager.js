@@ -284,13 +284,22 @@ class WhatsAppManager {
         try {
             const sessionPath = path.join(this.sessionsDir, `session-${clientId}`);
             if (fs.existsSync(sessionPath)) {
-                console.log(`[${clientId}] Clearing potentially corrupted session folder: ${sessionPath}`);
-                // Instead of deleting, we can rename it to .old
-                const oldPath = `${sessionPath}.old-${Date.now()}`;
-                fs.renameSync(sessionPath, oldPath);
+                console.log(`[${clientId}] Attempting to clear potentially corrupted session folder: ${sessionPath}`);
+                try {
+                    const oldPath = `${sessionPath}.old-${Date.now()}`;
+                    fs.renameSync(sessionPath, oldPath);
+                    console.log(`[${clientId}] Successfully moved corrupted session to ${oldPath}`);
+                } catch (renameErr) {
+                    if (renameErr.code === 'EPERM') {
+                        console.error(`[${clientId}] CRITICAL: Cannot clean up session folder because it is LOCKED by another process (Chrome or another Node instance).`);
+                        console.error(`[${clientId}] Please manually close all chrome.exe processes and try again.`);
+                    } else {
+                        console.error(`[${clientId}] Error during folder cleanup:`, renameErr.message);
+                    }
+                }
             }
         } catch (cleanupErr) {
-            console.error(`[${clientId}] Error during session cleanup:`, cleanupErr.message);
+            console.error(`[${clientId}] Unexpected error during session cleanup check:`, cleanupErr.message);
         }
 
         throw lastInitError;

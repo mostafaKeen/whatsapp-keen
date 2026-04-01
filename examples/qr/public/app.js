@@ -9,8 +9,7 @@ let bitrixAuth = null;
 // Auth Helper
 function getAuthParams() {
     if (!bitrixAuth) {
-        // Fallback or Try to extract from URL if not already set
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(window.location.search || window.location.hash.substring(1));
         const domain = urlParams.get('domain') || urlParams.get('DOMAIN');
         const authId = urlParams.get('authId') || urlParams.get('AUTH_ID');
         if (domain && authId) {
@@ -630,3 +629,14 @@ socket.on('whatsapp_requires_reauth', (data) => {
     loadingSpinner.classList.remove('hidden');
     // server might auto-trigger qr again, or need a manual push
 });
+
+// Global Error Handling for better debugging
+window.onerror = function(msg, url, line, col, error) {
+    console.error('Global Error: ', msg, ' at ', url, ':', line);
+    // If it's a critical error during init, show a message
+    if (!isConnected && !currentClientId) {
+        const list = document.getElementById('sessions-list');
+        if (list) list.innerHTML = `<div class="center-p" style="color:red;">Error: ${msg}</div>`;
+    }
+    return false;
+};

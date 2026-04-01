@@ -16,16 +16,47 @@ class BitrixManager {
 
     async saveAuth(domain, authData) {
         const filePath = this.getAuthPath(domain);
+        let endpoint = authData.SERVER_ENDPOINT || `https://${domain}/rest/`;
+        if (endpoint && !endpoint.startsWith('http')) {
+            endpoint = `https://${endpoint}`;
+        }
+        if (endpoint && !endpoint.endsWith('/')) {
+            endpoint += '/';
+        }
+
         const data = {
             domain,
             auth_id: authData.AUTH_ID,
             refresh_id: authData.REFRESH_ID,
-            expires: Date.now() + (authData.AUTH_EXPIRES * 1000),
-            server_endpoint: authData.SERVER_ENDPOINT || `https://${domain}/rest/`,
+            expires: Date.now() + (parseInt(authData.AUTH_EXPIRES || 3600) * 1000),
+            server_endpoint: endpoint,
             updated_at: new Date().toISOString()
         };
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
         return data;
+    }
+
+    async bindPlacements(domain, authId, handlerUrl) {
+        const placements = [
+            { code: 'CRM_LEAD_DETAIL_TAB', title: 'WhatsApp' },
+            { code: 'CRM_DEAL_DETAIL_TAB', title: 'WhatsApp' }
+        ];
+
+        const results = [];
+        for (const p of placements) {
+            try {
+                const res = await this.callMethod(domain, 'placement.bind', {
+                    PLACEMENT: p.code,
+                    HANDLER: handlerUrl,
+                    TITLE: p.title
+                }, authId);
+                results.push({ code: p.code, success: !!res.result });
+            } catch (err) {
+                console.error(`[Bitrix] Failed to bind ${p.code}:`, err.message);
+                results.push({ code: p.code, success: false, error: err.message });
+            }
+        }
+        return results;
     }
 
     async getAuth(domain) {
