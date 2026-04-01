@@ -1,0 +1,9 @@
+# WhatsApp QR Portal - Git Ignore
+.env
+sessions/
+data/
+*.enc
+.DS_Store
+
+# node_modules is NOT ignored as requested for manual upload to host
+# node_modules/

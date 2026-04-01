@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Web Reimagined</title>
+    <meta name="description" content="Self-hosted WhatsApp session management portal.">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- ── Column 1: Sessions ── -->
+        <aside class="sidebar-sessions">
+            <div class="header">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.422A9.956 9.956 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                <h2>Sessions</h2>
+            </div>
+            
+            <div class="session-form">
+                <input type="text" id="client-id" placeholder="New Client ID">
+                <button id="connect-btn" class="btn-primary">Add</button>
+            </div>
+            
+            <div id="status-indicator" class="status-indicator hidden">
+                <div id="status-dot" class="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+
+            <div class="sessions-list" id="sessions-list">
+                <!-- Session items will be inserted here -->
+            </div>
+        </aside>
+
+        <!-- ── Column 2: Chats List ── -->
+        <aside class="sidebar-chats" id="chats-sidebar">
+            <div class="header">
+                <h2>Chats</h2>
+                <div class="header-actions">
+                    <button id="new-chat-toggle" class="icon-btn" title="New Chat">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <span id="active-session-label" class="badge hidden">None</span>
+                </div>
+            </div>
+            <div id="new-chat-area" class="new-chat-area hidden">
+                <input type="text" id="new-chat-input" placeholder="Enter phone (with country code)..." />
+                <button id="new-chat-start">Go</button>
+            </div>
+            <div id="chats-loading" class="hidden center-p">Loading chats...</div>
+            <div class="chats-list" id="chats-list">
+                <div class="center-p">Select a session to view chats</div>
+            </div>
+        </aside>
+
+        <!-- ── Column 3: Main Chat Area ── -->
+        <main class="main-chat" id="main-chat">
+            
+            <!-- Default Welcome Screen -->
+            <div id="welcome-screen" class="welcome-screen">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                <h2>WhatsApp Portal</h2>
+                <p>Select a chat to start messaging</p>
+            </div>
+
+            <!-- QR Code Screen -->
+            <div id="qr-screen" class="qr-screen hidden">
+                <h2>Scan QR Code</h2>
+                <p>Open WhatsApp on your phone &rarr; Linked Devices &rarr; Link a Device.</p>
+                <div class="qr-container mt-4">
+                    <img id="qr-image" class="hidden" alt="WhatsApp QR Code">
+                    <div id="loading-spinner" class="spinner"></div>
+                </div>
+            </div>
+
+            <!-- Active Chat Interface -->
+            <div id="chat-interface" class="chat-interface hidden">
+                <div class="chat-header">
+                    <div class="chat-title">
+                        <h3 id="current-chat-name">Chat Name</h3>
+                        <span id="current-chat-id" class="text-xs text-muted">ID</span>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    <!-- Messages will appear here -->
+                </div>
+                
+                <div class="chat-input-area">
+                    <button id="attach-btn" class="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                    </button>
+                    <input type="file" id="file-input" class="hidden" />
+                    <textarea id="msg-body" placeholder="Type a message..." autocomplete="off" rows="1"></textarea>
+                    <button id="send-msg-btn" class="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Bitrix Layout Adjustment
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            const domain = params.get('DOMAIN') || params.get('domain');
+            if (domain) {
+                document.getElementById('sidebar-sessions').style.display = 'none';
+                // Adjust layout for narrow frames
+                document.querySelector('.app-container').style.gridTemplateColumns = '350px 1fr';
+                
+                // Auto-init for this domain
+                setTimeout(() => {
+                    initiateSession(domain);
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>
