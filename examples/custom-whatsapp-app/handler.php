@@ -19,57 +19,91 @@ $request = Request::createFromGlobals();
 // Bitrix24 sends outbound messages to this handler
 // Refer to: https://apidocs.bitrix24.com/api-reference/imopenlines/imconnector/index.html
 
-if ($request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
-    // This is where you would call your WhatsApp API to send the message
+if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event') === 'ONIMCONNECTORMESSAGESADD') {
     $data = $request->get('data');
-    $message = $data['message']['text'];
-    $chatId = $data['chat']['id'];
-
-    // Logic to send out to WhatsApp via Gupshup Partner API v3
-    $appId = $whatsappConfig['gupshup_app_id'];
-    $apiToken = $whatsappConfig['gupshup_api_token'];
-    
-    // In IMConnector, the chat ID is typically mapped to the external user's unique identifier (phone number)
-    $phone = preg_replace('/[^0-9]/', '', $chatId);
-    
-    if (empty($phone)) {
-        error_log("Outbound message failed: No valid phone number found in chat ID ($chatId)");
-        echo json_encode(['SUCCESS' => false, 'error' => 'Invalid phone number']);
+    if (empty($data['MESSAGES']) || !is_array($data['MESSAGES'])) {
+        error_log("No messages found in event data.");
+        echo json_encode(['SUCCESS' => false, 'error' => 'No messages']);
         exit;
     }
 
-    $payload = [
-        'messaging_product' => 'whatsapp',
-        'to' => $phone,
-        'type' => 'text',
-        'text' => ['body' => $message]
-    ];
+    $appId = $whatsappConfig['gupshup_app_id'];
+    $apiToken = $whatsappConfig['gupshup_api_token'];
     
-    $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
+    // Get line ID to report delivery status
+    $lineFile = (dirname(__DIR__, 2) . '/var/line_id.txt');
+    if (isset($whatsappConfig['var_dir'])) {
+        $lineFile = $whatsappConfig['var_dir'] . '/line_id.txt';
+    }
+    $lineId = file_exists($lineFile) ? intval(file_get_contents($lineFile)) : 0;
 
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'accept: application/json',
-        'Authorization: ' . $apiToken
-    ]);
+    foreach ($data['MESSAGES'] as $arMessage) {
+        $message = $arMessage['message']['text'] ?? '';
+        $chatId = $arMessage['chat']['id'] ?? '';
+        $imMsgId = $arMessage['im'] ?? null;
+        
+        $phone = preg_replace('/[^0-9]/', '', $chatId);
+        
+        if (empty($phone) || empty($message)) continue;
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $phone,
+            'type' => 'text',
+            'text' => ['body' => $message]
+        ];
+        
+        $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
 
-    if ($error) {
-        error_log("Gupshup send error: " . $error);
-    } else {
-        error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
-        $decoded = json_decode($response, true);
-        $msgId = $decoded['messageId'] ?? $decoded['id'] ?? $decoded['gs_id'] ?? null;
-        // Log to local history so it shows in the custom widget
-        logMessageToJson($phone, $message, $msgId);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'accept: application/json',
+            'Authorization: ' . $apiToken
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            error_log("Gupshup send error: " . $error);
+        } else {
+            error_log("Gupshup response ($httpCode) for phone $phone: " . $response);
+            $decoded = json_decode($response, true);
+            $msgId = $decoded['messageId'] ?? $decoded['id'] ?? $decoded['gs_id'] ?? null;
+            logMessageToJson($phone, $message, $msgId);
+            
+            // Push delivery status to Bitrix24
+            if ($lineId && $imMsgId) {
+                $webhookUrl = $whatsappConfig['webhook_url'] ?? '';
+                if ($webhookUrl) {
+                    $urlStatus = rtrim($webhookUrl, '/') . '/imconnector.send.status.delivery.json';
+                    $statusPayload = [
+                        'CONNECTOR' => 'keen_nexus',
+                        'LINE' => $lineId,
+                        'MESSAGES' => [
+                            [
+                                'im' => $imMsgId,
+                                'message' => ['id' => [$msgId ?? uniqid()]],
+                                'chat' => ['id' => $chatId]
+                            ]
+                        ]
+                    ];
+                    $chStatus = curl_init($urlStatus);
+                    curl_setopt($chStatus, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chStatus, CURLOPT_POST, true);
+                    curl_setopt($chStatus, CURLOPT_POSTFIELDS, http_build_query($statusPayload));
+                    curl_setopt($chStatus, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_exec($chStatus);
+                    curl_close($chStatus);
+                }
+            }
+        }
     }
 
     echo json_encode(['SUCCESS' => true]);

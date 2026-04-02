@@ -192,11 +192,11 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL, $campaignInfo);
 
                 if ($entity) {
-                    // 2C. Add the message as a comment/TIMELINE entry to the found lead
-                    addMessageToBitrixEntity($WEBHOOK_URL, $entity, $text, $campaignInfo, null, $mediaId);
+                    // 2C. Add the message to Open Channel instead of Timeline Activity
+                    sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp);
                     
-                    // 2D. Notify the responsible agent
-                    sendAgentNotification($WEBHOOK_URL, $entity['responsible_id'] ?? null, $entity['id'], $senderName, $text);
+                    // We removed addMessageToBitrixEntity and sendAgentNotification 
+                    // because Open Channels handles agent notifications and timeline tracking natively.
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
@@ -328,34 +328,51 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
 }
 
 /**
- * Pushes the inbound message to Bitrix24 as a activity with optional media.
+ * Pushes the inbound message to Bitrix24 Open Channel.
  */
-function addMessageToBitrixEntity(string $webhookUrl, array $entity, string $text, ?array $campaign, ?string $mediaPath = null, ?string $mediaId = null): void {
-    $title = ($campaign) ? "WhatsApp Reply to Campaign: [" . $campaign['template_name'] . "]" : "Inbound WhatsApp Message";
+function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp): void {
+    global $BASE_VAR_DIR;
+    $lineFile = $BASE_VAR_DIR . '/line_id.txt';
+    if (!file_exists($lineFile)) {
+        error_log("Keen Nexus Open Channel not activated. No line_id.txt found.");
+        return;
+    }
     
-    $fields = [
-        'OWNER_TYPE_ID' => $entity['type'] === 'lead' ? 1 : 3, // 1=Lead, 3=Contact
-        'OWNER_ID'      => $entity['id'],
-        'TYPE_ID'       => 1, 
-        'COMMUNICATION_TYPE_ID' => 'PHONE',
-        'DIRECTION'     => 1, // Inbound
-        'SUBJECT'       => $title,
-        'DESCRIPTION'   => $text,
-        'COMPLETED'     => 'Y',
-        'RESPONSIBLE_ID'=> ($campaign && isset($campaign['responsible_id']) && $campaign['responsible_id']) ? $campaign['responsible_id'] : 1,
+    $lineId = intval(file_get_contents($lineFile));
+    
+    $arMessage = [
+        'user' => [
+            'id' => $phone,
+            'name' => $senderName,
+        ],
+        'message' => [
+            'id' => false,
+            'date' => $timestamp,
+            'text' => $text,
+        ],
+        'chat' => [
+            'id' => $phone,
+            'url' => '',
+        ],
     ];
-
-    // If we have media, attach it
-    if ($mediaPath && file_exists($mediaPath)) {
-        $filename = basename($mediaPath);
-        $content = base64_encode(file_get_contents($mediaPath));
-        $fields['FILES'] = [
-            ['fileData' => [$filename, $content]]
+    
+    if ($mediaUrl) {
+        $arMessage['message']['files'] = [
+            ['url' => $mediaUrl]
         ];
     }
-
-    bitrix24Call($webhookUrl, 'crm.activity.add', ['fields' => $fields]);
+    
+    $result = bitrix24Call($webhookUrl, 'imconnector.send.messages', [
+        'CONNECTOR' => 'keen_nexus',
+        'LINE' => $lineId,
+        'MESSAGES' => [$arMessage],
+    ]);
+    
+    if (empty($result['result'])) {
+        error_log("Failed to send message to Open Channel: " . json_encode($result));
+    }
 }
+
 
 
 // ─── FUNCTIONS ─────────────────────────────────────────────────────────────
