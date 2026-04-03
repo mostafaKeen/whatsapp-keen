@@ -23,3 +23,6 @@ php_errors.log
 /var/webhook_events/
 /var/messages/
 /examples/config.php
+/examples/custom-whatsapp-app/settings.json
+/examples/custom-whatsapp-app/diag_result.txt
+/examples/custom-whatsapp-app/diag_output.txt
