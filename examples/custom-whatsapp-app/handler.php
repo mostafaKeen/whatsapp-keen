@@ -6,6 +6,7 @@ use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
 use Symfony\Component\HttpFoundation\Request;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/crest.php';
 $whatsappConfig = require __DIR__ . '/../config.php';
 
 $appProfile = ApplicationProfile::initFromArray([
@@ -80,28 +81,17 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event
             
             // Push delivery status to Bitrix24
             if ($lineId && $imMsgId) {
-                $webhookUrl = $whatsappConfig['webhook_url'] ?? '';
-                if ($webhookUrl) {
-                    $urlStatus = rtrim($webhookUrl, '/') . '/imconnector.send.status.delivery.json';
-                    $statusPayload = [
-                        'CONNECTOR' => 'keen_nexus',
-                        'LINE' => $lineId,
-                        'MESSAGES' => [
-                            [
-                                'im' => $imMsgId,
-                                'message' => ['id' => [$msgId ?? uniqid()]],
-                                'chat' => ['id' => $chatId]
-                            ]
+                CRest::call('imconnector.send.status.delivery', [
+                    'CONNECTOR' => 'keen_nexus',
+                    'LINE' => $lineId,
+                    'MESSAGES' => [
+                        [
+                            'im' => $imMsgId,
+                            'message' => ['id' => [$msgId ?? uniqid()]],
+                            'chat' => ['id' => $chatId]
                         ]
-                    ];
-                    $chStatus = curl_init($urlStatus);
-                    curl_setopt($chStatus, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($chStatus, CURLOPT_POST, true);
-                    curl_setopt($chStatus, CURLOPT_POSTFIELDS, http_build_query($statusPayload));
-                    curl_setopt($chStatus, CURLOPT_SSL_VERIFYPEER, false);
-                    curl_exec($chStatus);
-                    curl_close($chStatus);
-                }
+                    ]
+                ]);
             }
         }
     }

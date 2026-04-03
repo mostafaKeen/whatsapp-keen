@@ -18,6 +18,7 @@ date_default_timezone_set('Asia/Dubai');
 // Setup
 require_once __DIR__ . '/../../vendor/autoload.php';
 $whatsappConfig = require __DIR__ . '/../config.php';
+require_once __DIR__ . '/crest.php';
 
 $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
 $MSG_DIR      = $BASE_VAR_DIR . '/messages';
@@ -362,7 +363,7 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         ];
     }
     
-    $result = bitrix24Call($webhookUrl, 'imconnector.send.messages', [
+    $result = CRest::call('imconnector.send.messages', [
         'CONNECTOR' => 'keen_nexus',
         'LINE' => $lineId,
         'MESSAGES' => [$arMessage],
