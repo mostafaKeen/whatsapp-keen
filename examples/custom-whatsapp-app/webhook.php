@@ -339,6 +339,8 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         return;
     }
     
+    $lineId = intval(file_get_contents($lineFile));
+    
     // Normalize timestamp to avoid future-dated messages (which Bitrix24 hides)
     $currentTime = time();
     $safeTimestamp = ($timestamp > $currentTime + 60) ? $currentTime : $timestamp;
