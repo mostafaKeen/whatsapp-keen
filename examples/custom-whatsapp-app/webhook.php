@@ -360,8 +360,8 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
     
     // Add CRM Lead mapping if available
     if ($leadId) {
-        $arMessage['message']['crm_entity_type'] = 'LEAD';
-        $arMessage['message']['crm_entity_id'] = $leadId;
+        $arMessage['crm_entity_type'] = 'LEAD';
+        $arMessage['crm_entity_id'] = $leadId;
     }
     
     $result = CRest::call('imconnector.send.messages', [

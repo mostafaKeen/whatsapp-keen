@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "method": "callTool",
+  "id": 2,
+  "params": {
+    "name": "get_api_docs",
+    "arguments": {
+      "method": "imconnector.send.messages"
+    }
+  }
+}
