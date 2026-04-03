@@ -41,6 +41,9 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event
     foreach ($data['MESSAGES'] as $arMessage) {
         $message = $arMessage['message']['text'] ?? '';
         
+        // Remove the operator name prefix that Bitrix24 prepends (e.g. "[b]Mostafa:[/b] [br]")
+        $message = preg_replace('/^\[b\].*?:\[\/b\]\s*\[br\]\s*/i', '', $message);
+        
         // Convert Bitrix24 BBCode to WhatsApp Markdown
         $message = str_ireplace(['[br]', '[BR]'], "\n", $message);
         $message = preg_replace('/\[b\](.*?)\[\/b\]/is', '*$1*', $message);
