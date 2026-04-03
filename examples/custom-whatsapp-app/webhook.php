@@ -339,7 +339,9 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         return;
     }
     
-    $lineId = intval(file_get_contents($lineFile));
+    // Normalize timestamp to avoid future-dated messages (which Bitrix24 hides)
+    $currentTime = time();
+    $safeTimestamp = ($timestamp > $currentTime + 60) ? $currentTime : $timestamp;
     
     $arMessage = [
         'user' => [
@@ -348,7 +350,7 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         ],
         'message' => [
             'id' => $messageId,
-            'date' => $timestamp,
+            'date' => $safeTimestamp,
             'text' => $text,
         ],
         'chat' => [
