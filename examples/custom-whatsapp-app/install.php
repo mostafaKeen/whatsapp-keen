@@ -71,10 +71,43 @@ if ($install_result['install'] === true) {
             'handler' => $messagingHandlerUrl,
         ]
     );
-    
+
+    // Auto-activate the connector on the default Open Line (line 1)
+    // This avoids needing to manually click Connect in Contact Center
+    $defaultLine = 1;
+    $activateRes = CRest::call(
+        'imconnector.activate',
+        [
+            'CONNECTOR' => 'keen_nexus',
+            'LINE' => $defaultLine,
+            'ACTIVE' => 1,
+        ]
+    );
+
+    $connectorDataRes = CRest::call(
+        'imconnector.connector.data.set',
+        [
+            'CONNECTOR' => 'keen_nexus',
+            'LINE' => $defaultLine,
+            'DATA' => [
+                'id' => 'keen_nexus_line_' . $defaultLine,
+                'url_im' => '',
+                'name' => 'Keen Nexus WhatsApp',
+            ],
+        ]
+    );
+
+    // Save the active line ID so webhook.php can use it
+    $whatsappConfig = require __DIR__ . '/../config.php';
+    $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+    if (!is_dir($varDir)) mkdir($varDir, 0775, true);
+    file_put_contents($varDir . '/line_id.txt', (string)$defaultLine);
+
     $binding_results['connector'] = $connectorRes;
     $binding_results['event'] = $eventRes;
-    
+    $binding_results['activate'] = $activateRes;
+    $binding_results['connector_data'] = $connectorDataRes;
+
     CRest::setLog(['placements' => $binding_results], 'installation_bindings');
     $is_installed = true;
 } else {
