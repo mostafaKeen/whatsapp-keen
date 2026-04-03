@@ -332,9 +332,14 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
  * Pushes the inbound message to Bitrix24 Open Channel.
  */
 function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId, $leadId = null): void {
-    global $BASE_VAR_DIR;
-    $lineFile = $BASE_VAR_DIR . '/line_id.txt';
-    $lineId = file_exists($lineFile) ? trim(file_get_contents($lineFile)) : '1';
+    $settingsFile = dirname(__DIR__, 1) . '/custom-whatsapp-app/settings.json';
+    $lineId = '1';
+    if (file_exists($settingsFile)) {
+        $settings = json_decode(file_get_contents($settingsFile), true) ?: [];
+        if (!empty($settings['open_line_id'])) {
+            $lineId = (string)$settings['open_line_id'];
+        }
+    }
     
     // Normalize timestamp to avoid future-dated messages (which Bitrix24 hides)
     $currentTime = time();

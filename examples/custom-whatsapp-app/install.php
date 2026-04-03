@@ -72,9 +72,18 @@ if ($install_result['install'] === true) {
         ]
     );
 
-    // Auto-activate the connector on the default Open Line (line 1)
-    // This avoids needing to manually click Connect in Contact Center
+    // Dynamically find the Keen Nexus Open Line ID
     $defaultLine = 1;
+    $linesRes = CRest::call('imopenlines.config.list.get', []);
+    if (!empty($linesRes['result'])) {
+        foreach ($linesRes['result'] as $lineInfo) {
+            if (stripos($lineInfo['LINE_NAME'] ?? '', 'Nexus') !== false) {
+                $defaultLine = $lineInfo['ID'];
+                break;
+            }
+        }
+    }
+
     $activateRes = CRest::call(
         'imconnector.activate',
         [
@@ -97,11 +106,13 @@ if ($install_result['install'] === true) {
         ]
     );
 
-    // Save the active line ID so webhook.php can use it
-    $whatsappConfig = require __DIR__ . '/../config.php';
-    $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
-    if (!is_dir($varDir)) mkdir($varDir, 0775, true);
-    file_put_contents($varDir . '/line_id.txt', (string)$defaultLine);
+    // Save the active line ID in settings.json so webhook.php can use it reliably
+    $settingsFile = __DIR__ . '/settings.json';
+    if (file_exists($settingsFile)) {
+        $settings = json_decode(file_get_contents($settingsFile), true) ?: [];
+        $settings['open_line_id'] = $defaultLine;
+        file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+    }
 
     $binding_results['connector'] = $connectorRes;
     $binding_results['event'] = $eventRes;
