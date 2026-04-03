@@ -1,0 +1,16 @@
+{
+  "access_token": "6cadcf690081cc7b007447610000234af0f107012ac1e78568aa2391c7887e29a6f4a8",
+  "expires_in": 3600,
+  "application_token": "56fa6c3f9e573aebdf1c15d0be5456e1",
+  "refresh_token": "5c2cf7690081cc7b007447610000234af0f107a78b3100bcafb6daa38d560461fdde16",
+  "domain": "westgate.bitrix24.com",
+  "client_endpoint": "https://westgate.bitrix24.com/rest/",
+  "C_REST_CLIENT_ID": "local.69aecae8e7cd90.22555231",
+  "C_REST_CLIENT_SECRET": "ttdvoiSOtXs6CojVlDbUqR6wD981YsLTOnMvD3yVDL9Nm6qyIA",
+  "expires": 1775218028,
+  "scope": "app",
+  "server_endpoint": "https://oauth.bitrix.info/rest/",
+  "status": "L",
+  "member_id": "a5e8a3fd186d3852050c704953033edb",
+  "user_id": 9034
+}

@@ -194,7 +194,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if ($entity) {
                     // 2C. Add the message to Open Channel instead of Timeline Activity
-                    sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId);
+                    sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId, $entity['id']);
                     
                     // We removed addMessageToBitrixEntity and sendAgentNotification 
                     // because Open Channels handles agent notifications and timeline tracking natively.
@@ -331,15 +331,10 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
 /**
  * Pushes the inbound message to Bitrix24 Open Channel.
  */
-function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId): void {
+function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId, $leadId = null): void {
     global $BASE_VAR_DIR;
     $lineFile = $BASE_VAR_DIR . '/line_id.txt';
-    if (!file_exists($lineFile)) {
-        error_log("Keen Nexus Open Channel not activated. No line_id.txt found.");
-        return;
-    }
-    
-    $lineId = intval(file_get_contents($lineFile));
+    $lineId = file_exists($lineFile) ? trim(file_get_contents($lineFile)) : '1';
     
     // Normalize timestamp to avoid future-dated messages (which Bitrix24 hides)
     $currentTime = time();
@@ -352,19 +347,21 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         ],
         'message' => [
             'id' => $messageId,
-            'date' => $safeTimestamp,
+            'date' => (int)$safeTimestamp,
             'text' => $text,
         ],
-        'chat' => [
-            'id' => $phone,
-            'url' => '',
-        ],
     ];
-    
+
     if ($mediaUrl) {
         $arMessage['message']['files'] = [
             ['url' => $mediaUrl]
         ];
+    }
+    
+    // Add CRM Lead mapping if available
+    if ($leadId) {
+        $arMessage['message']['crm_entity_type'] = 'LEAD';
+        $arMessage['message']['crm_entity_id'] = $leadId;
     }
     
     $result = CRest::call('imconnector.send.messages', [
