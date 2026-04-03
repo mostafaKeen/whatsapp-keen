@@ -194,7 +194,7 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if ($entity) {
                     // 2C. Add the message to Open Channel instead of Timeline Activity
-                    sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp);
+                    sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId);
                     
                     // We removed addMessageToBitrixEntity and sendAgentNotification 
                     // because Open Channels handles agent notifications and timeline tracking natively.
@@ -331,7 +331,7 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
 /**
  * Pushes the inbound message to Bitrix24 Open Channel.
  */
-function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp): void {
+function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId): void {
     global $BASE_VAR_DIR;
     $lineFile = $BASE_VAR_DIR . '/line_id.txt';
     if (!file_exists($lineFile)) {
@@ -347,7 +347,7 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
             'name' => $senderName,
         ],
         'message' => [
-            'id' => false,
+            'id' => $messageId,
             'date' => $timestamp,
             'text' => $text,
         ],
