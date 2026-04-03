@@ -344,24 +344,24 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
         'user' => [
             'id' => $phone,
             'name' => $senderName,
+            'phone' => '+' . $phone,
+            'skip_phone_validate' => 'Y'
         ],
         'message' => [
             'id' => $messageId,
             'date' => (int)$safeTimestamp,
             'text' => $text,
         ],
+        'chat' => [
+            'id' => $phone,
+            'name' => 'WhatsApp: ' . $senderName,
+        ]
     ];
 
     if ($mediaUrl) {
         $arMessage['message']['files'] = [
             ['url' => $mediaUrl]
         ];
-    }
-    
-    // Add CRM Lead mapping if available
-    if ($leadId) {
-        $arMessage['crm_entity_type'] = 'LEAD';
-        $arMessage['crm_entity_id'] = $leadId;
     }
     
     $result = CRest::call('imconnector.send.messages', [
