@@ -40,12 +40,27 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event
 
     foreach ($data['MESSAGES'] as $arMessage) {
         $message = $arMessage['message']['text'] ?? '';
+        
+        // Convert Bitrix24 BBCode to WhatsApp Markdown
+        $message = str_ireplace(['[br]', '[BR]'], "\n", $message);
+        $message = preg_replace('/\[b\](.*?)\[\/b\]/is', '*$1*', $message);
+        $message = preg_replace('/\[i\](.*?)\[\/i\]/is', '_$1_', $message);
+        $message = preg_replace('/\[s\](.*?)\[\/s\]/is', '~$1~', $message);
+        $message = preg_replace('/\[u\](.*?)\[\/u\]/is', '$1', $message); // WhatsApp doesn't support underline
+        
+        // Handle URL formatting: [url=https...]text[/url] -> text
+        $message = preg_replace('/\[url=(.*?)\](.*?)\[\/url\]/is', '$2', $message);
+        $message = preg_replace('/\[url\](.*?)\[\/url\]/is', '$1', $message);
+        
+        // Strip any remaining unhandled Bitrix tags (e.g. [img] or internal system tags)
+        $message = preg_replace('/\[\/?(?:[a-zA-Z0-9_-]+)(?:=.*?)?\]/s', '', $message);
+
         $chatId = $arMessage['chat']['id'] ?? '';
         $imMsgId = $arMessage['im'] ?? null;
         
         $phone = preg_replace('/[^0-9]/', '', $chatId);
         
-        if (empty($phone) || empty($message)) continue;
+        if (empty($phone) || empty(trim($message))) continue;
 
         $payload = [
             'messaging_product' => 'whatsapp',
