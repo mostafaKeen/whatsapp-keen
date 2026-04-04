@@ -115,8 +115,8 @@ if ($error) {
     if ($httpCode >= 400) {
         $errorMessage = $decodedResponse['message'] ?? $decodedResponse['error'] ?? 'Gupshup returned an error.';
         
-        // Log the failure in history too!
-        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, date('Y-m-d H:i:s'), null, 'failed');
+        // Log the failure in history with error reason
+        logMessageToJson($entityId, $entityType, $phone, $message, $fileUrl, $messageType, date('Y-m-d H:i:s'), null, 'failed', $errorMessage);
 
         http_response_code($httpCode);
         echo json_encode([
@@ -147,7 +147,7 @@ if ($error) {
     }
 }
 
-function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null, $status = 'sent') {
+function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messageType = 'text', $timestamp = null, $msgId = null, $status = 'sent', $errorReason = null) {
     if (!$timestamp) $timestamp = date('Y-m-d H:i:s');
     $dir = dirname(__DIR__, 2) . '/var/messages';
     if (!is_dir($dir)) {
@@ -164,6 +164,7 @@ function logMessageToJson($id, $type, $phone, $message, $fileUrl = null, $messag
         'message_type' => $messageType,
         'file_url' => $fileUrl,
         'status' => $status,
+        'error_reason' => $errorReason,
         'direction' => 'outbound',
         'source' => 'custom_widget'
     ];

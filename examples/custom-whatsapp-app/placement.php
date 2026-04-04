@@ -748,27 +748,27 @@ if ($entityId) {
         var messageText = item.message || '';
         
         // WhatsApp Status Ticks
-        var statusHtml = '';
-        if (!isInbound) {
-            switch(item.status) {
-                case 'read':
-                    statusHtml = '<i class="fas fa-check-double status-icon status-read" title="Read"></i>';
-                    break;
-                case 'delivered':
-                    statusHtml = '<i class="fas fa-check-double status-icon status-delivered" title="Delivered"></i>';
-                    break;
-                case 'sent':
-                case 'enqueued':
-                case 'submitted':
-                    statusHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
-                    break;
-                case 'failed':
-                    statusHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="Failed"></i>';
-                    break;
-                default:
-                    // Only show status icon if we have a status, otherwise omit for clean look or show sent
-                    if (item.status) statusHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
+        var statusIcon = '';
+        if (item.direction !== 'inbound') {
+            var iconClass = 'status-sent';
+            var iconTitle = 'Sent';
+            var iconHtml = '✓';
+            
+            if (item.status === 'delivered') {
+                iconClass = 'status-delivered';
+                iconHtml = '✓✓';
+                iconTitle = 'Delivered';
+            } else if (item.status === 'read') {
+                iconClass = 'status-read';
+                iconHtml = '✓✓';
+                iconTitle = 'Read';
+            } else if (item.status === 'failed') {
+                iconClass = 'status-failed';
+                iconHtml = '⚠';
+                iconTitle = item.error_reason || 'Failed to send';
             }
+            
+            statusIcon = '<span class="status-icon ' + iconClass + '" title="' + iconTitle + '">' + iconHtml + '</span>';
         }
 
         var msgIdAttr = item.id ? 'data-msg-id="' + item.id + '"' : '';
@@ -777,7 +777,7 @@ if ($entityId) {
                    '    <span>' + timestamp + '</span>' +
                    '    <div class="d-flex align-items-center">' +
                    '        <span>' + sourceLabel + '</span>' +
-                            statusHtml +
+                            statusIcon +
                    '    </div>' +
                    '  </div>' +
                    '  <div class="history-body">';
@@ -875,6 +875,12 @@ if ($entityId) {
             html += '<div class="reaction-badge" title="Reaction">' + item.react + '</div>';
         }
         
+        if (item.status === 'failed' && item.error_reason) {
+            html += '<div style="color: #ea0038; font-size: 11px; margin-top: 4px; padding: 4px 8px; background: rgba(234, 0, 56, 0.05); border-radius: 4px; border: 1px solid rgba(234, 0, 56, 0.1);">' +
+                    '  <i class="fas fa-exclamation-triangle"></i> ' + item.error_reason + 
+                    '</div>';
+        }
+
         html += '  </div>' +
                 '</div>';
         
@@ -910,7 +916,7 @@ if ($entityId) {
                         if (item.id) {
                             var $existing = $('.history-item[data-msg-id="' + item.id + '"]');
                             if ($existing.length > 0) {
-                                updateMessageStatusUI($existing, item.status);
+                                updateMessageStatusUI($existing, item.status, item.error_reason);
                             }
                         }
                     } else {
@@ -924,11 +930,13 @@ if ($entityId) {
         });
     }
 
-    function updateMessageStatusUI($el, status) {
+    function updateMessageStatusUI($el, status, errorReason) {
         var $meta = $el.find('.history-meta div');
         $meta.find('.status-icon').remove();
         
         var iconHtml = '';
+        var iconTitle = status.charAt(0).toUpperCase() + status.slice(1);
+        
         switch(status) {
             case 'read':
                 iconHtml = '<i class="fas fa-check-double status-icon status-read" title="Read"></i>';
@@ -938,13 +946,22 @@ if ($entityId) {
                 break;
             case 'sent':
             case 'enqueued':
+            case 'submitted':
                 iconHtml = '<i class="fas fa-check status-icon status-sent" title="Sent"></i>';
                 break;
             case 'failed':
-                iconHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="Failed"></i>';
+                iconHtml = '<i class="fas fa-exclamation-circle status-icon status-failed" title="' + (errorReason || 'Failed to send') + '"></i>';
+                // Also append the error message below if not already there
+                if (errorReason && $el.find('.error-msg-box').length === 0) {
+                    $el.find('.history-body').append(
+                        '<div class="error-msg-box" style="color: #ea0038; font-size: 11px; margin-top: 4px; padding: 4px 8px; background: rgba(234, 0, 56, 0.05); border-radius: 4px; border: 1px solid rgba(234, 0, 56, 0.1);">' +
+                        '  <i class="fas fa-exclamation-triangle"></i> ' + errorReason + 
+                        '</div>'
+                    );
+                }
                 break;
         }
-        $meta.append(iconHtml);
+        if (iconHtml) $meta.append(iconHtml);
     }
 </script>
 </body>

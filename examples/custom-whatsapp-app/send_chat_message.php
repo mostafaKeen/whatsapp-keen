@@ -82,8 +82,27 @@ curl_close($ch);
 $decoded = json_decode((string)$response, true);
 
 if ($httpCode < 200 || $httpCode >= 300 || ($decoded['status'] ?? '') === 'error') {
+    $errorReason = $decoded['message'] ?? $response ?? 'Unknown Gupshup Error';
+    
+    // Log the failed message in history
+    $filename = $MSG_DIR . '/' . $type . '_' . $id . '.json';
+    $history = file_exists($filename) ? json_decode(file_get_contents($filename), true) : [];
+    if (!is_array($history)) $history = [];
+    $history[] = [
+        'id' => uniqid('wa_fail_'),
+        'timestamp' => date('Y-m-d H:i:s'),
+        'phone' => '+' . $phone,
+        'message' => $message,
+        'message_type' => 'text',
+        'status' => 'failed',
+        'error_reason' => $errorReason,
+        'direction' => 'outbound',
+        'source' => $source
+    ];
+    file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+
     http_response_code(400);
-    echo json_encode(['error' => 'Gupshup API Error', 'details' => $decoded['message'] ?? $response]);
+    echo json_encode(['error' => 'Gupshup API Error', 'details' => $errorReason]);
     exit;
 }
 

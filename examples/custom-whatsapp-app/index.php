@@ -3349,9 +3349,13 @@ if ($hasValidAuth) {
                             
                             let statusIcon = '';
                             if (isOut) {
-                                statusIcon = msg.status === 'read' ? '<i class="fas fa-check-double text-info ml-1" style="font-size: 11px;"></i>' : 
-                                            msg.status === 'delivered' ? '<i class="fas fa-check-double text-muted ml-1" style="font-size: 11px;"></i>' : 
-                                            '<i class="fas fa-check text-muted ml-1" style="font-size: 11px;"></i>';
+                                if (msg.status === 'failed') {
+                                    statusIcon = '<i class="fas fa-exclamation-circle text-danger ml-1" style="font-size: 11px;" title="' + (msg.error_reason || 'Failed to send') + '"></i>';
+                                } else {
+                                    statusIcon = msg.status === 'read' ? '<i class="fas fa-check-double text-info ml-1" style="font-size: 11px;"></i>' : 
+                                                msg.status === 'delivered' ? '<i class="fas fa-check-double text-muted ml-1" style="font-size: 11px;"></i>' : 
+                                                '<i class="fas fa-check text-muted ml-1" style="font-size: 11px;"></i>';
+                                }
                             }
 
                             // Only render valid text messages or fallback media notes.
@@ -3361,6 +3365,7 @@ if ($hasValidAuth) {
                                 <div class="${flexAlign} mb-2" style="max-width: 75%; position: relative;">
                                     <div class="p-2 shadow-sm" style="background: ${bgColor}; border-radius: ${bradius}; color: #111b21; font-size: 14px; position: relative;">
                                         <div style="padding-bottom: 8px; padding-right: ${isOut ? '40px' : '30px'};">${txt}</div>
+                                        ${msg.status === 'failed' && msg.error_reason ? `<div style="color: #dc3545; font-size: 11px; margin-top: 4px; padding: 4px; background: rgba(220, 53, 69, 0.05); border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.1);"> <i class="fas fa-exclamation-triangle"></i> ${msg.error_reason}</div>` : ''}
                                         <div class="d-flex align-items-center" style="position: absolute; bottom: 4px; right: 8px; color: #667781; font-size: 11px;">
                                             <span>${timeStr}</span>
                                             ${statusIcon}
