@@ -162,6 +162,7 @@ if ($hasValidAuth) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="//api.bitrix24.com/api/v1/"></script>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -578,9 +579,12 @@ if ($hasValidAuth) {
                 <span>KEEN Nexus</span>
             </div>
             <?php if (!$errorMessage): ?>
-                <div class="badge-active">
-                    <span class="d-inline-block" style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;"></span>
-                    Integration Active
+                <div class="d-flex align-items-center gap-3">
+                    <div id="currentUserGreet" class="mr-3 font-weight-600 text-primary" style="font-size: 1.1rem; letter-spacing: -0.01em;"></div>
+                    <div class="badge-active">
+                        <span class="d-inline-block" style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;"></span>
+                        Integration Active
+                    </div>
                 </div>
             <?php endif; ?>
         </div>
@@ -3237,6 +3241,18 @@ if ($hasValidAuth) {
     <!-- Conversation JS Logic -->
         <script>
             $(document).ready(function() {
+                // Initialize Bitrix24
+                BX24.init(function() {
+                    // Fetch Current User for Greeting
+                    BX24.callMethod('user.current', {}, function(res) {
+                        if (!res.error()) {
+                            const user = res.data();
+                            const firstName = user.NAME || 'User';
+                            $('#currentUserGreet').html('Hello, ' + firstName + ' <i class="fas fa-smile text-warning ml-1"></i>');
+                        }
+                    });
+                });
+
                 let currentChatType = null;
                 let currentChatId = null;
                 let currentChatPhone = null;
