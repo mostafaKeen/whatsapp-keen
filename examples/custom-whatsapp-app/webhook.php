@@ -124,8 +124,9 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     'image'    => $msg['image']['caption']     ?? '[Image]',
                     'video'    => $msg['video']['caption']     ?? '[Video]',
                     'document' => $msg['document']['caption']  ?? ($msg['document']['filename'] ?? '[Document]'),
-                    'audio'    => '[Voice Message]',
-                    'sticker'  => '[Sticker]',
+                    'audio'    => ($msg['audio']['voice'] ?? false) ? '[Voice Note]' : '[Audio]',
+                    'sticker'  => ($msg['sticker']['animated'] ?? false) ? '[Animated Sticker]' : '[Sticker]',
+                    'reaction' => '[Reaction: ' . ($msg['reaction']['emoji'] ?? '') . ']',
                     'location' => '[Location: ' . ($msg['location']['name'] ?? $msg['location']['address'] ?? ($msg['location']['latitude'] . ',' . $msg['location']['longitude'])) . ']',
                     'contacts' => '[Contact: ' . ($msg['contacts'][0]['name']['formatted_name'] ?? 'Contact Card') . ']',
                     'interactive' => match($msg['interactive']['type'] ?? '') {
@@ -247,6 +248,27 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         if (($existing['id'] ?? '') === $messageId) {
                             error_log("Duplicate inbound message skipped: $messageId");
                             continue 2;
+                        }
+                    }
+
+                    // Special Handling for Reactions: Attach to target message
+                    if ($type === 'reaction') {
+                        $targetId = $msg['reaction']['message_id'] ?? null;
+                        $emoji = $msg['reaction']['emoji'] ?? '';
+                        if ($targetId) {
+                            $updated = false;
+                            foreach ($history as &$entry) {
+                                if (($entry['id'] ?? '') === $targetId) {
+                                    $entry['react'] = $emoji;
+                                    $updated = true;
+                                    error_log("Attached reaction $emoji to message $targetId");
+                                    break;
+                                }
+                            }
+                            if ($updated) {
+                                file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+                                continue; // Don't add a new message entry for reactions
+                            }
                         }
                     }
 

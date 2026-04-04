@@ -450,6 +450,23 @@ if ($entityId) {
         .history-file a:hover {
             text-decoration: underline;
         }
+
+        .reaction-badge {
+            position: absolute;
+            bottom: -10px;
+            right: 8px;
+            background: #fff;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            cursor: default;
+            z-index: 2;
+        }
+        .history-item.inbound .reaction-badge {
+            right: auto;
+            left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -787,6 +804,28 @@ if ($entityId) {
                                  '  <i class="fas fa-reply" style="font-size: 10px; margin-right: 4px; opacity: 0.6;"></i>' +
                                  '  <span>' + messageText.replace(/\n/g, '<br>') + '</span>' +
                                  '</div>';
+            } else if (item.message_type === 'audio') {
+                var audioUrl = item.external_url || item.file_url;
+                if (audioUrl) {
+                    displayMessage = '<div class="audio-msg">' +
+                                     '  <div style="font-size: 12px; margin-bottom: 4px; opacity: 0.8;"><i class="fas fa-microphone"></i> Voice Note</div>' +
+                                     '  <audio controls style="height: 30px; max-width: 200px;">' +
+                                     '    <source src="' + audioUrl + '" type="audio/mpeg">' +
+                                     '    Your browser does not support the audio element.' +
+                                     '  </audio>' +
+                                     '</div>';
+                } else {
+                    displayMessage = messageText.replace(/\n/g, '<br>');
+                }
+            } else if (item.message_type === 'sticker') {
+                var stickerUrl = item.external_url || item.file_url;
+                if (stickerUrl) {
+                    displayMessage = '<div class="sticker-msg">' +
+                                     '  <img src="' + stickerUrl + '" style="max-width: 120px; border-radius: 8px; display: block;">' +
+                                     '</div>';
+                } else {
+                    displayMessage = messageText.replace(/\n/g, '<br>');
+                }
             } else {
                 displayMessage = messageText.replace(/\n/g, '<br>');
             }
@@ -813,7 +852,12 @@ if ($entityId) {
                         '    <img src="' + displayUrl + '" style="max-width: 100%; border-radius: 4px; display: block; max-height: 200px; object-fit: cover;">' +
                         '  </a>' +
                         '</div>';
+            } else if (item.message_type === 'sticker') {
+                // Sticker already rendered in body
+            } else if (item.message_type === 'audio') {
+                // Audio already rendered in body
             } else {
+                fileLinkText = 'Download ' + (item.message_type.charAt(0).toUpperCase() + item.message_type.slice(1));
                 html += '<div class="history-file">' +
                         '  <a href="' + downloadUrl + '" target="_blank">' +
                            fileIcon +
@@ -821,6 +865,10 @@ if ($entityId) {
                         '  </a>' +
                         '</div>';
             }
+        }
+
+        if (item.react) {
+            html += '<div class="reaction-badge" title="Reaction">' + item.react + '</div>';
         }
         
         html += '  </div>' +
