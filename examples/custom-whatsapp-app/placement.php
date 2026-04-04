@@ -826,6 +826,10 @@ if ($entityId) {
                 } else {
                     displayMessage = messageText.replace(/\n/g, '<br>');
                 }
+            } else if (item.message_type === 'reaction') {
+                // If it's a reaction that failed to link, show it clearly
+                var emoji = (item.message || '').replace('[Reaction: ', '').replace(']', '');
+                displayMessage = '<div style="font-style: italic; opacity: 0.8;"><i class="far fa-smile"></i> Reacted ' + emoji + '</div>';
             } else {
                 displayMessage = messageText.replace(/\n/g, '<br>');
             }

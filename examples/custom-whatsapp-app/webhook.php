@@ -254,20 +254,48 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     // Special Handling for Reactions: Attach to target message
                     if ($type === 'reaction') {
                         $targetId = $msg['reaction']['message_id'] ?? null;
+                        $metaTargetId = $msg['reaction']['meta_msg_id'] ?? null;
                         $emoji = $msg['reaction']['emoji'] ?? '';
-                        if ($targetId) {
+                        
+                        $searchIds = array_filter([$targetId, $metaTargetId]);
+                        // Add variants without 'wamid.' prefix if present
+                        foreach ($searchIds as $sId) {
+                            if (str_starts_with($sId, 'wamid.')) {
+                                $searchIds[] = substr($sId, 6);
+                            }
+                        }
+                        $searchIds = array_unique($searchIds);
+
+                        if (!empty($searchIds)) {
                             $updated = false;
+                            $updatedFile = null;
+                            
+                            // 1. Try current entity's history first
                             foreach ($history as &$entry) {
-                                if (($entry['id'] ?? '') === $targetId) {
+                                $eId = $entry['id'] ?? '';
+                                if ($eId && in_array($eId, $searchIds)) {
                                     $entry['react'] = $emoji;
                                     $updated = true;
-                                    error_log("Attached reaction $emoji to message $targetId");
+                                    error_log("Attached reaction $emoji to message $eId in " . basename($filename));
                                     break;
                                 }
                             }
+                            unset($entry);
+
+                            // 2. If not found, search all files (the message might be in a phone_ file or different entity)
+                            if (!$updated) {
+                                $updatedFile = attachReactionInAllFiles($MSG_DIR, $searchIds, $emoji);
+                                if ($updatedFile) {
+                                    $updated = true;
+                                    error_log("Attached reaction $emoji in secondary file: $updatedFile");
+                                }
+                            }
+
                             if ($updated) {
-                                file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
-                                continue; // Don't add a new message entry for reactions
+                                if ($updatedFile === null || $updatedFile === $filename) {
+                                    file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+                                }
+                                continue; // Success! Don't add a new message entry
                             }
                         }
                     }
@@ -582,6 +610,33 @@ function updateMessageStatusInLogs(string $dir, ?string $gsId, ?string $id, ?str
     }
 
     return $found;
+}
+
+/**
+ * Global search for a message ID across all JSON history files to attach a reaction.
+ */
+function attachReactionInAllFiles(string $dir, array $searchIds, string $emoji): ?string {
+    if (!is_dir($dir)) return null;
+    $files = glob($dir . '/*.json');
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        $history = json_decode($content, true) ?: [];
+        $updated = false;
+        foreach ($history as &$entry) {
+            $eId = $entry['id'] ?? null;
+            if ($eId && in_array($eId, $searchIds)) {
+                $entry['react'] = $emoji;
+                $updated = true;
+                break;
+            }
+        }
+        unset($entry);
+        if ($updated) {
+            file_put_contents($file, json_encode($history, JSON_PRETTY_PRINT));
+            return $file;
+        }
+    }
+    return null;
 }
 
 /**
