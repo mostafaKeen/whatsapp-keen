@@ -73,26 +73,32 @@ usort($conversations, function($a, $b) {
     return (int)strtotime($b['last_message_timestamp'] ?: 'now') - (int)strtotime($a['last_message_timestamp'] ?: 'now');
 });
 
-// Filter out deleted leads/contacts AND respect ownership
+// Filter out deleted leads/contacts AND respect native Bitrix24 permissions
 if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
     require_once __DIR__ . '/SessionManager.php';
     $sessionManager = new SessionManager();
     $storedAuth = $sessionManager->getAuth();
     
+    // Collect unique IDs found on disk to check permissions
+    $leadIdsToCheck = [];
+    $contactIdsToCheck = [];
+    foreach ($conversations as $conv) {
+        if ($conv['type'] === 'lead') $leadIdsToCheck[] = $conv['id'];
+        elseif ($conv['type'] === 'contact') $contactIdsToCheck[] = $conv['id'];
+    }
+
     $batch = [];
-    $batch['me'] = 'user.current'; // Get current browsing user ID
-    $batch['is_admin'] = 'user.admin'; // Check if current user is admin
+    $batch['is_admin'] = 'user.admin';
     
-    foreach ($conversations as $index => $conv) {
-        if ($conv['type'] === 'lead') {
-            $batch['check_' . $index] = 'crm.lead.get?id=' . $conv['id'];
-        } elseif ($conv['type'] === 'contact') {
-            $batch['check_' . $index] = 'crm.contact.get?id=' . $conv['id'];
-        }
+    if (!empty($leadIdsToCheck)) {
+        $batch['leads'] = 'crm.lead.list?filter[ID]=' . json_encode($leadIdsToCheck) . '&select[]=ID';
+    }
+    if (!empty($contactIdsToCheck)) {
+        $batch['contacts'] = 'crm.contact.list?filter[ID]=' . json_encode($contactIdsToCheck) . '&select[]=ID';
     }
 
     if (!empty($batch)) {
-        // Use the browsing user's auth if available, otherwise fallback to the system webhook
+        // Use the browsing user's auth if available to respect their native permissions
         if ($storedAuth && !empty($storedAuth['AUTH_ID']) && !empty($storedAuth['DOMAIN'])) {
             $domain = htmlspecialchars($storedAuth['DOMAIN']);
             $batchUrl = 'https://' . $domain . '/rest/batch.json';
@@ -102,6 +108,7 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
                 'auth' => $storedAuth['AUTH_ID']
             ]);
         } else {
+            // Fallback to system webhook (usually shows everything)
             $batchUrl = rtrim($whatsappConfig['webhook_url'], '/') . '/batch.json';
             $postFields = http_build_query(['cmd' => $batch, 'halt' => 0]);
         }
@@ -110,35 +117,42 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For shared hosting / dev envs
         $response = curl_exec($ch);
         curl_close($ch);
 
         $resData = json_decode($response, true);
         $results = $resData['result']['result'] ?? [];
-        $me = $results['me'] ?? null;
-        $currentUserId = $me ? (int)$me['ID'] : 0;
         $isAdmin = isset($results['is_admin']) && $results['is_admin'] === true;
+        
+        // Build maps of allowed IDs based on what Bitrix24 returned
+        $allowedLeads = [];
+        if (isset($results['leads']) && is_array($results['leads'])) {
+            foreach ($results['leads'] as $l) $allowedLeads[] = (string)$l['ID'];
+        }
+        
+        $allowedContacts = [];
+        if (isset($results['contacts']) && is_array($results['contacts'])) {
+            foreach ($results['contacts'] as $c) $allowedContacts[] = (string)$c['ID'];
+        }
 
         $filteredConversations = [];
-        foreach ($conversations as $index => $conv) {
-            $key = 'check_' . $index;
-            
+        foreach ($conversations as $conv) {
             // If it's a generic phone-only chat, only show to admins
             if ($conv['type'] === 'phone') {
-                if ($isAdmin) {
-                    $filteredConversations[] = $conv;
-                }
+                if ($isAdmin) $filteredConversations[] = $conv;
                 continue;
             }
 
-            // Check record assignment
-            if (isset($results[$key]) && !empty($results[$key])) {
-                $record = $results[$key];
-                $assignedId = (int)($record['ASSIGNED_BY_ID'] ?? 0);
-                
-                if ($isAdmin || ($currentUserId > 0 && $assignedId === $currentUserId)) {
-                    $filteredConversations[] = $conv;
-                }
+            // Check if Bitrix24 returned this ID (which means the user has permission to see it)
+            if ($conv['type'] === 'lead' && in_array((string)$conv['id'], $allowedLeads)) {
+                $filteredConversations[] = $conv;
+            } elseif ($conv['type'] === 'contact' && in_array((string)$conv['id'], $allowedContacts)) {
+                $filteredConversations[] = $conv;
+            } elseif ($isAdmin) {
+                // If the user is admin, allow everything even if not explicitly in the filtered lists
+                // (e.g. for records that might be in a different category or state but still exist)
+                $filteredConversations[] = $conv;
             }
         }
 
@@ -154,7 +168,7 @@ if (!empty($conversations) && !empty($whatsappConfig['webhook_url'])) {
             if (!isset($deduplicated[$phone])) {
                 $deduplicated[$phone] = $conv;
             } else {
-                // Keep the one with the more recent timestamp
+                // Keep the one with the more recent activity
                 $currentTs = strtotime($conv['last_message_timestamp'] ?: '0');
                 $existingTs = strtotime($deduplicated[$phone]['last_message_timestamp'] ?: '0');
                 if ($currentTs > $existingTs) {
