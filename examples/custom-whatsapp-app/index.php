@@ -2396,12 +2396,20 @@ if ($hasValidAuth) {
                         }
 
                         // Try to find the actual message text in the Gupshup response.
-                        // It's usually in template.data, or inside template.containerMeta.
                         var content = template.data || template.content || '';
                         
-                        // If it's HTML/JSON encoded representation, try to parse it if needed.
-                        // For Gupshup, `template.data` is usually a string like "hello {{1}}".
-                        
+                        // For Carousel, also scan all cards
+                        if (template.templateType === 'CAROUSEL') {
+                            try {
+                                var meta = typeof template.containerMeta === 'string' ? JSON.parse(template.containerMeta) : template.containerMeta;
+                                if (meta && meta.cards) {
+                                    meta.cards.forEach(function(card) {
+                                        content += ' ' + (card.body || '');
+                                    });
+                                }
+                            } catch(e) { console.warn('Carousel meta scan failed', e); }
+                        }
+
                         var matches = content.match(/\{\{\d+\}\}/g);
                         if (!matches) {
                             $('#templateVariablesSection').hide();
@@ -2572,10 +2580,15 @@ if ($hasValidAuth) {
                             formData.push({name: 'csvData', value: JSON.stringify(window.currentCsvRows)});
                         }
 
-                        // Send Template Content
+                        // Send Template Content & Meta
                         if (selectedTemplate) {
                             var tContent = selectedTemplate.data || selectedTemplate.content || '';
                             formData.push({name: 'templateContent', value: tContent});
+                            
+                            // Include metadata (important for Carousels)
+                            var tMeta = selectedTemplate.containerMeta || selectedTemplate.meta || '';
+                            if (typeof tMeta === 'object') tMeta = JSON.stringify(tMeta);
+                            formData.push({name: 'templateMeta', value: tMeta});
                         }
 
                         $('#startCampaignBtn, #campaignCancelBtn, #campaignCloseBtn').prop('disabled', true);

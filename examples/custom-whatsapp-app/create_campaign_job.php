@@ -16,6 +16,7 @@ $templateContent = $_POST['templateContent'] ?? '';
 $numbersRaw = $_POST['numbers'] ?? '';
 $mediaUrl = $_POST['mediaUrl'] ?? '';
 $responsibleId = $_POST['responsibleId'] ?? '';
+$templateMeta = $_POST['templateMeta'] ?? '';
 
 // Credentials from config
 $source = $whatsappConfig['gupshup_source'] ?? ''; 
@@ -88,6 +89,7 @@ $jobData = [
     'status' => 'queued',
     'template_type' => $templateType,
     'template_content' => $templateContent,
+    'template_meta' => $templateMeta,
     'media_url' => $mediaUrl,
     'responsible_id' => $responsibleId,
     'targets' => []

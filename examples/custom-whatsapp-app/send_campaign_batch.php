@@ -133,15 +133,77 @@ foreach ($batch as $i => &$t) {
         $params = $t['params'] ?? [];
     }
 
+    $templateObj = [
+        'id' => $jobData['template_id'], 
+        'params' => array_values($params) // Ensure indexed array
+    ];
+
+    // CAROUSEL Handling
+    if ($tempType === 'CAROUSEL') {
+        $meta = json_decode($jobData['template_meta'] ?? '{}', true);
+        if ($meta && !empty($meta['cards'])) {
+            $carouselComponent = [
+                'type' => 'CAROUSEL',
+                'cards' => []
+            ];
+            
+            // Track which body parameter index we are manually mapping
+            $paramIdx = 0;
+            
+            foreach ($meta['cards'] as $cIdx => $card) {
+                $cardComponents = [];
+                
+                // 1. HEADER (Image) - Required for each card
+                $cardComponents[] = [
+                    'type' => 'HEADER',
+                    'parameters' => [
+                        [
+                            'type' => 'IMAGE',
+                            'image' => [ 'link' => $card['mediaUrl'] ]
+                        ]
+                    ]
+                ];
+                
+                // 2. BODY (Variables)
+                $cardBody = $card['body'] ?? '';
+                preg_match_all('/\{\{\d+\}\}/', $cardBody, $cardMatches);
+                if (!empty($cardMatches[0])) {
+                    $cardBodyParams = [];
+                    // We assume params are ordered sequentially across cards
+                    foreach ($cardMatches[0] as $m) {
+                        if (isset($params[$paramIdx])) {
+                            $cardBodyParams[] = [
+                                'type' => 'text',
+                                'text' => (string)$params[$paramIdx]
+                            ];
+                        }
+                        $paramIdx++;
+                    }
+                    if (!empty($cardBodyParams)) {
+                        $cardComponents[] = [
+                            'type' => 'BODY',
+                            'parameters' => $cardBodyParams
+                        ];
+                    }
+                }
+
+                $carouselComponent['cards'][] = [
+                    'card_index' => (string)$cIdx,
+                    'components' => $cardComponents
+                ];
+            }
+
+            $templateObj['components'] = [$carouselComponent];
+            unset($templateObj['params']); // Use components instead of flat params
+        }
+    }
+
     $postData = [
         'channel' => 'whatsapp',
         'source' => $jobData['source'],
         'sandbox' => 'false',
         'destination' => $t['phone'],
-        'template' => json_encode([
-            'id' => $jobData['template_id'], 
-            'params' => array_values($params) // Ensure indexed array
-        ]),
+        'template' => json_encode($templateObj),
         'src.name' => $jobData['app_name']
     ];
 
