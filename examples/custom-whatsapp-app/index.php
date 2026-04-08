@@ -1174,6 +1174,7 @@ if ($hasValidAuth) {
                                                 <option value="VIDEO">VIDEO</option>
                                                 <option value="DOCUMENT">DOCUMENT</option>
                                                 <option value="GIF">GIF</option>
+                                                <option value="CAROUSEL">CAROUSEL</option>
                                             </select>
                                         </div>
                                         <div class="col-md-6 form-group">
@@ -1188,6 +1189,18 @@ if ($hasValidAuth) {
                                             <label class="small font-weight-bold">Sample Media URL / Property *</label>
                                             <input type="text" name="mediaUrl" class="form-control form-control-modern" placeholder="HTTPS Link to a sample file">
                                         </div>
+                                    </div>
+
+                                    <!-- Carousel Cards Section -->
+                                    <div id="carouselCardsSection" class="p-4 mb-4 border rounded-lg bg-light" style="display:none;">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 class="font-weight-bold text-primary small text-uppercase mb-0"><i class="fas fa-layer-group mr-2"></i> Carousel Cards (Max 10)</h6>
+                                            <button type="button" id="addCarouselCard" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ Add Card</button>
+                                        </div>
+                                        <div id="carouselCardsContainer">
+                                            <!-- Cards dynamicly injected here -->
+                                        </div>
+                                        <input type="hidden" name="cards" id="cardsJson">
                                     </div>
 
                                     <div class="form-group">
@@ -1205,7 +1218,7 @@ if ($hasValidAuth) {
                                     </div>
 
                                     <!-- Buttons Section -->
-                                    <div class="border rounded-lg p-4 mb-4">
+                                    <div class="border rounded-lg p-4 mb-4" id="buttonsSectionContainer">
                                         <div class="d-flex justify-content-between align-items-center mb-3">
                                             <h6 class="font-weight-bold small text-uppercase mb-0"><i class="fas fa-plus mr-2"></i> Interactive Buttons</h6>
                                             <button type="button" id="addButton" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ Add</button>
@@ -1431,8 +1444,20 @@ if ($hasValidAuth) {
                     // Handle Template Type change (create form)
                     $('#templateType').change(function() {
                         var type = $(this).val();
-                        if (type !== 'TEXT') {
+                        if (type === 'CAROUSEL') {
+                            $('#carouselCardsSection').show();
+                            $('#mediaExampleSection').hide();
+                            $('#buttonsSectionContainer').hide();
+                            $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Carousel uses cards');
+                            
+                            // Initialize with at least one card if empty
+                            if ($('#carouselCardsContainer .card-item').length === 0) {
+                                $('#addCarouselCard').click();
+                            }
+                        } else if (type !== 'TEXT') {
+                            $('#carouselCardsSection').hide();
                             $('#mediaExampleSection').show();
+                            $('#buttonsSectionContainer').show();
                             $('#headerField').val('').prop('disabled', true).attr('placeholder', 'Media headers do not use text');
                             
                             // Adjust placeholder for GIF
@@ -1442,9 +1467,73 @@ if ($hasValidAuth) {
                                 $('#createTemplateForm input[name="mediaUrl"]').attr('placeholder', 'HTTPS Link to a sample file');
                             }
                         } else {
+                            $('#carouselCardsSection').hide();
                             $('#mediaExampleSection').hide();
+                            $('#buttonsSectionContainer').show();
                             $('#headerField').prop('disabled', false).attr('placeholder', '60 characters max');
                         }
+                    });
+
+                    // Carousel Card Management
+                    var cardCount = 0;
+                    $('#addCarouselCard').on('click', function() {
+                        if (cardCount >= 10) { showToast('Maximum 10 cards allowed', 'error'); return; }
+                        cardCount++;
+                        var cardId = 'card_' + Date.now();
+                        var cHtml = '<div class="card-item border rounded-lg p-3 mb-3 bg-white shadow-sm" id="' + cardId + '">' +
+                            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                                '<h7 class="font-weight-bold small text-muted">CARD #' + cardCount + '</h7>' +
+                                '<button type="button" class="close remove-card" data-id="' + cardId + '">&times;</button>' +
+                            '</div>' +
+                            '<div class="form-group mb-2">' +
+                                '<label class="small font-weight-bold">Image URL *</label>' +
+                                '<input type="url" class="form-control form-control-sm c-image" placeholder="https://example.com/image.jpg" required>' +
+                            '</div>' +
+                            '<div class="form-group mb-2">' +
+                                '<label class="small font-weight-bold">Body Text *</label>' +
+                                '<textarea class="form-control form-control-sm c-body" rows="2" placeholder="Card body text..." required></textarea>' +
+                            '</div>' +
+                            '<div class="card-buttons-section">' +
+                                '<div class="d-flex justify-content-between align-items-center mb-1">' +
+                                    '<label class="small font-weight-bold mb-0">Buttons</label>' +
+                                    '<button type="button" class="btn btn-xs btn-outline-info add-card-btn">+ Add Button</button>' +
+                                '</div>' +
+                                '<div class="card-buttons-list"></div>' +
+                            '</div>' +
+                        '</div>';
+                        $('#carouselCardsContainer').append(cHtml);
+                    });
+
+                    $(document).on('click', '.remove-card', function() {
+                        $('#' + $(this).data('id')).remove();
+                        // Recalculate cardCount or just let it slide since it's used for UI label
+                        cardCount = $('#carouselCardsContainer .card-item').length;
+                    });
+
+                    $(document).on('click', '.add-card-btn', function() {
+                        var list = $(this).closest('.card-buttons-section').find('.card-buttons-list');
+                        if (list.find('.card-btn-item').length >= 2) { showToast('Max 2 buttons per card', 'error'); return; }
+                        
+                        var bHtml = '<div class="card-btn-item border-top pt-2 mt-2">' +
+                            '<div class="d-flex justify-content-between"><span class="small font-weight-600">Button</span> <button type="button" class="close remove-card-btn">&times;</button></div>' +
+                            '<div class="row">' +
+                                '<div class="col-6"><select class="form-control form-control-sm cb-type"><option value="QUICK_REPLY">Quick Reply</option><option value="URL">Visit URL</option></select></div>' +
+                                '<div class="col-6"><input type="text" class="form-control form-control-sm cb-text" placeholder="Label"></div>' +
+                            '</div>' +
+                            '<div class="cb-extra mt-2" style="display:none;">' +
+                                '<input type="text" class="form-control form-control-sm cb-url" placeholder="https://..."> ' +
+                            '</div>' +
+                        '</div>';
+                        list.append(bHtml);
+                    });
+
+                    $(document).on('change', '.cb-type', function() {
+                        var val = $(this).val();
+                        $(this).closest('.card-btn-item').find('.cb-extra').toggle(val === 'URL');
+                    });
+
+                    $(document).on('click', '.remove-card-btn', function() {
+                        $(this).closest('.card-btn-item').remove();
                     });
 
                     // Dynamic Buttons logic (create form)
@@ -1492,6 +1581,31 @@ if ($hasValidAuth) {
                             btns.push(item);
                         });
                         $('#buttonsJson').val(btns.length > 0 ? JSON.stringify(btns) : '');
+
+                        // Collect Carousel Cards
+                        if ($('#templateType').val() === 'CAROUSEL') {
+                            var hostCards = [];
+                            $('#carouselCardsContainer .card-item').each(function() {
+                                var card = {
+                                    headerType: "IMAGE",
+                                    mediaUrl: $(this).find('.c-image').val(),
+                                    body: $(this).find('.c-body').val(),
+                                    buttons: []
+                                };
+                                $(this).find('.card-btn-item').each(function() {
+                                    var bType = $(this).find('.cb-type').val();
+                                    var bObj = { type: bType, text: $(this).find('.cb-text').val() };
+                                    if (bType === 'URL') {
+                                        bObj.url = $(this).find('.cb-url').val();
+                                        bObj.buttonValue = bObj.url; // Gupshup often expects both
+                                        bObj.example = [bObj.url];
+                                    }
+                                    card.buttons.push(bObj);
+                                });
+                                hostCards.push(card);
+                            });
+                            $('#cardsJson').val(JSON.stringify(hostCards));
+                        }
                         
                         // Client-side validation for Media types
                         var templateType = $('#templateType').val();
@@ -1501,8 +1615,11 @@ if ($hasValidAuth) {
                                 $('#createError').html('<strong>Error:</strong> ' + templateType + ' URL is required').show();
                                 return false;
                             }
-                            if (!mediaUrl.toLowerCase().startsWith('https://')) {
-                                $('#createError').html('<strong>Error:</strong> ' + templateType + ' URL must be a public HTTPS link').show();
+                        }
+                        
+                        if (templateType === 'CAROUSEL') {
+                            if ($('#carouselCardsContainer .card-item').length === 0) {
+                                $('#createError').html('<strong>Error:</strong> At least one card is required for Carousel').show();
                                 return false;
                             }
                         }
@@ -1613,7 +1730,24 @@ if ($hasValidAuth) {
                         try {
                             var meta = typeof t.containerMeta === 'string' ? JSON.parse(t.containerMeta) : t.containerMeta;
                             if (meta) {
-                                if (meta.mediaUrl || meta.sampleMedia) {
+                                if (meta.cards && meta.cards.length > 0) {
+                                    var cHtml = '<div class="d-flex overflow-auto pb-3" style="gap: 12px; scroll-snap-type: x mandatory;">';
+                                    meta.cards.forEach(function(card) {
+                                        cHtml += '<div class="card-preview border rounded shadow-sm bg-white" style="min-width: 220px; max-width: 220px; scroll-snap-align: start;">' +
+                                                 '<img src="' + (card.mediaUrl || card.sampleMedia || '') + '" style="width: 100%; height: 140px; object-fit: cover;" class="rounded-top">' +
+                                                 '<div class="p-3">' +
+                                                 '<div class="small font-weight-500 mb-2">' + card.body + '</div>';
+                                        if (card.buttons) {
+                                             card.buttons.forEach(function(b) {
+                                                 cHtml += '<div class="btn btn-xs btn-outline-primary btn-block mb-1 py-1" style="font-size: 10px; border-radius: 4px;">' + b.text + '</div>';
+                                             });
+                                        }
+                                        cHtml += '</div></div>';
+                                    });
+                                    cHtml += '</div>';
+                                    $('#tMediaPreview').html(cHtml);
+                                    $('#tMediaSection').show();
+                                } else if (meta.mediaUrl || meta.sampleMedia) {
                                     var mUrl = meta.mediaUrl || meta.sampleMedia;
                                     var previewHtml = t.templateType === 'IMAGE' ?
                                         '<img src="' + mUrl + '" style="max-width:100%;max-height:200px;" class="rounded shadow-sm">' :

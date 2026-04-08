@@ -26,6 +26,7 @@ $example = $_POST['example'] ?? '';
 $header = $_POST['header'] ?? '';
 $footer = $_POST['footer'] ?? '';
 $buttons = $_POST['buttons'] ?? ''; // JSON string from UI
+$cards = $_POST['cards'] ?? ''; // JSON string for CAROUSEL cards
 $exampleHeader = $_POST['exampleHeader'] ?? '';
 $exampleMedia = $_POST['exampleMedia'] ?? ''; // Media handle if already uploaded or URL
 $mediaUrl = $_POST['mediaUrl'] ?? '';
@@ -40,6 +41,11 @@ if (empty($elementName) || empty($content)) {
 $vertical = $category;
 if ($vertical === 'UTILITY') $vertical = 'TRANSACTIONAL';
 if ($vertical === 'AUTHENTICATION') $vertical = 'OTP';
+
+// For Carousel, use products vertical as standard from samples
+if ($templateType === 'CAROUSEL') {
+    $vertical = 'products';
+}
 
 // Logic for Media Templates (IMAGE, VIDEO, DOCUMENT, GIF)
 if (in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'])) {
@@ -115,6 +121,9 @@ if (!empty($footer)) {
 }
 if (!empty($buttons)) {
     $postData['buttons'] = $buttons;
+}
+if ($templateType === 'CAROUSEL' && !empty($cards)) {
+    $postData['cards'] = $cards;
 }
 
 // Map exampleMedia for media templates
