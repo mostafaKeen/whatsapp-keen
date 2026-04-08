@@ -135,60 +135,176 @@ foreach ($batch as $i => &$t) {
 
     $templateObj = [
         'id' => $jobData['template_id'], 
-        'params' => array_values($params) // Ensure indexed array
+        'params' => array_values($params) // Ensure indexed array — top-level body variables only
     ];
 
-    // CAROUSEL Handling: card data goes in `message`, NOT in `template`
-    // Gupshup Partner API expects:
-    //   template = {"id":"...", "params":["body_var1"]}   (top-level body variables only)
+    // ================================================================
+    // CAROUSEL Handling (Steps 1-7)
+    // Gupshup Partner API structure:
+    //   template = {"id":"...", "params":["body_var1"]}   (top-level body variables ONLY)
     //   message  = {"type":"carousel", "cards":[...]}     (card headers + card body params)
+    // Card headers MUST go inside message.cards[].components, NOT in template.params
+    // ================================================================
     if ($tempType === 'CAROUSEL') {
         $meta = json_decode($jobData['template_meta'] ?? '{}', true);
-        if ($meta && !empty($meta['cards'])) {
-            $carouselCards = [];
+        
+        if (!$meta || empty($meta['cards'])) {
+            // No card metadata — cannot send carousel, fail this target
+            $batch[$i]['status'] = 'failed';
+            $batch[$i]['error'] = 'Carousel template metadata missing or has no cards';
+            $jobData['processed']++;
+            $jobData['failed']++;
+            logDetailedError($jobId, $batch[$i], ['error' => 'Missing carousel card metadata'], '', 0);
+            continue;
+        }
+
+        $carouselCards = [];
+        $carouselValid = true;
+        $carouselError = '';
+        
+        foreach ($meta['cards'] as $cIdx => $card) {
+            $cardComponents = [];
+            $headerType = strtoupper($card['headerType'] ?? 'IMAGE');
             
-            foreach ($meta['cards'] as $cIdx => $card) {
-                $cardComponents = [];
+            // ---- STEP 1 & 2: Inspect header type and build accordingly ----
+            if ($headerType === 'IMAGE' || $headerType === 'VIDEO') {
+                // CASE A: Media header (IMAGE or VIDEO)
+                $cardMediaUrl = $card['mediaUrl'] ?? '';
                 
-                // 1. HEADER (Image) - Required for each card
+                // STEP 3 & 4: Validate media URL
+                if (empty($cardMediaUrl)) {
+                    $carouselValid = false;
+                    $carouselError = "Carousel card $cIdx has empty mediaUrl for $headerType header";
+                    break;
+                }
+                if (strpos($cardMediaUrl, 'https://') !== 0 && strpos($cardMediaUrl, 'http://') !== 0) {
+                    $carouselValid = false;
+                    $carouselError = "Carousel card $cIdx mediaUrl is not a valid URL: $cardMediaUrl";
+                    break;
+                }
+                
+                $mediaTypeLower = strtolower($headerType); // 'image' or 'video'
                 $cardComponents[] = [
                     'type' => 'header',
                     'parameters' => [
                         [
-                            'type' => 'image',
-                            'image' => [ 'link' => $card['mediaUrl'] ]
+                            'type' => $mediaTypeLower,
+                            $mediaTypeLower => ['link' => $cardMediaUrl]
                         ]
                     ]
                 ];
                 
-                // 2. BODY (per-card variables, if any)
-                $cardBody = $card['body'] ?? '';
-                preg_match_all('/\{\{\d+\}\}/', $cardBody, $cardMatches);
-                $cardBodyParams = [];
-                if (!empty($cardMatches[0])) {
-                    // Card body variables are separate from the top-level body variables
-                    // For now, card bodies without variables get empty parameters
-                    // If card bodies have variables, they would need their own mapping
+            } elseif ($headerType === 'TEXT') {
+                // CASE B: Text header with variable
+                // Check if card has a headerText or if sampleHeader is available
+                $headerValue = $card['headerText'] ?? $card['sampleHeader'] ?? $card['header'] ?? '';
+                if (empty($headerValue)) {
+                    $carouselValid = false;
+                    $carouselError = "Carousel card $cIdx has TEXT header but no header value provided";
+                    break;
                 }
                 $cardComponents[] = [
-                    'type' => 'body',
-                    'parameters' => $cardBodyParams
+                    'type' => 'header',
+                    'parameters' => [
+                        [
+                            'type' => 'text',
+                            'text' => (string)$headerValue
+                        ]
+                    ]
                 ];
-
-                $carouselCards[] = [
-                    'card_index' => $cIdx,
-                    'components' => $cardComponents
-                ];
+            } else {
+                // Unknown header type
+                $carouselValid = false;
+                $carouselError = "Carousel card $cIdx has unsupported header type: $headerType";
+                break;
             }
+            
+            // ---- STEP 2 continued: Card BODY parameters ----
+            $cardBody = $card['body'] ?? '';
+            preg_match_all('/\{\{\d+\}\}/', $cardBody, $cardMatches);
+            $cardBodyParams = [];
+            // Card-level body variables are independent from top-level body
+            // Currently our cards don't have body variables, so params stays empty
+            // If cards had variables, mapping would need to be implemented here
+            
+            $cardComponents[] = [
+                'type' => 'body',
+                'parameters' => $cardBodyParams
+            ];
 
-            // Build the message object with carousel cards
-            $messageData = [
-                'type' => 'carousel',
-                'cards' => $carouselCards
+            $carouselCards[] = [
+                'card_index' => $cIdx,
+                'components' => $cardComponents
             ];
         }
+        
+        // ---- STEP 6: Reject if any card failed validation ----
+        if (!$carouselValid) {
+            $batch[$i]['status'] = 'failed';
+            $batch[$i]['error'] = $carouselError;
+            $jobData['processed']++;
+            $jobData['failed']++;
+            logDetailedError($jobId, $batch[$i], ['validation_error' => $carouselError], '', 0);
+            continue;
+        }
+        
+        // ---- STEP 3: Final validation — ensure every card has a header component ----
+        foreach ($carouselCards as $checkCard) {
+            $hasHeader = false;
+            foreach ($checkCard['components'] as $comp) {
+                if ($comp['type'] === 'header') {
+                    if (empty($comp['parameters'])) {
+                        $carouselValid = false;
+                        $carouselError = "Carousel card {$checkCard['card_index']} has header with empty parameters array";
+                        break 2;
+                    }
+                    // Check no null values in parameters
+                    foreach ($comp['parameters'] as $param) {
+                        if ($param === null) {
+                            $carouselValid = false;
+                            $carouselError = "Carousel card {$checkCard['card_index']} has null header parameter";
+                            break 3;
+                        }
+                        // For image type, verify link is not empty
+                        if (($param['type'] ?? '') === 'image' && empty($param['image']['link'] ?? '')) {
+                            $carouselValid = false;
+                            $carouselError = "Carousel card {$checkCard['card_index']} has image header with empty link";
+                            break 3;
+                        }
+                        // For text type, verify text is not empty
+                        if (($param['type'] ?? '') === 'text' && empty($param['text'] ?? '')) {
+                            $carouselValid = false;
+                            $carouselError = "Carousel card {$checkCard['card_index']} has text header with empty value";
+                            break 3;
+                        }
+                    }
+                    $hasHeader = true;
+                }
+            }
+            if (!$hasHeader) {
+                $carouselValid = false;
+                $carouselError = "Carousel card {$checkCard['card_index']} is missing header component entirely";
+                break;
+            }
+        }
+        
+        if (!$carouselValid) {
+            $batch[$i]['status'] = 'failed';
+            $batch[$i]['error'] = $carouselError;
+            $jobData['processed']++;
+            $jobData['failed']++;
+            logDetailedError($jobId, $batch[$i], ['validation_error' => $carouselError], '', 0);
+            continue;
+        }
+
+        // ---- STEP 5: Build the message object with carousel cards ----
+        $messageData = [
+            'type' => 'carousel',
+            'cards' => $carouselCards
+        ];
     }
 
+    // ---- STEP 5: Build the final POST payload ----
     $postData = [
         'channel' => 'whatsapp',
         'source' => $jobData['source'],
@@ -201,6 +317,10 @@ foreach ($batch as $i => &$t) {
     if ($messageData) {
         $postData['message'] = json_encode($messageData);
     }
+    
+    // ---- STEP 7: Log full outgoing payload before sending ----
+    logOutgoingPayload($jobId, $t['phone'], $postData);
+
     $postDataMap[$i] = $postData;
 
     $ch = curl_init($url);
@@ -214,6 +334,7 @@ foreach ($batch as $i => &$t) {
     ]);
 
     $curls[$i] = $ch;
+
 }
 unset($t);
 
@@ -351,6 +472,25 @@ function logDetailedError($jobId, $target, $payload, $response, $httpCode, $curl
     array_unshift($logs, $entry);
     if (count($logs) > 500) array_pop($logs); // Keep last 500
     file_put_contents($file, json_encode($logs, JSON_PRETTY_PRINT));
+}
+
+/**
+ * STEP 7: Log full outgoing payload before sending to API for debugging.
+ */
+function logOutgoingPayload($jobId, $phone, $postData) {
+    global $whatsappConfig;
+    $logDir = ($whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/logs';
+    if (!is_dir($logDir)) mkdir($logDir, 0777, true);
+    
+    $file = $logDir . '/campaign_outgoing_payloads.log';
+    $entry = date('[Y-m-d H:i:s]') . " job=$jobId phone=$phone\n";
+    $entry .= "  template=" . ($postData['template'] ?? 'N/A') . "\n";
+    if (!empty($postData['message'])) {
+        $entry .= "  message=" . $postData['message'] . "\n";
+    }
+    $entry .= "---\n";
+    
+    file_put_contents($file, $entry, FILE_APPEND);
 }
 
 /**
