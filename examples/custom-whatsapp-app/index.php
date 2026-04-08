@@ -3411,11 +3411,12 @@ if ($hasValidAuth) {
                 let currentChatPhone = null;
 
                 // Load conversations list
-                function loadConversations() {
+                function loadConversations(searchTerm = '') {
                     $('#conversationsLoading').show();
                     $('#conversationsListContainer .chat-item').remove();
                     
-                    $.getJSON('get_conversations.php?t=' + Date.now(), function(data) {
+                    const url = 'get_conversations.php?t=' + Date.now() + (searchTerm ? '&search=' + encodeURIComponent(searchTerm) : '');
+                    $.getJSON(url, function(data) {
                         $('#conversationsLoading').hide();
                         
                         if (!data || data.length === 0) {
@@ -3442,7 +3443,7 @@ if ($hasValidAuth) {
                                             <div class="small text-muted" style="font-size: 12px; flex-shrink: 0; margin-left: 8px;">${timeStr}</div>
                                         </div>
                                         <div class="small text-muted text-truncate" style="font-size: 13px;">
-                                            ${statusIcon} ${conv.last_message || '📷 Media / Template'}
+                                            ${statusIcon} ${conv.match_snippet ? `<span class="text-primary font-weight-bold">Match:</span> ${conv.match_snippet}` : (conv.last_message || '📷 Media / Template')}
                                         </div>
                                     </div>
                                 </div>
@@ -3592,7 +3593,7 @@ if ($hasValidAuth) {
                     loadConversations();
                 });
                 $('#refreshConversationsBtn').click(function() {
-                    loadConversations();
+                    loadConversations($('#chatSearchInput').val());
                     if (currentChatId) loadChatHistory(currentChatType, currentChatId);
                 });
                 
@@ -3601,14 +3602,24 @@ if ($hasValidAuth) {
                     if (e.which === 13) sendChatMessage();
                 });
                 
-                // Simple search filter in sidebar
-                $('#chatSearchInput').on('keyup', function() {
-                    const v = $(this).val().toLowerCase();
+                // Deep search logic with debounce
+                let chatSearchTimeout = null;
+                $('#chatSearchInput').on('input', function() {
+                    const v = $(this).val();
+                    clearTimeout(chatSearchTimeout);
+                    
+                    // Fast local filter first for immediate feedback
+                    const vLower = v.toLowerCase();
                     $('#conversationsListContainer .chat-item').filter(function() {
                         const nameAndMsg = $(this).text().toLowerCase();
                         const phone = ($(this).data('phone') || '').toString().toLowerCase();
-                        $(this).toggle(nameAndMsg.indexOf(v) > -1 || phone.indexOf(v) > -1);
+                        $(this).toggle(nameAndMsg.indexOf(vLower) > -1 || phone.indexOf(vLower) > -1);
                     });
+
+                    // Deep search on server after 500ms
+                    chatSearchTimeout = setTimeout(function() {
+                        loadConversations(v);
+                    }, 500);
                 });
             });
         </script>

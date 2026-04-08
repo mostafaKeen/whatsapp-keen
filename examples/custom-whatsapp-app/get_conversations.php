@@ -11,6 +11,9 @@ $whatsappConfig = require __DIR__ . '/../config.php';
 $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
 $MSG_DIR = $BASE_VAR_DIR . '/messages';
 
+$searchTerm = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+
 if (!is_dir($MSG_DIR)) {
     echo json_encode([]);
     exit;
@@ -55,6 +58,29 @@ foreach ($files as $file) {
         }
     }
 
+    $matchingMessageSnippet = null;
+    $isMatch = false;
+
+    if ($searchTerm !== '') {
+        // Search through history
+        foreach ($history as $msg) {
+            if (isset($msg['message']) && stripos((string)$msg['message'], $searchTerm) !== false) {
+                $isMatch = true;
+                $matchingMessageSnippet = $msg['message'];
+                break;
+            }
+        }
+        
+        // Also search in name/phone for consistency
+        if (!$isMatch) {
+            if (stripos($name, $searchTerm) !== false || (isset($lastMsg['phone']) && stripos((string)$lastMsg['phone'], $searchTerm) !== false)) {
+                $isMatch = true;
+            }
+        }
+
+        if (!$isMatch) continue;
+    }
+
     $conversations[] = [
         'type' => $entityType,
         'id' => $entityId,
@@ -64,7 +90,8 @@ foreach ($files as $file) {
         'last_message_direction' => $lastMsg['direction'] ?? '',
         'last_message_status' => $lastMsg['status'] ?? '',
         'last_message_timestamp' => $lastMsg['timestamp'] ?? '',
-        'unread' => 0 // In future, count 'received' inbound messages that haven't been 'read'
+        'unread' => 0,
+        'match_snippet' => $matchingMessageSnippet
     ];
 }
 
