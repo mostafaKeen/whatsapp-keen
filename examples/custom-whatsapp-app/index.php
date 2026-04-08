@@ -1491,7 +1491,12 @@ if ($hasValidAuth) {
                             '</div>' +
                             '<div class="form-group mb-2">' +
                                 '<label class="small font-weight-bold">Body Text *</label>' +
-                                '<textarea class="form-control form-control-sm c-body" rows="2" placeholder="Card body text..." required></textarea>' +
+                                '<textarea class="form-control form-control-sm c-body" rows="2" placeholder="Card body text... {{1}}" required></textarea>' +
+                            '</div>' +
+                            '<div class="form-group mb-2 c-sample-container">' +
+                                '<label class="small font-weight-bold text-info">Card Body Example *</label>' +
+                                '<textarea class="form-control form-control-sm c-sample" rows="1" placeholder="Example for {{1}}..." required></textarea>' +
+                                '<small class="text-muted" style="font-size: 10px;">Required if variables used in body.</small>' +
                             '</div>' +
                             '<div class="card-buttons-section">' +
                                 '<div class="d-flex justify-content-between align-items-center mb-1">' +
@@ -1590,6 +1595,7 @@ if ($hasValidAuth) {
                                     headerType: "IMAGE",
                                     mediaUrl: $(this).find('.c-image').val(),
                                     body: $(this).find('.c-body').val(),
+                                    sampleText: $(this).find('.c-sample').val(),
                                     buttons: []
                                 };
                                 $(this).find('.card-btn-item').each(function() {
