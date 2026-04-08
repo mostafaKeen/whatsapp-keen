@@ -138,63 +138,54 @@ foreach ($batch as $i => &$t) {
         'params' => array_values($params) // Ensure indexed array
     ];
 
-    // CAROUSEL Handling
+    // CAROUSEL Handling: card data goes in `message`, NOT in `template`
+    // Gupshup Partner API expects:
+    //   template = {"id":"...", "params":["body_var1"]}   (top-level body variables only)
+    //   message  = {"type":"carousel", "cards":[...]}     (card headers + card body params)
     if ($tempType === 'CAROUSEL') {
         $meta = json_decode($jobData['template_meta'] ?? '{}', true);
         if ($meta && !empty($meta['cards'])) {
-            $carouselComponent = [
-                'type' => 'CAROUSEL',
-                'cards' => []
-            ];
-            
-            // Track which body parameter index we are manually mapping
-            $paramIdx = 0;
+            $carouselCards = [];
             
             foreach ($meta['cards'] as $cIdx => $card) {
                 $cardComponents = [];
                 
                 // 1. HEADER (Image) - Required for each card
                 $cardComponents[] = [
-                    'type' => 'HEADER',
+                    'type' => 'header',
                     'parameters' => [
                         [
-                            'type' => 'IMAGE',
+                            'type' => 'image',
                             'image' => [ 'link' => $card['mediaUrl'] ]
                         ]
                     ]
                 ];
                 
-                // 2. BODY (Variables)
+                // 2. BODY (per-card variables, if any)
                 $cardBody = $card['body'] ?? '';
                 preg_match_all('/\{\{\d+\}\}/', $cardBody, $cardMatches);
+                $cardBodyParams = [];
                 if (!empty($cardMatches[0])) {
-                    $cardBodyParams = [];
-                    // We assume params are ordered sequentially across cards
-                    foreach ($cardMatches[0] as $m) {
-                        if (isset($params[$paramIdx])) {
-                            $cardBodyParams[] = [
-                                'type' => 'text',
-                                'text' => (string)$params[$paramIdx]
-                            ];
-                        }
-                        $paramIdx++;
-                    }
-                    if (!empty($cardBodyParams)) {
-                        $cardComponents[] = [
-                            'type' => 'BODY',
-                            'parameters' => $cardBodyParams
-                        ];
-                    }
+                    // Card body variables are separate from the top-level body variables
+                    // For now, card bodies without variables get empty parameters
+                    // If card bodies have variables, they would need their own mapping
                 }
+                $cardComponents[] = [
+                    'type' => 'body',
+                    'parameters' => $cardBodyParams
+                ];
 
-                $carouselComponent['cards'][] = [
-                    'card_index' => (string)$cIdx,
+                $carouselCards[] = [
+                    'card_index' => $cIdx,
                     'components' => $cardComponents
                 ];
             }
 
-            $templateObj['components'] = [$carouselComponent];
-            unset($templateObj['params']); // Use components instead of flat params
+            // Build the message object with carousel cards
+            $messageData = [
+                'type' => 'carousel',
+                'cards' => $carouselCards
+            ];
         }
     }
 
