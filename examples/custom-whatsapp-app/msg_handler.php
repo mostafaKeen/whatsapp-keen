@@ -46,23 +46,25 @@ if (!$btMessageId || !$phone) {
 $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
 
 $apiKey = $whatsappConfig['gupshup_api_token'];
-$source = $whatsappConfig['gupshup_source'];
+$appId  = $whatsappConfig['gupshup_app_id'];
 
 $payload = [
-    'channel'     => 'whatsapp',
-    'source'      => $source,
-    'destination' => $cleanPhone,
-    'message'     => $messageText
+    'messaging_product' => 'whatsapp',
+    'to'                => $cleanPhone,
+    'type'              => 'text',
+    'text'              => ['body' => $messageText]
 ];
 
-// Send to Gupshup V1 API
-$ch = curl_init('https://api.gupshup.io/sm/api/v1/msg');
+// Send to Gupshup Partner V3 API
+$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
+$ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/x-www-form-urlencoded',
-    'apikey: ' . $apiKey
+    'Content-Type: application/json',
+    'accept: application/json',
+    'Authorization: ' . $apiKey
 ]);
 
 $response = curl_exec($ch);
@@ -71,7 +73,7 @@ $error    = curl_error($ch);
 curl_close($ch);
 
 $decodedResponse = json_decode($response, true);
-msLog("Gupshup API response ($httpCode)", $decodedResponse ?: ['raw' => $response]);
+msLog("Gupshup Partner API response ($httpCode)", $decodedResponse ?: ['raw' => $response]);
 
 if ($error) {
     msLog("CURL Error: " . $error);
@@ -79,9 +81,10 @@ if ($error) {
         'MESSAGE_ID' => $btMessageId,
         'STATUS'     => 'failed'
     ]);
-} elseif ($httpCode === 202 && isset($decodedResponse['messageId'])) {
+} elseif ($httpCode === 201 || $httpCode === 202 || $httpCode === 200) {
     // Gupshup accepted the message
-    $gsId = $decodedResponse['messageId'];
+    // Note: Partner API might return array with 'id' or 'messageId' or 'gs_id' inside an array
+    $gsId = $decodedResponse['messageId'] ?? ($decodedResponse['id'] ?? ($decodedResponse['gs_id'] ?? null));
     
     // Store mapping for status update when delivery webhook arrives
     $pendingDir = $whatsappConfig['var_dir'] . '/ms_pending';
