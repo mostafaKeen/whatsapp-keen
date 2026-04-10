@@ -83,8 +83,8 @@ if ($error) {
     ]);
 } elseif ($httpCode === 201 || $httpCode === 202 || $httpCode === 200) {
     // Gupshup accepted the message
-    // Note: Partner API might return array with 'id' or 'messageId' or 'gs_id' inside an array
-    $gsId = $decodedResponse['messageId'] ?? ($decodedResponse['id'] ?? ($decodedResponse['gs_id'] ?? null));
+    // Note: Partner API returns the ID inside the 'messages' array
+    $gsId = $decodedResponse['messages'][0]['id'] ?? ($decodedResponse['messageId'] ?? ($decodedResponse['id'] ?? ($decodedResponse['gs_id'] ?? null)));
     
     // Store mapping for status update when delivery webhook arrives
     $pendingDir = $whatsappConfig['var_dir'] . '/ms_pending';
