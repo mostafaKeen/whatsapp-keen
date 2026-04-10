@@ -77,13 +77,10 @@ msLog("Gupshup Partner API response ($httpCode)", $decodedResponse ?: ['raw' => 
 
 if ($error) {
     msLog("CURL Error: " . $error);
-    CRest::call('messageservice.message.status.update', [
-        'MESSAGE_ID' => $btMessageId,
-        'STATUS'     => 'failed'
-    ]);
+    updateBitrixStatus($btMessageId, 'failed');
+    recordToChatHistory($cleanPhone, $messageText, $btMessageId, 'failed', $data['auth']['user_id'] ?? null);
 } elseif ($httpCode === 201 || $httpCode === 202 || $httpCode === 200) {
     // Gupshup accepted the message
-    // Note: Partner API returns the ID inside the 'messages' array
     $gsId = $decodedResponse['messages'][0]['id'] ?? ($decodedResponse['messageId'] ?? ($decodedResponse['id'] ?? ($decodedResponse['gs_id'] ?? null)));
     
     // Store mapping for status update when delivery webhook arrives
@@ -99,24 +96,81 @@ if ($error) {
     
     msLog("Mapping stored: GS $gsId -> BT $btMessageId. Waiting for delivery webhook.");
     
-    // Per user instructions: "Update status to 'sent'" if Gupshup returns success 
-    // Wait, the user's latest comment was "no success or fail based on delivery" 
-    // which I interpreted as "Wait for delivery status". 
-    // However, Gupshup "accepting" the message is usually equivalent to "sent" from the provider's perspective.
-    // I will call "sent" now, then "delivered" later if the webhook arrives.
+    // Update Message Service status to "sent"
+    updateBitrixStatus($btMessageId, 'sent');
     
-    CRest::call('messageservice.message.status.update', [
-        'MESSAGE_ID' => $btMessageId,
-        'STATUS'     => 'sent'
-    ]);
+    // Record in Chat History
+    recordToChatHistory($cleanPhone, $messageText, $gsId ?: $btMessageId, 'sent', $data['auth']['user_id'] ?? null);
 
 } else {
     // API Failure
+    msLog("Failed to send message via Gupshup API (Status $httpCode)");
+    updateBitrixStatus($btMessageId, 'failed');
+    recordToChatHistory($cleanPhone, $messageText, $btMessageId, 'failed', $data['auth']['user_id'] ?? null);
+}
+
+/**
+ * Updates the Message Service status in Bitrix24.
+ */
+function updateBitrixStatus($btMessageId, $status) {
     CRest::call('messageservice.message.status.update', [
         'MESSAGE_ID' => $btMessageId,
-        'STATUS'     => 'failed'
+        'STATUS'     => $status
     ]);
-    msLog("Failed to send message via Gupshup API (Status $httpCode)");
+}
+
+/**
+ * Records the outbound message in the Open Channel (Contact Center) history.
+ */
+function recordToChatHistory($phone, $text, $msgId, $status, $managerId = null) {
+    $settingsFile = __DIR__ . '/settings.json';
+    $lineId = '1';
+    if (file_exists($settingsFile)) {
+        $settings = json_decode(file_get_contents($settingsFile), true) ?: [];
+        $lineId = (string)($settings['open_line_id'] ?? '1');
+    }
+
+    $arMessage = [
+        'user' => [
+            'id' => $phone,
+            'phone' => '+' . $phone,
+            'skip_phone_validate' => 'Y'
+        ],
+        'message' => [
+            'id' => $msgId,
+            'date' => time(),
+            'text' => $text,
+        ],
+        'chat' => [
+            'id' => $phone,
+        ]
+    ];
+
+    if ($managerId) {
+        $arMessage['message']['user_id'] = $managerId;
+    }
+
+    $res = CRest::call('imconnector.send.messages', [
+        'CONNECTOR' => 'keen_nexus',
+        'LINE' => $lineId,
+        'MESSAGES' => [$arMessage],
+    ]);
+
+    // If immediate failure, mark as failed in chat history too
+    if ($status === 'failed' && !empty($res['result'])) {
+        CRest::call('imconnector.send.status.delivery', [
+            'CONNECTOR' => 'keen_nexus',
+            'LINE' => $lineId,
+            'MESSAGES' => [
+                [
+                    'im' => $res['result'][0]['message']['id'] ?? null,
+                    'message' => ['id' => [$msgId]],
+                    'chat' => ['id' => $phone],
+                    'error' => 'Gupshup API Error'
+                ]
+            ]
+        ]);
+    }
 }
 
 echo json_encode(['SUCCESS' => true]);
