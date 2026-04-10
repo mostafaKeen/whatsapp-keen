@@ -7,6 +7,31 @@ error_reporting(E_ALL);
 
 require_once (__DIR__.'/crest.php');
 
+/**
+ * Automates the update of the local config.php scope.
+ * Needed because config.php is often gitignored and may have outdated scopes.
+ */
+function syncLocalConfigScope() {
+    $configFile = dirname(__DIR__, 1) . '/config.php';
+    if (!file_exists($configFile)) return;
+
+    $content = file_get_contents($configFile);
+    $required = ['messageservice', 'pull', 'pull_channel', 'crm', 'im', 'imconnector'];
+    
+    // Extract current scope
+    if (preg_match("/'BITRIX24_PHP_SDK_APPLICATION_SCOPE'\s*=>\s*'([^']*)'/", $content, $matches)) {
+        $current = explode(',', $matches[1]);
+        $merged = array_unique(array_filter(array_merge($current, $required)));
+        
+        if (count($merged) > count($current)) {
+            $newScope = implode(',', $merged);
+            $newContent = preg_replace("/('BITRIX24_PHP_SDK_APPLICATION_SCOPE'\s*=>\s*')[^']*(')/", "$1$newScope$2", $content);
+            file_put_contents($configFile, $newContent);
+        }
+    }
+}
+syncLocalConfigScope();
+
 $install_result = CRest::installApp();
 
 // If Bitrix24 sends installation POST data, handle the placement binding immediately.
@@ -42,6 +67,7 @@ if ($install_result['install'] === true) {
     // Register Keen Nexus Open Channel Connector
     $connectorUrl = str_replace('placement.php', 'connector_setup.php', $handlerBackUrl);
     $messagingHandlerUrl = str_replace('placement.php', 'handler.php', $handlerBackUrl);
+    $msgServiceHandlerUrl = str_replace('placement.php', 'msg_handler.php', $handlerBackUrl);
     
     $connectorRes = CRest::call(
         'imconnector.register',
@@ -114,10 +140,22 @@ if ($install_result['install'] === true) {
         file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
     }
 
+    $msgServiceRes = CRest::call(
+        'messageservice.sender.add',
+        [
+            'CODE' => 'gupshup_whatsapp',
+            'TYPE' => 'SMS',
+            'HANDLER' => $msgServiceHandlerUrl,
+            'NAME' => 'Gupshup WhatsApp',
+            'DESCRIPTION' => 'Gupshup WhatsApp integration for CRM Automation',
+        ]
+    );
+
     $binding_results['connector'] = $connectorRes;
     $binding_results['event'] = $eventRes;
     $binding_results['activate'] = $activateRes;
     $binding_results['connector_data'] = $connectorDataRes;
+    $binding_results['messageservice'] = $msgServiceRes;
 
     CRest::setLog(['placements' => $binding_results], 'installation_bindings');
     $is_installed = true;

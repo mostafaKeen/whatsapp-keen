@@ -99,14 +99,48 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     backfillMessageId($MSG_DIR, $recipientPhone, $gsId ?? $id);
                 }
 
-                if ($status !== 'enqueued' && ($gsId || $id || $metaId)) {
-                    $found = updateMessageStatusInLogs($MSG_DIR, $gsId, $id, $metaId, $status);
-                    if (!$found && $recipientPhone) {
-                        updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
+                    if ($status !== 'enqueued' && ($gsId || $id || $metaId)) {
+                        $found = updateMessageStatusInLogs($MSG_DIR, $gsId, $id, $metaId, $status);
+                        if (!$found && $recipientPhone) {
+                            updateStatusByPhone($MSG_DIR, $recipientPhone, $gsId, $id, $metaId, $status);
+                        }
+                        updateCampaignJobStatus($JOB_DIR, $gsId ?? $id ?? $metaId, $status, $errorMsg);
+
+                        // Bitrix24 Message Service Status Sync
+                        $pendingDir = ($whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/ms_pending';
+                        $targetIds = array_filter([$gsId, $id, $metaId]);
+                        foreach ($targetIds as $tid) {
+                            $pendingFile = $pendingDir . '/' . $tid . '.json';
+                            if (file_exists($pendingFile)) {
+                                $pendingData = json_decode(file_get_contents($pendingFile), true);
+                                if ($pendingData && isset($pendingData['bt_message_id'])) {
+                                    $btMsgId = $pendingData['bt_message_id'];
+                                    
+                                    // Map Gupshup status to Bitrix24 status
+                                    $btStatus = ($status === 'failed' || $status === 'error') ? 'failed' : null;
+                                    if ($status === 'delivered' || $status === 'read') {
+                                        $btStatus = 'delivered';
+                                    }
+
+                                    if ($btStatus) {
+                                        CRest::call('messageservice.message.status.update', [
+                                            'MESSAGE_ID' => $btMsgId,
+                                            'STATUS'     => $btStatus
+                                        ]);
+
+                                        // Optional logging to ms log
+                                        $msLogDir = __DIR__ . '/logs';
+                                        if (is_dir($msLogDir)) {
+                                            file_put_contents($msLogDir . '/messageservice.log', "[" . date('Y-m-d H:i:s') . "] Webhook update: GS $tid -> BT $btMsgId status $btStatus\n", FILE_APPEND);
+                                        }
+
+                                        unlink($pendingFile);
+                                    }
+                                }
+                            }
+                        }
                     }
-                    updateCampaignJobStatus($JOB_DIR, $gsId ?? $id ?? $metaId, $status, $errorMsg);
-                }
-                error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
+                    error_log("Status event: status=$status, gs_id=$gsId, id=$id, phone=$recipientPhone");
             }
         }
 
