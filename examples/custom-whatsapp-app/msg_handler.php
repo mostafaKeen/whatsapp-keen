@@ -34,7 +34,7 @@ msLog("Incoming Message Service request", $data);
 // Extract parameters (Bitrix24 standard + User suggested keys)
 $btMessageId = $data['message_id']   ?? $data['MESSAGE_ID'] ?? null;
 $messageText = $data['message_body'] ?? $data['MESSAGE']    ?? '';
-$phone       = $data['phone_number'] ?? $data['PHONE']      ?? '';
+$phone       = $data['message_to']   ?? $data['phone_number'] ?? ($data['properties']['phone_number'] ?? ($data['PHONE'] ?? ''));
 
 if (!$btMessageId || !$phone) {
     msLog("Missing required parameters (MESSAGE_ID or PHONE)");
