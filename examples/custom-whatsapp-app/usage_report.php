@@ -3,6 +3,17 @@ declare(strict_types=1);
 
 date_default_timezone_set('Asia/Dubai');
 
+use Bitrix24\SDK\Services\ServiceBuilderFactory;
+use Bitrix24\SDK\Services\ServiceBuilder;
+use Bitrix24\SDK\Core\Credentials\ApplicationProfile;
+use Bitrix24\SDK\Core\Credentials\AuthToken;
+use Bitrix24\SDK\Core\CoreBuilder;
+use Bitrix24\SDK\Core\Credentials\Credentials;
+use Bitrix24\SDK\Core\Credentials\Endpoints;
+use Bitrix24\SDK\Core\Batch;
+use Bitrix24\SDK\Core\BulkItemsReader\BulkItemsReaderBuilder;
+use Psr\Log\NullLogger;
+
 // 1. Configuration & Auth
 $configFile = __DIR__ . '/../config.php';
 if (!file_exists($configFile)) {
@@ -10,8 +21,67 @@ if (!file_exists($configFile)) {
 }
 $whatsappConfig = require $configFile;
 
-$appId = $whatsappConfig['gupshup_app_id'] ?? '';
-$apiToken = $whatsappConfig['gupshup_api_token'] ?? '';
+require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/SessionManager.php';
+
+$sessionManager = new SessionManager();
+$storedAuth = $sessionManager->getAuth();
+$isAuthorized = false;
+$userEmail = '';
+$accessError = null;
+
+if ($storedAuth) {
+    try {
+        $appProfile = ApplicationProfile::initFromArray([
+            'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'] ?? '',
+            'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'] ?? '',
+            'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'] ?? '',
+        ]);
+
+        $authToken = new AuthToken(
+            $storedAuth['AUTH_ID'],
+            $storedAuth['REFRESH_ID'],
+            (int)$storedAuth['AUTH_EXPIRES']
+        );
+        
+        $domain = $storedAuth['DOMAIN'];
+        if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
+            $domain = 'https://' . $domain;
+        }
+        
+        $endpoints = new Endpoints($domain, $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/');
+        $credentials = new Credentials(null, $authToken, $appProfile, $endpoints);
+        
+        $logger = new NullLogger();
+        $core = (new CoreBuilder())->withCredentials($credentials)->withLogger($logger)->build();
+        $batch = new Batch($core, $logger);
+        $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
+        $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
+        
+        // Call user.current
+        $currentUser = $b24Service->getMainScope()->userCurrent()->getUser();
+        $userEmail = $currentUser->EMAIL ?? '';
+        
+        if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {
+            $isAuthorized = true;
+        } else {
+            $accessError = "Access Restricted: This page is only available for @keenenter.com users. Current user: " . ($userEmail ?: 'Unknown');
+        }
+    } catch (\Exception $e) {
+        $accessError = "Authentication Error: " . $e->getMessage();
+    }
+} else {
+    $accessError = "Session Expired: Please reopen the application from Bitrix24.";
+}
+
+if (!$isAuthorized) {
+    // If not authorized, we will skip the Gupshup logic but still show the header/error in HTML
+    $appId = '';
+    $apiToken = '';
+} else {
+    $appId = $whatsappConfig['gupshup_app_id'] ?? '';
+    $apiToken = $whatsappConfig['gupshup_api_token'] ?? '';
+}
 
 // 2. Handle Date Range
 $fromDate = $_GET['from'] ?? date('Y-m-01'); // Default to start of current month
@@ -267,12 +337,26 @@ if ($appId && $apiToken) {
                 </form>
             </div>
 
-            <?php if ($error): ?>
+            <?php if ($accessError): ?>
+                <div class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-lock fa-4x text-danger opacity-25"></i>
+                    </div>
+                    <h3 class="font-weight-700 text-danger mb-3">Restricted Access</h3>
+                    <p class="text-muted mx-auto mb-4" style="max-width: 500px;">
+                        <?= htmlspecialchars($accessError) ?>
+                    </p>
+                    <a href="index.php" class="btn btn-modern btn-outline-modern">
+                        <i class="fas fa-home"></i> Back to Dashboard
+                    </a>
+                </div>
+            <?php elseif ($error): ?>
                 <div class="alert alert-danger rounded-lg">
                     <i class="fas fa-exclamation-triangle mr-2"></i> <?= $error ?>
                 </div>
             <?php endif; ?>
 
+            <?php if ($isAuthorized): ?>
             <!-- Metrics -->
             <div class="metric-grid">
                 <div class="metric-card shadow-sm">
@@ -356,6 +440,7 @@ if ($appId && $apiToken) {
                     </tbody>
                 </table>
             </div>
+            <?php endif; // End isAuthorized ?>
         </div>
     </div>
 </body>
