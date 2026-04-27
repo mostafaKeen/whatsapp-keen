@@ -750,6 +750,9 @@ if ($hasValidAuth) {
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
                             <i class="fas fa-chart-line"></i> Insights
                         </button>
+                        <a href="usage_report.php" class="btn btn-modern btn-outline-modern">
+                            <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
+                        </a>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
                         </button>
