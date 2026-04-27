@@ -84,7 +84,9 @@ $sessionManager = new SessionManager();
 // Manual Cache Clear
 if (isset($_GET['clear_cache'])) {
     $sessionManager->saveRegistration($connectorId, false);
-    header('Location: index.php');
+    $params = $_GET;
+    unset($params['clear_cache']);
+    header('Location: index.php?' . http_build_query($params));
     exit;
 }
 
@@ -750,7 +752,7 @@ if ($hasValidAuth) {
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
                             <i class="fas fa-chart-line"></i> Insights
                         </button>
-                        <a href="usage_report.php" class="btn btn-modern btn-outline-modern">
+                        <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
                         </a>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">

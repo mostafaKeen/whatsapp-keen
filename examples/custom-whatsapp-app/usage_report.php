@@ -306,11 +306,11 @@ if ($appId && $apiToken) {
 <body>
     <div class="container">
         <div class="header-section">
-            <a href="index.php" class="app-logo">
+            <a href="index.php?<?= http_build_query($_GET) ?>" class="app-logo">
                 <i class="fab fa-whatsapp"></i>
                 <span>KEEN Nexus</span>
             </a>
-            <a href="index.php" class="btn btn-modern btn-outline-modern">
+            <a href="index.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
         </div>
@@ -323,6 +323,11 @@ if ($appId && $apiToken) {
                 </div>
                 
                 <form class="form-inline" method="GET">
+                    <?php foreach ($_GET as $key => $value): ?>
+                        <?php if ($key !== 'from' && $key !== 'to'): ?>
+                            <input type="hidden" name="<?= htmlspecialchars((string)$key) ?>" value="<?= htmlspecialchars((string)$value) ?>">
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                     <div class="form-group mr-2">
                         <label class="sr-only">From</label>
                         <input type="date" name="from" class="form-control form-control-modern" value="<?= htmlspecialchars($fromDate) ?>">
@@ -346,7 +351,7 @@ if ($appId && $apiToken) {
                     <p class="text-muted mx-auto mb-4" style="max-width: 500px;">
                         <?= htmlspecialchars($accessError) ?>
                     </p>
-                    <a href="index.php" class="btn btn-modern btn-outline-modern">
+                    <a href="index.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                         <i class="fas fa-home"></i> Back to Dashboard
                     </a>
                 </div>
