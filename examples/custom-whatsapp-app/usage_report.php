@@ -21,6 +21,11 @@ if (!file_exists($configFile)) {
 }
 $whatsappConfig = require $configFile;
 
+// Enable error output for debugging
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/SessionManager.php';
 
@@ -58,8 +63,8 @@ if ($storedAuth) {
         $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
         $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
         
-        // Call user.current
-        $currentUser = $b24Service->getMainScope()->userCurrent()->getUser();
+        // Correctly call user.current using UserServiceBuilder
+        $currentUser = $b24Service->getUserScope()->user()->current()->user();
         $userEmail = $currentUser->EMAIL ?? '';
         
         if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {
