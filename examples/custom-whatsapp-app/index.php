@@ -752,9 +752,11 @@ if ($hasValidAuth) {
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
                             <i class="fas fa-chart-line"></i> Insights
                         </button>
+                        <?php if (strpos($domain ?? '', 'keenenter') !== false): ?>
                         <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
                         </a>
+                        <?php endif; ?>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
                         </button>
@@ -2035,6 +2037,14 @@ if ($hasValidAuth) {
                     }
 
                     function renderDynamicFilters() {
+                        // --- PRESERVE OLD VALUES ---
+                        var currentValues = {};
+                        $('.dynamic-filter-input').each(function() {
+                            var val = $(this).val();
+                            if (val) currentValues[$(this).data('field')] = val;
+                        });
+                        var currentSearch = $('#contactSearchInput').val() || '';
+
                         var $bar = $('#dynamicFilterBar').empty();
                         
                         // Add hardcoded Search field first
@@ -2042,6 +2052,7 @@ if ($hasValidAuth) {
                                         '<label class="filter-label">Search (Name/Phone)</label>' +
                                         '<input type="text" id="contactSearchInput" class="form-control form-control-sm border-0 bg-transparent p-0" style="box-shadow:none;" placeholder="Type to search...">' +
                                     '</div>');
+                        $('#contactSearchInput').val(currentSearch);
 
                         visibleFields.forEach(function(fieldId) {
                             var f = bitrixFields.find(function(x) { return x.id === fieldId; });
@@ -2052,27 +2063,30 @@ if ($hasValidAuth) {
                             
                             var commonStyle = 'class="form-control form-control-sm border-0 bg-transparent p-0 dynamic-filter-input" style="box-shadow:none;" data-field="'+f.id+'" data-type="'+(f.type || 'string')+'"';
                             
+                            var val = currentValues[f.id] || '';
+
                             if (f.items && Array.isArray(f.items)) {
                                 html += '<select '+commonStyle+'>' +
                                             '<option value="">All</option>';
                                 f.items.forEach(function(item) {
-                                    html += '<option value="'+item.ID+'">'+item.VALUE+'</option>';
+                                    var selected = String(item.ID) === String(val) ? 'selected' : '';
+                                    html += '<option value="'+item.ID+'" '+selected+'>'+item.VALUE+'</option>';
                                 });
                                 html += '</select>';
                             } else if (f.type === 'date' || f.type === 'datetime') {
-                                html += '<input type="date" '+commonStyle+'>';
+                                html += '<input type="date" '+commonStyle+' value="'+val+'">';
                             } else if (f.type === 'boolean') {
                                 // Although boolean usually comes as enumeration items from my PHP, 
                                 // this is a fallback for raw boolean types.
                                 html += '<select '+commonStyle+'>' +
                                             '<option value="">All</option>' +
-                                            '<option value="Y">Yes</option>' +
-                                            '<option value="N">No</option>' +
+                                            '<option value="Y" '+(val==='Y'?'selected':'')+'>Yes</option>' +
+                                            '<option value="N" '+(val==='N'?'selected':'')+'>No</option>' +
                                         '</select>';
                             } else if (f.type === 'integer' || f.type === 'double' || f.type === 'money') {
-                                html += '<input type="number" '+commonStyle+' placeholder="...">';
+                                html += '<input type="number" '+commonStyle+' placeholder="..." value="'+val+'">';
                             } else {
-                                html += '<input type="text" '+commonStyle+' placeholder="...">';
+                                html += '<input type="text" '+commonStyle+' placeholder="..." value="'+val+'">';
                             }
                             
                             html += '</div>';
