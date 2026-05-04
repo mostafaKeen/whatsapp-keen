@@ -47,24 +47,9 @@ if (empty($source) || empty($appName)) {
     exit;
 }
 
-// Media URL Validation Helper
-function validateMediaUrl($url) {
-    if (empty($url)) return "Media URL is required for this template header.";
-    // Relaxed check: just ensure it's a URL-like string. Gupshup prefers HTTPS but we'll let the worker handle failures.
-    if (strpos(strtolower($url), 'http') !== 0) return "Media URL must be a valid public link (http/https).";
-    if (strpos($url, 'localhost') !== false || strpos($url, '127.0.0.1') !== false) return "Localhost URLs are not allowed.";
-    
-    return true;
-}
+// Media URL validation removed as requested by user
+$v = true;
 
-if (!empty($mediaUrl) || in_array(strtoupper($templateType), ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
-    $v = validateMediaUrl($mediaUrl);
-    if ($v !== true) {
-        http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Media Validation Error: ' . $v]);
-        exit;
-    }
-}
 
 $jobId = 'job_' . time() . '_' . bin2hex(random_bytes(4));
 $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');

@@ -2554,20 +2554,6 @@ if ($hasValidAuth) {
                         e.preventDefault();
                         if (activeJobId) return; // Already running/paused
 
-                        // Manual validation for Media URL if shown
-                        if ($('#campaignMediaUrlGroup').is(':visible')) {
-                            var mUrl = $('#campaignMediaUrl').val().trim();
-                            if (!mUrl) {
-                                alert('Please provide a Media Header URL for this template.');
-                                $('#campaignMediaUrl').focus();
-                                return;
-                            }
-                            if (!mUrl.startsWith('https://')) {
-                                alert('Media URL must be a valid public HTTPS link.');
-                                $('#campaignMediaUrl').focus();
-                                return;
-                            }
-                        }
 
                         var formData = $(this).serializeArray();
                         var templateId = $('#campaignTemplateSelect').val();
