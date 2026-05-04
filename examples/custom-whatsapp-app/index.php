@@ -2650,7 +2650,11 @@ if ($hasValidAuth) {
                                 }
                             },
                             error: function(xhr) {
-                                campaignError('Failed to create campaign job: HTTP ' + xhr.status);
+                                var msg = 'Failed to create campaign job: HTTP ' + xhr.status;
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    msg = xhr.responseJSON.message;
+                                }
+                                campaignError(msg);
                             }
                         });
                     });

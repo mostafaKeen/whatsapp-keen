@@ -28,9 +28,14 @@ $csvData = json_decode($_POST['csvData'] ?? '[]', true); // Full rows from CSV i
 
 $numbers = array_values(array_filter(array_map('trim', explode("\n", $numbersRaw))));
 
-if (empty($templateId) || empty($numbers)) {
+if (empty($templateId)) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Template ID and Numbers are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Template ID is required.']);
+    exit;
+}
+if (empty($numbers)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'No phone numbers provided.']);
     exit;
 }
 
@@ -46,24 +51,16 @@ function validateMediaUrl($url) {
     if (strpos($url, 'https://') !== 0) return "Media URL must be public HTTPS and accessible.";
     if (strpos($url, 'localhost') !== false || strpos($url, '127.0.0.1') !== false) return "Localhost URLs are not allowed.";
     
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_NOBODY, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($code !== 200) return "Media URL is not reachable (HTTP $code). Please ensure it is publicly accessible.";
+    // We will skip the CURL check as many CDNs block server-side requests (CORS/Bot protection)
+    // but the browser/WhatsApp can still access them.
     return true;
 }
 
-if (!empty($mediaUrl) || in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+if (!empty($mediaUrl) || in_array(strtoupper($templateType), ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
     $v = validateMediaUrl($mediaUrl);
     if ($v !== true) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => $v]);
+        echo json_encode(['status' => 'error', 'message' => 'Media Validation Error: ' . $v]);
         exit;
     }
 }
@@ -153,7 +150,7 @@ $jobData['total'] = count($jobData['targets']);
 
 if ($jobData['total'] === 0) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'No valid phone numbers found.']);
+    echo json_encode(['status' => 'error', 'message' => 'No valid phone numbers found after filtering. Please ensure numbers contain at least some digits.']);
     exit;
 }
 
