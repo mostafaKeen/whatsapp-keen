@@ -859,7 +859,7 @@ if ($hasValidAuth) {
                                     </div>
                                     <div class="form-group mb-4" id="campaignMediaUrlGroup" style="display:none;">
                                         <label class="font-weight-600 small text-muted text-uppercase">Media Header URL *</label>
-                                        <input type="url" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://example.com/image.jpg">
+                                        <input type="text" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://example.com/image.jpg">
                                         <small class="text-muted">Direct link to the media file required for this template.</small>
                                     </div>
                                     
@@ -2320,35 +2320,27 @@ if ($hasValidAuth) {
                         var $respSel = $('#campaignResponsibleSelect');
                         if ($respSel.children('option').length <= 2) { // Default + Round Robin
                             $respSel.empty().append('<option value="">Loading users...</option>');
-                            $.ajax({
-                                url: '<?php echo $whatsappConfig['webhook_url']; ?>user.get.json',
-                                method: 'GET',
-                                dataType: 'json',
-                                success: function(resp) {
-                                    $respSel.empty().append('<option value="">-- Lead will be unassigned (default) --</option>');
-                                    $respSel.append('<option value="round_robin">Round Robin (Queue Assignment)</option>');
-                                    
-                                    var $rrList = $('#roundRobinUserList').empty();
-                                    if (resp && resp.result && Array.isArray(resp.result)) {
-                                        resp.result.forEach(function(user) {
-                                            if (user.ACTIVE) {
-                                                var nameStr = (user.NAME || '') + (user.NAME && user.LAST_NAME ? ' ' : '') + (user.LAST_NAME || '');
-                                                $respSel.append('<option value="' + user.ID + '">' + nameStr + '</option>');
-                                                
-                                                var rrId = 'rr_user_' + user.ID;
-                                                var rrHtml = '<div class="contact-item border-0 p-1 m-0" style="flex: 0 0 calc(50% - 8px);">' +
-                                                                '<div class="custom-control custom-checkbox">' +
-                                                                    '<input type="checkbox" class="custom-control-input rr-user-checkbox" id="' + rrId + '" value="' + user.ID + '" checked>' +
-                                                                    '<label class="custom-control-label small" for="' + rrId + '">' + nameStr + '</label>' +
-                                                                '</div>' +
-                                                             '</div>';
-                                                $rrList.append(rrHtml);
-                                            }
-                                        });
-                                    }
-                                },
-                                error: function(xhr, status, err) {
-                                    console.error('Error fetching Bitrix24 users:', err);
+                            BX24.callMethod('user.get', { FILTER: { ACTIVE: true } }, function(res) {
+                                $respSel.empty().append('<option value="">-- Lead will be unassigned (default) --</option>');
+                                $respSel.append('<option value="round_robin">Round Robin (Queue Assignment)</option>');
+                                
+                                var $rrList = $('#roundRobinUserList').empty();
+                                if (!res.error()) {
+                                    res.data().forEach(function(user) {
+                                        var nameStr = (user.NAME || '') + (user.NAME && user.LAST_NAME ? ' ' : '') + (user.LAST_NAME || '');
+                                        $respSel.append('<option value="' + user.ID + '">' + nameStr + '</option>');
+                                        
+                                        var rrId = 'rr_user_' + user.ID;
+                                        var rrHtml = '<div class="contact-item border-0 p-1 m-0" style="flex: 0 0 calc(50% - 8px);">' +
+                                                        '<div class="custom-control custom-checkbox">' +
+                                                            '<input type="checkbox" class="custom-control-input rr-user-checkbox" id="' + rrId + '" value="' + user.ID + '" checked>' +
+                                                            '<label class="custom-control-label small" for="' + rrId + '">' + nameStr + '</label>' +
+                                                        '</div>' +
+                                                     '</div>';
+                                        $rrList.append(rrHtml);
+                                    });
+                                } else {
+                                    console.error('Error fetching Bitrix24 users via SDK:', res.error());
                                     $respSel.empty().append('<option value="">-- Failed to load users --</option>');
                                 }
                             });
@@ -2406,7 +2398,9 @@ if ($hasValidAuth) {
                             } else {
                                 // Not found, ask user to provide it
                                 $('#campaignMediaUrlGroup').slideDown();
-                                $('#campaignMediaUrl').prop('required', true);
+                                // We remove required attribute to prevent "not focusable" browser error if field is hidden or during submission
+                                // We will validate manually in the submit handler
+                                $('#campaignMediaUrl').prop('required', false);
                             }
                         } else {
                             $('#campaignMediaUrlGroup').slideUp();
@@ -2559,6 +2553,21 @@ if ($hasValidAuth) {
                     $('#campaignForm').on('submit', function(e) {
                         e.preventDefault();
                         if (activeJobId) return; // Already running/paused
+
+                        // Manual validation for Media URL if shown
+                        if ($('#campaignMediaUrlGroup').is(':visible')) {
+                            var mUrl = $('#campaignMediaUrl').val().trim();
+                            if (!mUrl) {
+                                alert('Please provide a Media Header URL for this template.');
+                                $('#campaignMediaUrl').focus();
+                                return;
+                            }
+                            if (!mUrl.startsWith('https://')) {
+                                alert('Media URL must be a valid public HTTPS link.');
+                                $('#campaignMediaUrl').focus();
+                                return;
+                            }
+                        }
 
                         var formData = $(this).serializeArray();
                         var templateId = $('#campaignTemplateSelect').val();
