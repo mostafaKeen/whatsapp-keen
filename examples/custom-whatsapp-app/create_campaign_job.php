@@ -16,7 +16,7 @@ $templateName = $_POST['templateName'] ?? '';
 $templateType = $_POST['templateType'] ?? 'TEXT';
 $templateContent = $_POST['templateContent'] ?? '';
 $numbersRaw = $_POST['numbers'] ?? '';
-$mediaUrl = $_POST['mediaUrl'] ?? '';
+$mediaUrl = trim($_POST['mediaUrl'] ?? '');
 $responsibleId = $_POST['responsibleId'] ?? '';
 $templateMeta = $_POST['templateMeta'] ?? '';
 
@@ -50,11 +50,10 @@ if (empty($source) || empty($appName)) {
 // Media URL Validation Helper
 function validateMediaUrl($url) {
     if (empty($url)) return "Media URL is required for this template header.";
-    if (strpos($url, 'https://') !== 0) return "Media URL must be public HTTPS and accessible.";
+    // Relaxed check: just ensure it's a URL-like string. Gupshup prefers HTTPS but we'll let the worker handle failures.
+    if (strpos(strtolower($url), 'http') !== 0) return "Media URL must be a valid public link (http/https).";
     if (strpos($url, 'localhost') !== false || strpos($url, '127.0.0.1') !== false) return "Localhost URLs are not allowed.";
     
-    // We will skip the CURL check as many CDNs block server-side requests (CORS/Bot protection)
-    // but the browser/WhatsApp can still access them.
     return true;
 }
 
