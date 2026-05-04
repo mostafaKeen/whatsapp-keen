@@ -6,6 +6,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed']);
     exit;
 }
+header('Content-Type: application/json');
+file_put_contents(__DIR__ . '/debug_job.log', date('Y-m-d H:i:s') . " REQUEST: " . print_r($_REQUEST, true) . "\n", FILE_APPEND);
 
 $whatsappConfig = require __DIR__ . '/../config.php';
 

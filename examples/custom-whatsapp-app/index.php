@@ -2653,6 +2653,9 @@ if ($hasValidAuth) {
                                 var msg = 'Failed to create campaign job: HTTP ' + xhr.status;
                                 if (xhr.responseJSON && xhr.responseJSON.message) {
                                     msg = xhr.responseJSON.message;
+                                } else if (xhr.responseText) {
+                                    // Try to see if there's any text error
+                                    msg += ' - ' + xhr.responseText.substring(0, 200);
                                 }
                                 campaignError(msg);
                             }
