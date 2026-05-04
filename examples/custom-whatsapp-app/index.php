@@ -141,6 +141,15 @@ if ($hasValidAuth) {
         $batch = new Batch($core, $logger);
         $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
         $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
+
+        // Fetch current user email for usage report visibility
+        $currentUserEmail = '';
+        try {
+            $currentUser = $b24Service->getUserScope()->user()->current()->user();
+            $currentUserEmail = $currentUser->EMAIL ?? '';
+        } catch (\Exception $e) {
+            // Silently fail if we can't get user info
+        }
     } catch (\Exception $e) {
         $errorMessage = 'Init failed: ' . $e->getMessage();
     }
@@ -752,7 +761,7 @@ if ($hasValidAuth) {
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
                             <i class="fas fa-chart-line"></i> Insights
                         </button>
-                        <?php if (strpos($domain ?? '', 'keenenter') !== false): ?>
+                        <?php if (str_ends_with(strtolower($currentUserEmail ?? ''), '@keenenter.com')): ?>
                         <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
                         </a>
