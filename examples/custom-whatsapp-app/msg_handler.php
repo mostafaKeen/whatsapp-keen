@@ -55,6 +55,14 @@ $payload = [
     'text'              => ['body' => $messageText]
 ];
 
+// Deduplication: Store hash of (phone + message) to prevent handler.php from re-sending
+$dedupDir = ($whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/dedup_cache';
+if (!is_dir($dedupDir)) {
+    mkdir($dedupDir, 0777, true);
+}
+$msgHash = md5($cleanPhone . trim($messageText));
+file_put_contents($dedupDir . '/' . $msgHash, time());
+
 // Send to Gupshup Partner V3 API
 $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
 $ch = curl_init($url);

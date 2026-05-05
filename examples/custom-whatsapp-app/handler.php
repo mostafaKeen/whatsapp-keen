@@ -60,10 +60,20 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event
 
         $chatId = $arMessage['chat']['id'] ?? '';
         $imMsgId = $arMessage['im'] ?? null;
-        
         $phone = preg_replace('/[^0-9]/', '', $chatId);
         
         if (empty($phone) || empty(trim($message))) continue;
+
+        // Deduplication: Check if this message was already sent by msg_handler.php (SMS provider)
+        $dedupDir = ($whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var')) . '/dedup_cache';
+        $msgHash = md5($phone . trim($message));
+        if (file_exists($dedupDir . '/' . $msgHash)) {
+            $sentTime = (int)file_get_contents($dedupDir . '/' . $msgHash);
+            if (time() - $sentTime < 15) { // If sent within last 15 seconds
+                error_log("Deduplication: Skipping message already sent by SMS provider for phone $phone");
+                continue; 
+            }
+        }
 
         $payload = [
             'messaging_product' => 'whatsapp',
