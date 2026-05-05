@@ -224,12 +224,17 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $campaignInfo = matchCampaignJobByPhone($JOB_DIR, $phone);
                 $campaignPrefix = ($campaignInfo) ? "Reply to template: [" . $campaignInfo['template_name'] . "]. Message: " : "Gupshup Message: ";
 
-                // 2B. Look up Lead/Contact by phone
-                $entity = findLeadByPhone($phone, $WEBHOOK_URL);
+                // 2B. Look up Lead/Contact by phone (or create new Lead)
+                $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL, $campaignInfo);
 
-                // 2C. Add the message to Open Channel instead of Timeline Activity
-                // Open Channel will handle lead creation automatically in Bitrix24 if needed
-                sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId, $entity['id'] ?? null);
+                // 2C. Add the message to Open Channel and link to CRM Lead
+                $ocResult = sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId, $entity['id'] ?? null);
+                
+                // If a new session/chat was created, ensure it's linked to the lead
+                if (!empty($ocResult['DATA']['RESULT'][0]['session']['CHAT_ID'])) {
+                    $chatId = $ocResult['DATA']['RESULT'][0]['session']['CHAT_ID'];
+                    CRest::call('imopenlines.crm.lead.create', ['CHAT_ID' => $chatId]);
+                }
 
                 if ($entity) {
                     
@@ -417,7 +422,7 @@ function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
 /**
  * Pushes the inbound message to Bitrix24 Open Channel.
  */
-function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId, $leadId = null): void {
+function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName, string $text, ?string $mediaUrl, $timestamp, string $messageId, $leadId = null): ?array {
     $settingsFile = dirname(__DIR__, 1) . '/custom-whatsapp-app/settings.json';
     $lineId = '1';
     if (file_exists($settingsFile)) {
@@ -464,6 +469,8 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
     if (empty($result['result'])) {
         error_log("Failed to send message to Open Channel: " . json_encode($result));
     }
+    
+    return $result['result'] ?? null;
 }
 
 
@@ -472,9 +479,10 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
 
 /**
  * Search Bitrix24 for a Lead or Contact by phone.
- * Returns ['type' => 'lead', 'id' => 123, 'is_new' => false] or null.
+ * Creates a new Lead if not found.
+ * Returns ['type' => 'lead', 'id' => 123, 'is_new' => true/false] or null.
  */
-function findLeadByPhone(string $phone, string $webhookUrl): ?array {
+function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl, ?array $campaign = null): ?array {
 
     // Try multiple phone formats
     $variants = [
@@ -486,7 +494,7 @@ function findLeadByPhone(string $phone, string $webhookUrl): ?array {
     $res = bitrix24Call($webhookUrl, 'crm.duplicate.findbycomm', [
         'type'        => 'PHONE',
         'values'      => $variants,
-        'entity_type' => ['LEAD'], // Only search for Leads to satisfy current workflow
+        'entity_type' => ['LEAD'], // Only search for Leads to satisfy "please create lead" requirement
     ]);
 
     if (!empty($res['result']['LEAD'])) {
@@ -496,6 +504,76 @@ function findLeadByPhone(string $phone, string $webhookUrl): ?array {
         return ['type' => 'lead', 'id' => $leadId, 'is_new' => false, 'responsible_id' => $responsibleId];
     }
 
+    // Not found — create new Lead
+    error_log("No Lead/Contact found for +$phone, creating new Lead...");
+    
+    static $waSourceId = null;
+    static $waStageId = null;
+    if ($waSourceId === null || $waStageId === null) {
+        $waSourceId = 'WA_GUPSHUP'; // default fallback
+        $statusRes = bitrix24Call($webhookUrl, 'crm.status.list', []);
+        if (!empty($statusRes['result'])) {
+            foreach ($statusRes['result'] as $status) {
+                $entityId = $status['ENTITY_ID'] ?? '';
+                $statusName = strtolower(trim($status['NAME'] ?? ''));
+                
+                if ($entityId === 'SOURCE' && $statusName === 'whatsapp business api') {
+                    $waSourceId = $status['STATUS_ID'];
+                }
+                if ($entityId === 'STATUS' && $statusName === 'whatsapp campaigns') {
+                    $waStageId = $status['STATUS_ID'];
+                }
+            }
+        }
+    }
+
+    $defaultRespId = ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) ? $campaign['responsible_id'] : 1;
+
+    $leadFields = [
+        'TITLE'     => ($name ?: 'WhatsApp User') . ($campaign ? ' - ' . $campaign['template_name'] : ' - WA Inquiry'),
+        'NAME'      => $name ?: 'WhatsApp User',
+        'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
+        'SOURCE_ID' => $waSourceId,
+        'COMMENTS'  => 'Auto-created from WhatsApp Gupshup Webhook' . ($campaign ? "\nReplied to: " . $campaign['template_name'] : ""),
+        'ASSIGNED_BY_ID' => $defaultRespId
+    ];
+
+    if ($waStageId) {
+        $leadFields['STATUS_ID'] = $waStageId;
+    }
+    
+    if ($campaign && isset($campaign['template_name'])) {
+        static $waCampaignFieldId = null;
+        if ($waCampaignFieldId === null) {
+            $waCampaignFieldId = 'UF_CRM_WHATSPP_NAME'; // Fallback
+            $fieldsRes = bitrix24Call($webhookUrl, 'crm.lead.fields', []);
+            if (!empty($fieldsRes['result'])) {
+                foreach ($fieldsRes['result'] as $key => $field) {
+                    $title = strtolower(trim($field['title'] ?? ''));
+                    $formLabel = strtolower(trim($field['formLabel'] ?? ''));
+                    $listLabel = strtolower(trim($field['listLabel'] ?? ''));
+                    
+                    if ($title === 'whatsapp campaign name' || $formLabel === 'whatsapp campaign name' || $listLabel === 'whatsapp campaign name') {
+                        $waCampaignFieldId = $key;
+                        break;
+                    }
+                }
+            }
+        }
+        $leadFields[$waCampaignFieldId] = [$campaign['template_name']];
+    }
+
+    $createRes = bitrix24Call($webhookUrl, 'crm.lead.add', [
+        'fields' => $leadFields,
+    ]);
+
+    if (!empty($createRes['result'])) {
+        $newId = (int)$createRes['result'];
+        error_log("Created new Lead ID: " . $newId);
+        return ['type' => 'lead', 'id' => $newId, 'is_new' => true, 'responsible_id' => $defaultRespId];
+    }
+
+    error_log("Failed to create Lead for +$phone: " . json_encode($createRes));
     return null;
 }
 
