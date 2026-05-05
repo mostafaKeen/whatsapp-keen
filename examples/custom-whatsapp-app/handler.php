@@ -60,7 +60,10 @@ if ($request->get('event') === 'ONIMCONNECTORMESSAGEADD' || $request->get('event
 
         $chatId = $arMessage['chat']['id'] ?? '';
         $imMsgId = $arMessage['im'] ?? null;
-        $phone = preg_replace('/[^0-9]/', '', $chatId);
+        
+        // Extract phone from chat ID (format: {phone}_{leadId} or just {phone})
+        $phonePart = explode('_', (string)$chatId)[0];
+        $phone = preg_replace('/[^0-9]/', '', $phonePart);
         
         if (empty($phone) || empty(trim($message))) continue;
 

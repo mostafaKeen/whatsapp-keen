@@ -449,7 +449,7 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
             'text' => $text,
         ],
         'chat' => [
-            'id' => $phone,
+            'id' => $leadId ? $phone . '_' . $leadId : $phone,
             'name' => 'WhatsApp: ' . $senderName,
         ]
     ];
