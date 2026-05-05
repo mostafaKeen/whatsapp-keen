@@ -68,7 +68,7 @@ if (in_array($templateType, ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'])) {
     $uploadCh = curl_init($uploadUrl);
     curl_setopt($uploadCh, CURLOPT_POST, true);
     curl_setopt($uploadCh, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($uploadCh, CURLOPT_HTTPHEADER, ["Authorization: $apiToken"]);
+    curl_setopt($uploadCh, CURLOPT_HTTPHEADER, ["Authorization: Bearer $apiToken"]);
     
     // Gupshup upload/media accepts a URL as the 'file' parameter
     curl_setopt($uploadCh, CURLOPT_POSTFIELDS, [
@@ -145,7 +145,7 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: ' . $apiToken,
+    'Authorization: Bearer ' . $apiToken,
     'Content-Type: application/x-www-form-urlencoded'
 ]);
 

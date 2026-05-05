@@ -70,7 +70,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Authorization: ' . $apiToken,
+    'Authorization: Bearer ' . $apiToken,
     'Content-Type: application/x-www-form-urlencoded'
 ]);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);

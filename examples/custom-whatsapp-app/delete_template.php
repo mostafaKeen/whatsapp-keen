@@ -33,7 +33,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: ' . $apiToken
+    'Authorization: Bearer ' . $apiToken
 ]);
 
 $response = curl_exec($ch);

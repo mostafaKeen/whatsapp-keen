@@ -110,14 +110,22 @@ foreach ($batch as $i => &$t) {
     $tempType = strtoupper($jobData['template_type'] ?? 'TEXT');
 
     if (!empty($mediaUrl)) {
-        if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT') {
-            $typeLower = strtolower($tempType);
+        if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT' || $tempType === 'FILE') {
+            $typeLower = ($tempType === 'FILE') ? 'file' : strtolower($tempType);
             $messageData = [
                 'type' => $typeLower,
                 $typeLower => [
                     'link' => $mediaUrl
                 ]
             ];
+            // If it's a document/file, we might want to add a filename if we can infer it
+            if ($typeLower === 'document' || $typeLower === 'file') {
+                $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
+                $filename = end($pathParts);
+                if ($filename) {
+                    $messageData[$typeLower]['filename'] = $filename;
+                }
+            }
             // Body variables for media templates go in template.params
             $params = $t['params'] ?? [];
         } else {
@@ -306,12 +314,11 @@ foreach ($batch as $i => &$t) {
 
     // ---- STEP 5: Build the final POST payload ----
     $postData = [
-        'channel' => 'whatsapp',
         'source' => $jobData['source'],
-        'sandbox' => 'false',
         'destination' => $t['phone'],
+        'src.name' => $jobData['app_name'],
         'template' => json_encode($templateObj),
-        'src.name' => $jobData['app_name']
+        'channel' => 'whatsapp'
     ];
 
     if ($messageData) {
@@ -330,7 +337,8 @@ foreach ($batch as $i => &$t) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Connection: keep-alive',
         'Content-Type: application/x-www-form-urlencoded',
-        'Authorization: ' . $apiToken
+        'Authorization: Bearer ' . $apiToken,
+        'accept: application/json'
     ]);
 
     $curls[$i] = $ch;

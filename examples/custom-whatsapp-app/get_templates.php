@@ -20,7 +20,7 @@ curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
 curl_setopt($ch, CURLOPT_FORBID_REUSE, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: ' . $apiToken
+    'Authorization: Bearer ' . $apiToken
 ]);
 
 $response = curl_exec($ch);

@@ -71,33 +71,41 @@ foreach ($jobData['targets'] as $index => &$target) {
 
     // Build Payload
     $params = $target['params'] ?? [];
-    $mediaUrl = $jobData['media_url'] ?? '';
+    $mediaUrl = trim($jobData['media_url'] ?? '');
     $tempType = strtoupper($jobData['template_type'] ?? 'TEXT');
     $messageData = null;
 
     if (!empty($mediaUrl)) {
-        if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT') {
-            $typeLower = strtolower($tempType);
+        if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT' || $tempType === 'FILE') {
+            $typeLower = ($tempType === 'FILE') ? 'file' : strtolower($tempType);
             $messageData = [
                 'type' => $typeLower,
-                $typeLower => ['link' => $mediaUrl]
+                $typeLower => [
+                    'link' => $mediaUrl
+                ]
             ];
-        } else if (empty($params)) {
-             $params[] = $mediaUrl;
+            // If it's a document/file, we might want to add a filename if we can infer it
+            if ($typeLower === 'document' || $typeLower === 'file') {
+                $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
+                $filename = end($pathParts);
+                if ($filename) {
+                    $messageData[$typeLower]['filename'] = $filename;
+                }
+            }
         }
     }
 
     $postData = [
-        'channel' => 'whatsapp',
         'source' => $jobData['source'],
-        'sandbox' => 'false',
         'destination' => $target['phone'],
+        'src.name' => $jobData['app_name'],
         'template' => json_encode([
             'id' => $jobData['template_id'],
             'params' => array_values($params)
         ]),
-        'src.name' => $jobData['app_name']
+        'channel' => 'whatsapp'
     ];
+    
     if ($messageData) {
         $postData['message'] = json_encode($messageData);
     }
@@ -108,7 +116,8 @@ foreach ($jobData['targets'] as $index => &$target) {
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: ' . $apiToken
+        'Authorization: Bearer ' . $apiToken,
+        'accept: application/json'
     ]);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     
