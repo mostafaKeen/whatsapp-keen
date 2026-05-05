@@ -78,20 +78,66 @@ foreach ($jobData['targets'] as $index => &$target) {
     if (!empty($mediaUrl)) {
         if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT' || $tempType === 'FILE') {
             $typeLower = ($tempType === 'FILE') ? 'file' : strtolower($tempType);
+            
+            // Intelligent detection: If it starts with http, use 'link', otherwise use 'id' (handle)
+            $isUrl = (strpos(strtolower($mediaUrl), 'http') === 0);
+            
             $messageData = [
                 'type' => $typeLower,
                 $typeLower => [
-                    'link' => $mediaUrl
+                    $isUrl ? 'link' : 'id' => $mediaUrl
                 ]
             ];
-            // If it's a document/file, we might want to add a filename if we can infer it
-            if ($typeLower === 'document' || $typeLower === 'file') {
+            
+            // If it's a document/file and we have a link, try to add a filename
+            if ($isUrl && ($typeLower === 'document' || $typeLower === 'file')) {
                 $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
                 $filename = end($pathParts);
                 if ($filename) {
                     $messageData[$typeLower]['filename'] = $filename;
                 }
             }
+        }
+    }
+
+    if ($tempType === 'CAROUSEL') {
+        $meta = json_decode($jobData['template_meta'] ?? '{}', true);
+        if ($meta && !empty($meta['cards'])) {
+            $carouselCards = [];
+            foreach ($meta['cards'] as $cIdx => $card) {
+                $cardComponents = [];
+                $headerType = strtoupper($card['headerType'] ?? 'IMAGE');
+                
+                if ($headerType === 'IMAGE' || $headerType === 'VIDEO') {
+                    $cardMediaUrl = $card['mediaUrl'] ?? '';
+                    if (!empty($cardMediaUrl)) {
+                        $isCardUrl = (strpos(strtolower($cardMediaUrl), 'http') === 0);
+                        $mediaTypeLower = strtolower($headerType);
+                        $cardComponents[] = [
+                            'type' => 'header',
+                            'parameters' => [[
+                                'type' => $mediaTypeLower,
+                                $mediaTypeLower => [$isCardUrl ? 'link' : 'id' => $cardMediaUrl]
+                            ]]
+                        ];
+                    }
+                } elseif ($headerType === 'TEXT') {
+                    $headerValue = $card['headerText'] ?? $card['sampleHeader'] ?? '';
+                    if (!empty($headerValue)) {
+                        $cardComponents[] = [
+                            'type' => 'header',
+                            'parameters' => [[
+                                'type' => 'text',
+                                'text' => (string)$headerValue
+                            ]]
+                        ];
+                    }
+                }
+                
+                $cardComponents[] = ['type' => 'body', 'parameters' => []]; // Body vars mapping could go here
+                $carouselCards[] = ['card_index' => $cIdx, 'components' => $cardComponents];
+            }
+            $messageData = ['type' => 'carousel', 'cards' => $carouselCards];
         }
     }
 
