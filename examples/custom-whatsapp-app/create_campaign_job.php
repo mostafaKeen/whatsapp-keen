@@ -47,8 +47,12 @@ if (empty($source) || empty($appName)) {
     exit;
 }
 
-// Media URL validation removed as requested by user
-$v = true;
+// Validate media URL for media templates
+if (in_array(strtoupper($templateType), ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF']) && empty($mediaUrl)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Media Header URL is required for ' . $templateType . ' templates.']);
+    exit;
+}
 
 
 $jobId = 'job_' . time() . '_' . bin2hex(random_bytes(4));

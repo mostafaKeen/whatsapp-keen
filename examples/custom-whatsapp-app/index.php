@@ -859,7 +859,7 @@ if ($hasValidAuth) {
                                     </div>
                                     <div class="form-group mb-4" id="campaignMediaUrlGroup" style="display:none;">
                                         <label class="font-weight-600 small text-muted text-uppercase">Media Header URL *</label>
-                                        <input type="text" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://example.com/image.jpg">
+                                        <input type="text" name="mediaUrl" id="campaignMediaUrl" class="form-control form-control-modern" placeholder="https://ictacademy.com.ng/wp-content/uploads/2021/02/copy-link-url-12.jpg">
                                         <small class="text-muted">Direct link to the media file required for this template.</small>
                                     </div>
                                     
@@ -2391,17 +2391,9 @@ if ($hasValidAuth) {
                         // Check if template type requires media (IMAGE, VIDEO, DOCUMENT)
                         if (selectedTemplate && ['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(selectedTemplate.templateType) !== -1) {
                             $('#campaignMediaUrl').val(autoMediaUrl);
-                            if (autoMediaUrl) {
-                                // If found in template data, no need to ask user
-                                $('#campaignMediaUrlGroup').slideUp();
-                                $('#campaignMediaUrl').prop('required', false);
-                            } else {
-                                // Not found, ask user to provide it
-                                $('#campaignMediaUrlGroup').slideDown();
-                                // We remove required attribute to prevent "not focusable" browser error if field is hidden or during submission
-                                // We will validate manually in the submit handler
-                                $('#campaignMediaUrl').prop('required', false);
-                            }
+                            // Always show the group for media templates as requested by user
+                            $('#campaignMediaUrlGroup').slideDown();
+                            $('#campaignMediaUrl').prop('required', true);
                         } else {
                             $('#campaignMediaUrlGroup').slideUp();
                             $('#campaignMediaUrl').val('').prop('required', false);
@@ -2565,6 +2557,15 @@ if ($hasValidAuth) {
                         formData.push({name: 'templateName', value: templateName});
                         if (selectedTemplate) {
                             formData.push({name: 'templateType', value: selectedTemplate.templateType});
+                            
+                            // Manual validation for media URL
+                            if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(selectedTemplate.templateType) !== -1) {
+                                var mediaUrl = $('#campaignMediaUrl').val().trim();
+                                if (!mediaUrl) {
+                                    showToast('Media Header URL is required for ' + selectedTemplate.templateType + ' templates', 'warning');
+                                    return;
+                                }
+                            }
                         }
 
                         var respId = $('#campaignResponsibleSelect').val();
