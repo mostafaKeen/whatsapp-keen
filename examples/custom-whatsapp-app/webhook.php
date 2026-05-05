@@ -494,11 +494,14 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     $res = bitrix24Call($webhookUrl, 'crm.duplicate.findbycomm', [
         'type'        => 'PHONE',
         'values'      => $variants,
-        'entity_type' => ['LEAD'], // Only search for Leads to satisfy "please create lead" requirement
+        'entity_type' => ['LEAD'], // Only search for Leads
     ]);
+
+    error_log("Lead Search for +$phone: " . json_encode($res['result'] ?? []));
 
     if (!empty($res['result']['LEAD'])) {
         $leadId = (int)$res['result']['LEAD'][0];
+        error_log("Found existing Lead ID: $leadId for +$phone");
         $resp = bitrix24Call($webhookUrl, 'crm.lead.get', ['id' => $leadId]);
         $responsibleId = $resp['result']['ASSIGNED_BY_ID'] ?? 1;
         return ['type' => 'lead', 'id' => $leadId, 'is_new' => false, 'responsible_id' => $responsibleId];
