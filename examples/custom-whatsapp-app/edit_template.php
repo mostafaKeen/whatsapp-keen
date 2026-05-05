@@ -74,7 +74,7 @@ curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'accept: application/json',
-    'Authorization: Bearer ' . $apiToken,
+    'Authorization: ' . $apiToken,
     'Content-Type: application/x-www-form-urlencoded'
 ]);
 

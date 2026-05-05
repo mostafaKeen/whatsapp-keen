@@ -32,7 +32,7 @@ curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Authorization: Bearer ' . $apiToken,
+    'Authorization: ' . $apiToken,
     'Content-Type: application/x-www-form-urlencoded'
 ]);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);

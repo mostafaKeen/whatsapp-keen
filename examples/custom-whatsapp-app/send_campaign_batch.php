@@ -342,7 +342,7 @@ foreach ($batch as $i => &$t) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Connection: keep-alive',
         'Content-Type: application/x-www-form-urlencoded',
-        'Authorization: Bearer ' . $apiToken,
+        'Authorization: ' . $apiToken,
         'accept: application/json'
     ]);
 
