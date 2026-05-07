@@ -533,7 +533,7 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
     $defaultRespId = ($campaign && isset($campaign['responsible_id']) && !empty($campaign['responsible_id'])) ? $campaign['responsible_id'] : 1;
 
     $leadFields = [
-        'TITLE'     => ($name ?: 'WhatsApp User') . ($campaign ? ' - ' . $campaign['template_name'] : ' - WA Inquiry'),
+        'TITLE'     => ($name ?: 'WhatsApp User') . ' (+' . $phone . ')' . ($campaign ? ' - ' . $campaign['template_name'] : ' - WA Inquiry'),
         'NAME'      => $name ?: 'WhatsApp User',
         'PHONE'     => [['VALUE' => '+' . $phone, 'VALUE_TYPE' => 'WORK']],
         'SOURCE_ID' => $waSourceId,
