@@ -2642,10 +2642,10 @@ if ($hasValidAuth) {
 
                         // Send Bitrix leads data if any variable is mapped to bitrix
                         var useBitrix = varMappings.some(m => m.type === 'bitrix');
-                        if (useBitrix && window.allLeads && window.allLeads.length > 0) {
+                        if (useBitrix && allLeads && allLeads.length > 0) {
                             // Only send selected leads to save bandwidth
                             var selectedPhones = $('#campaignNumbersArea').val().split('\n').map(s => s.replace(/[^0-9]/g, '')).filter(Boolean);
-                            var selectedLeads = window.allLeads.filter(l => {
+                            var selectedLeads = allLeads.filter(l => {
                                 if (!l.PHONE) return false;
                                 return l.PHONE.some(p => selectedPhones.includes(p.VALUE.replace(/[^0-9]/g, '')));
                             });
