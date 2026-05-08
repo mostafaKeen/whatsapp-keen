@@ -1345,7 +1345,7 @@ if ($hasValidAuth) {
                                 <button type="button" class="close" data-dismiss="modal">&times;</button>
                             </div>
                             <div class="modal-body">
-                                <div id="tReasonAlert" class="alert alert-danger mb-4 rounded-lg d-flex align-items-center" style="display:none;">
+                                <div id="tReasonAlert" class="alert alert-danger mb-4 rounded-lg align-items-center" style="display:none !important;">
                                     <i class="fas fa-exclamation-triangle mr-3 fa-lg"></i>
                                     <div>
                                         <strong class="small text-uppercase">Meta Rejection Reason:</strong><br>
@@ -1740,7 +1740,7 @@ if ($hasValidAuth) {
 
                     // View Template
                     $(document).on('click', '.view-btn', function() {
-                        $('#tReasonAlert').hide(); // Hide it immediately on every click
+                        $('#tReasonAlert').attr('style', 'display: none !important;').removeClass('d-flex'); // Hide it immediately on every click
                         
                         var t;
                         try {
@@ -1767,10 +1767,10 @@ if ($hasValidAuth) {
                         // Hide if approved OR if reason is effectively empty/placeholder
                         if (!isApproved && reasonText.length > 0 && reasonText.toLowerCase() !== 'none' && reasonText.toLowerCase() !== 'null') {
                             $('#tReason').text(reasonText);
-                            $('#tReasonAlert').show();
+                            $('#tReasonAlert').attr('style', 'display: flex !important;').addClass('d-flex');
                         } else {
                             $('#tReason').text('');
-                            $('#tReasonAlert').hide();
+                            $('#tReasonAlert').attr('style', 'display: none !important;').removeClass('d-flex');
                         }
                         $('#tMediaSection').hide();
                         $('#tButtonsSection').hide();
