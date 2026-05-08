@@ -132,7 +132,12 @@ foreach ($numbers as $num) {
                 } else if ($m['type'] === 'csv' && $csvRow) {
                     $params[] = $csvRow[$m['value']] ?? '';
                 } else if ($m['type'] === 'bitrix' && $bitrixRow) {
-                    $params[] = $bitrixRow[$m['value']] ?? '';
+                    $val = $bitrixRow[$m['value']] ?? '';
+                    if (is_array($val)) {
+                        $first = reset($val);
+                        $val = is_array($first) ? ($first['VALUE'] ?? '') : $first;
+                    }
+                    $params[] = (string)$val;
                 } else {
                     $params[] = '';
                 }

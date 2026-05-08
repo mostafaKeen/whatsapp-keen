@@ -2169,8 +2169,13 @@ if ($hasValidAuth) {
                         $('#contactList').hide();
                         allLeads = [];
 
-                        // Build select parameter based on visible fields
-                        var select = visibleFields.join(',');
+                        // Build select parameter based on visible fields + any fields used in variable mapping
+                        var mappedFields = [];
+                        $('.var-bitrix-field').each(function() {
+                            var val = $(this).val();
+                            if (val) mappedFields.push(val);
+                        });
+                        var select = [...new Set(visibleFields.concat(mappedFields))].join(',');
 
                         $.ajax({
                             url: 'get_leads.php',
@@ -2516,7 +2521,12 @@ if ($hasValidAuth) {
                         area.selectionStart = area.selectionEnd = start + varStr.length;
                     });
 
-                    $('#campaignNumbersArea').on('input change blur', function(e) {
+                        $(document).on('change', '.var-bitrix-field', function() {
+                            // If a new field is mapped, we might need to re-fetch leads to get that data
+                            fetchCampaignLeads();
+                        });
+
+                        $('#campaignNumbersArea').on('input change blur', function(e) {
                         var val = $(this).val();
                         if (!val) {
                             $('#campaignNumberCount').text('0 unique numbers');
