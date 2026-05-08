@@ -2006,6 +2006,15 @@ if ($hasValidAuth) {
                                     bitrixFields = resp.fields;
                                     renderManageFiltersModal();
                                     renderDynamicFilters();
+                                    
+                                    // Refresh template variables if they are currently showing to enable Bitrix mapping
+                                    var templateId = $('#campaignTemplateSelect').val();
+                                    if (templateId) {
+                                        var selectedTemplate = (window.allTemplatesData || []).find(function(t) {
+                                            return (t.id || t.templateId || t.externalId) === templateId;
+                                        });
+                                        if (selectedTemplate) detectTemplateVariables(selectedTemplate);
+                                    }
                                 }
                                 if (callback) callback();
                             },
@@ -2314,6 +2323,14 @@ if ($hasValidAuth) {
                                 if (t.status === 'APPROVED') {
                                     $sel.append('<option value="'+(t.id || t.templateId || t.externalId)+'">'+t.elementName+' ('+t.templateType+')</option>');
                                 }
+                            });
+                        }
+
+                        // Proactively load Bitrix fields for variable mapping if not already loaded
+                        if (!leadFiltersFetched) {
+                            leadFiltersFetched = true;
+                            loadUserPreferences(function() {
+                                loadBitrixFields();
                             });
                         }
 
