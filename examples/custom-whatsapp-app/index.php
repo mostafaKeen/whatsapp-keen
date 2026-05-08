@@ -1709,7 +1709,7 @@ if ($hasValidAuth) {
                                         if (t.status === 'APPROVED') statusPill = 'status-pill approved';
                                         if (t.status === 'REJECTED' || t.status === 'FAILED') statusPill = 'status-pill rejected';
                                         
-                                        var reasonHtml = t.reason ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
+                                        var reasonHtml = (t.reason && t.status !== 'APPROVED') ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
                                         
                                         html += '<tr>';
                                         html += '<td><div class="font-weight-bold text-primary">' + t.elementName + '</div><div class="small text-muted">' + t.templateType + '</div></td>';
@@ -1719,7 +1719,7 @@ if ($hasValidAuth) {
                                         html += '<td class="text-right"><div class="btn-group">';
                                         html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="View"><i class="fas fa-eye"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-info rounded-circle mr-2 px-2 view-analytics-btn" data-id="' + t.id + '" data-element="' + t.elementName + '" title="View Performance Analytics"><i class="fas fa-chart-line"></i></button>';
-                                        html += '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 px-2 edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit"><i class="fas fa-edit"></i></button>';
+                                        // html += '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 px-2 edit-btn" data-json=\'' + JSON.stringify(t).replace(/'/g, "&apos;") + '\' title="Edit"><i class="fas fa-edit"></i></button>';
                                         html += '<button class="btn btn-sm btn-outline-danger rounded-circle px-2 delete-btn" data-name="' + t.elementName + '" title="Delete"><i class="fas fa-trash"></i></button>';
                                         html += '</div></td></tr>';
                                     });
@@ -1745,7 +1745,7 @@ if ($hasValidAuth) {
                         $('#tType').text(t.templateType);
                         $('#tLang').text(t.languageCode);
                         $('#tData').text(t.data);
-                        if (t.reason) { $('#tReason').text(t.reason); $('#tReasonAlert').show(); }
+                        if (t.reason && t.status !== 'APPROVED') { $('#tReason').text(t.reason); $('#tReasonAlert').show(); }
                         else { $('#tReasonAlert').hide(); }
                         $('#tMediaSection').hide();
                         $('#tButtonsSection').hide();
@@ -1756,7 +1756,7 @@ if ($hasValidAuth) {
                                     var cHtml = '<div class="d-flex overflow-auto pb-3" style="gap: 12px; scroll-snap-type: x mandatory;">';
                                     meta.cards.forEach(function(card) {
                                         cHtml += '<div class="card-preview border rounded shadow-sm bg-white" style="min-width: 220px; max-width: 220px; scroll-snap-align: start;">' +
-                                                 '<img src="' + (card.mediaUrl || card.sampleMedia || '') + '" style="width: 100%; height: 140px; object-fit: cover;" class="rounded-top">' +
+                                                 // '<img src="' + (card.mediaUrl || card.sampleMedia || '') + '" style="width: 100%; height: 140px; object-fit: cover;" class="rounded-top">' +
                                                  '<div class="p-3">' +
                                                  '<div class="small font-weight-500 mb-2">' + card.body + '</div>';
                                         if (card.buttons) {
@@ -1772,10 +1772,15 @@ if ($hasValidAuth) {
                                 } else if (meta.mediaUrl || meta.sampleMedia) {
                                     var mUrl = meta.mediaUrl || meta.sampleMedia;
                                     var previewHtml = t.templateType === 'IMAGE' ?
-                                        '<img src="' + mUrl + '" style="max-width:100%;max-height:200px;" class="rounded shadow-sm">' :
+                                        '' : // Image hidden as requested
                                         '<a href="' + mUrl + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> View Media</a>';
-                                    $('#tMediaPreview').html(previewHtml);
-                                    $('#tMediaSection').show();
+                                    
+                                    if (previewHtml) {
+                                        $('#tMediaPreview').html(previewHtml);
+                                        $('#tMediaSection').show();
+                                    } else {
+                                        $('#tMediaSection').hide();
+                                    }
                                 }
                                 if (meta.buttons && meta.buttons.length > 0) {
                                     var bHtml = '';
