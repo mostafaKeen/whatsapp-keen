@@ -1709,7 +1709,7 @@ if ($hasValidAuth) {
                                         if (t.status === 'APPROVED') statusPill = 'status-pill approved';
                                         if (t.status === 'REJECTED' || t.status === 'FAILED') statusPill = 'status-pill rejected';
                                         
-                                        var isApproved = String(t.status || '').toUpperCase() === 'APPROVED';
+                                        var isApproved = String(t.status || '').toUpperCase().trim() === 'APPROVED';
                                         var reasonHtml = (t.reason && !isApproved) ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
                                         
                                         html += '<tr>';
@@ -1739,14 +1739,29 @@ if ($hasValidAuth) {
 
                     // View Template
                     $(document).on('click', '.view-btn', function() {
-                        var t = $(this).data('json');
-                        $('#tName').text(t.elementName);
-                        $('#tCategory').text(t.category);
-                        $('#tStatus').text(t.status);
-                        $('#tType').text(t.templateType);
-                        $('#tLang').text(t.languageCode);
-                        $('#tData').text(t.data);
-                        var isApproved = String(t.status || '').toUpperCase() === 'APPROVED';
+                        $('#tReasonAlert').hide(); // Hide it immediately on every click
+                        
+                        var t;
+                        try {
+                            // Get fresh JSON from attribute to avoid jQuery caching issues
+                            var jsonStr = $(this).attr('data-json');
+                            t = JSON.parse(jsonStr);
+                        } catch(e) {
+                            t = $(this).data('json');
+                        }
+                        
+                        if (!t) return;
+
+                        $('#tName').text(t.elementName || '');
+                        $('#tCategory').text(t.category || '');
+                        $('#tStatus').text(t.status || '');
+                        $('#tType').text(t.templateType || '');
+                        $('#tLang').text(t.languageCode || '');
+                        $('#tData').text(t.data || '');
+                        
+                        var status = String(t.status || '').toUpperCase().trim();
+                        var isApproved = (status === 'APPROVED');
+                        
                         if (t.reason && !isApproved) {
                             $('#tReason').text(t.reason);
                             $('#tReasonAlert').show();
