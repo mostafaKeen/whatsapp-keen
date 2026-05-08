@@ -2447,11 +2447,16 @@ if ($hasValidAuth) {
                                         <select class="form-control var-mapping-type" data-var="${num}" style="max-width: 130px;">
                                             <option value="static">Static</option>
                                             <option value="csv" ${window.currentCsvHeaders ? '' : 'disabled'}>CSV Col</option>
+                                            <option value="bitrix" ${bitrixFields.length > 0 ? '' : 'disabled'}>Bitrix Field</option>
                                         </select>
                                         <input type="text" class="form-control var-static-val" data-var="${num}" placeholder="Enter static value">
                                         <select class="form-control var-csv-col" data-var="${num}" style="display:none;">
                                             <option value="">-- Choose Column --</option>
                                             ${(window.currentCsvHeaders || []).map(h => `<option value="${h}">${h}</option>`).join('')}
+                                        </select>
+                                        <select class="form-control var-bitrix-field" data-var="${num}" style="display:none;">
+                                            <option value="">-- Choose Field --</option>
+                                            ${bitrixFields.map(f => `<option value="${f.id}">${f.title}</option>`).join('')}
                                         </select>
                                     </div>
                                 </div>
@@ -2466,12 +2471,14 @@ if ($hasValidAuth) {
                         var varNum = $(this).data('var');
                         var type = $(this).val();
                         var parent = $(this).closest('.input-group');
+                        parent.find('.var-static-val, .var-csv-col, .var-bitrix-field').hide();
+                        
                         if (type === 'static') {
                             parent.find('.var-static-val').show();
-                            parent.find('.var-csv-col').hide();
-                        } else {
-                            parent.find('.var-static-val').hide();
+                        } else if (type === 'csv') {
                             parent.find('.var-csv-col').show();
+                        } else if (type === 'bitrix') {
+                            parent.find('.var-bitrix-field').show();
                         }
                     });
 
@@ -2590,8 +2597,10 @@ if ($hasValidAuth) {
                             var mapping = { num: num, type: type };
                             if (type === 'static') {
                                 mapping.value = $(`.var-static-val[data-var="${num}"]`).val();
-                            } else {
+                            } else if (type === 'csv') {
                                 mapping.value = $(`.var-csv-col[data-var="${num}"]`).val();
+                            } else if (type === 'bitrix') {
+                                mapping.value = $(`.var-bitrix-field[data-var="${num}"]`).val();
                             }
                             varMappings.push(mapping);
                         });
@@ -2602,6 +2611,20 @@ if ($hasValidAuth) {
                         // Send CSV rows if available
                         if (window.currentCsvRows && window.currentCsvRows.length > 0) {
                             formData.push({name: 'csvData', value: JSON.stringify(window.currentCsvRows)});
+                        }
+
+                        // Send Bitrix leads data if any variable is mapped to bitrix
+                        var useBitrix = varMappings.some(m => m.type === 'bitrix');
+                        if (useBitrix && window.allLeads && window.allLeads.length > 0) {
+                            // Only send selected leads to save bandwidth
+                            var selectedPhones = $('#campaignNumbersArea').val().split('\n').map(s => s.replace(/[^0-9]/g, '')).filter(Boolean);
+                            var selectedLeads = window.allLeads.filter(l => {
+                                if (!l.PHONE) return false;
+                                return l.PHONE.some(p => selectedPhones.includes(p.VALUE.replace(/[^0-9]/g, '')));
+                            });
+                            if (selectedLeads.length > 0) {
+                                formData.push({name: 'bitrixData', value: JSON.stringify(selectedLeads)});
+                            }
                         }
 
                         // Send Template Content & Meta

@@ -27,6 +27,7 @@ $appName = $whatsappConfig['gupshup_app_name'] ?? '';
 // Support variables mapping
 $varMappings = json_decode($_POST['varMappings'] ?? '[]', true);
 $csvData = json_decode($_POST['csvData'] ?? '[]', true); // Full rows from CSV if uploaded
+$bitrixData = json_decode($_POST['bitrixData'] ?? '[]', true); // Full lead data from Bitrix24 if mapped
 
 $numbers = array_values(array_filter(array_map('trim', explode("\n", $numbersRaw))));
 
@@ -99,6 +100,20 @@ function findCsvRow($phone, $csvData) {
     return null;
 }
 
+// Helper to get lead by phone from Bitrix data
+function findBitrixRow($phone, $bitrixData) {
+    $cleanTarget = preg_replace('/[^0-9]/', '', $phone);
+    foreach ($bitrixData as $row) {
+        if (!empty($row['PHONE']) && is_array($row['PHONE'])) {
+            foreach ($row['PHONE'] as $p) {
+                $cleanRowPhone = preg_replace('/[^0-9]/', '', (string)($p['VALUE'] ?? ''));
+                if ($cleanRowPhone === $cleanTarget) return $row;
+            }
+        }
+    }
+    return null;
+}
+
 $roundRobinUsers = json_decode($_POST['roundRobinUsers'] ?? '[]', true);
 $rrIndex = 0;
 $rrCount = count($roundRobinUsers);
@@ -109,11 +124,15 @@ foreach ($numbers as $num) {
         $params = [];
         if (!empty($varMappings)) {
             $csvRow = findCsvRow($cleanNum, $csvData);
+            $bitrixRow = findBitrixRow($cleanNum, $bitrixData);
+            
             foreach ($varMappings as $m) {
                 if ($m['type'] === 'static') {
                     $params[] = $m['value'] ?? '';
                 } else if ($m['type'] === 'csv' && $csvRow) {
                     $params[] = $csvRow[$m['value']] ?? '';
+                } else if ($m['type'] === 'bitrix' && $bitrixRow) {
+                    $params[] = $bitrixRow[$m['value']] ?? '';
                 } else {
                     $params[] = '';
                 }
