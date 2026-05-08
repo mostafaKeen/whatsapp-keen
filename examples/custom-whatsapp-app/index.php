@@ -1709,7 +1709,8 @@ if ($hasValidAuth) {
                                         if (t.status === 'APPROVED') statusPill = 'status-pill approved';
                                         if (t.status === 'REJECTED' || t.status === 'FAILED') statusPill = 'status-pill rejected';
                                         
-                                        var reasonHtml = (t.reason && t.status !== 'APPROVED') ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
+                                        var isApproved = String(t.status || '').toUpperCase() === 'APPROVED';
+                                        var reasonHtml = (t.reason && !isApproved) ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
                                         
                                         html += '<tr>';
                                         html += '<td><div class="font-weight-bold text-primary">' + t.elementName + '</div><div class="small text-muted">' + t.templateType + '</div></td>';
@@ -1745,8 +1746,13 @@ if ($hasValidAuth) {
                         $('#tType').text(t.templateType);
                         $('#tLang').text(t.languageCode);
                         $('#tData').text(t.data);
-                        if (t.reason && t.status !== 'APPROVED') { $('#tReason').text(t.reason); $('#tReasonAlert').show(); }
-                        else { $('#tReasonAlert').hide(); }
+                        var isApproved = String(t.status || '').toUpperCase() === 'APPROVED';
+                        if (t.reason && !isApproved) {
+                            $('#tReason').text(t.reason);
+                            $('#tReasonAlert').show();
+                        } else {
+                            $('#tReasonAlert').hide();
+                        }
                         $('#tMediaSection').hide();
                         $('#tButtonsSection').hide();
                         try {
