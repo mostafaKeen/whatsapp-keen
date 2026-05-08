@@ -1709,8 +1709,9 @@ if ($hasValidAuth) {
                                         if (t.status === 'APPROVED') statusPill = 'status-pill approved';
                                         if (t.status === 'REJECTED' || t.status === 'FAILED') statusPill = 'status-pill rejected';
                                         
+                                        var reasonText = (t.reason || '').toString().trim();
                                         var isApproved = String(t.status || '').toUpperCase().trim() === 'APPROVED';
-                                        var reasonHtml = (t.reason && !isApproved) ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
+                                        var reasonHtml = (reasonText.length > 0 && !isApproved && reasonText.toLowerCase() !== 'none' && reasonText.toLowerCase() !== 'null') ? '<div class="small text-danger mt-1" style="max-width:200px"><i>' + t.reason + '</i></div>' : '';
                                         
                                         html += '<tr>';
                                         html += '<td><div class="font-weight-bold text-primary">' + t.elementName + '</div><div class="small text-muted">' + t.templateType + '</div></td>';
@@ -1759,13 +1760,16 @@ if ($hasValidAuth) {
                         $('#tLang').text(t.languageCode || '');
                         $('#tData').text(t.data || '');
                         
+                        var reasonText = (t.reason || '').toString().trim();
                         var status = String(t.status || '').toUpperCase().trim();
                         var isApproved = (status === 'APPROVED');
                         
-                        if (t.reason && !isApproved) {
-                            $('#tReason').text(t.reason);
+                        // Hide if approved OR if reason is effectively empty/placeholder
+                        if (!isApproved && reasonText.length > 0 && reasonText.toLowerCase() !== 'none' && reasonText.toLowerCase() !== 'null') {
+                            $('#tReason').text(reasonText);
                             $('#tReasonAlert').show();
                         } else {
+                            $('#tReason').text('');
                             $('#tReasonAlert').hide();
                         }
                         $('#tMediaSection').hide();
