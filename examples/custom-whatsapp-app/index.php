@@ -3743,9 +3743,9 @@ if ($hasValidAuth) {
                         loadConversations(v);
                     }, 500);
                 });
-                });
 
                 // Auto-Reply Logic
+
                 $('#addAutoReplyRule').click(function() {
                     $('.no-rules-msg').remove();
                     const html = `
