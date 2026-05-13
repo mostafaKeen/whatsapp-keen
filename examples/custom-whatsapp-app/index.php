@@ -160,7 +160,14 @@ if ($hasValidAuth) {
         // In setup mode, we don't try to load the full app logic
         $whatsappConfig = $configExists ? require $configFile : [];
     }
+
+    // Load Auto-Reply Settings
+    $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+    $autoReplyFile = $varDir . '/auto_replies.json';
+    $autoReplySettings = file_exists($autoReplyFile) ? json_decode(file_get_contents($autoReplyFile), true) : ['enabled' => false, 'rules' => []];
+
 } catch (\Exception $e) {
+
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
 
@@ -769,7 +776,11 @@ if ($hasValidAuth) {
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
                         </button>
+                        <button id="autoReplySettingsBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#autoReplyModal">
+                            <i class="fas fa-robot text-primary"></i> Auto-Reply
+                        </button>
                         <button id="createTemplateBtn" class="btn btn-modern btn-primary-modern" data-toggle="modal" data-target="#createTemplateModal">
+
                             <i class="fas fa-plus"></i> Create Template
                         </button>
                     </div>
@@ -3732,12 +3743,156 @@ if ($hasValidAuth) {
                         loadConversations(v);
                     }, 500);
                 });
+                });
+
+                // Auto-Reply Logic
+                $('#addAutoReplyRule').click(function() {
+                    $('.no-rules-msg').remove();
+                    const html = `
+                        <div class="rule-row mb-3 p-3 border rounded-lg position-relative bg-white shadow-sm">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group mb-md-0">
+                                        <label class="small font-weight-700 text-muted uppercase">Keyword (contains)</label>
+                                        <input type="text" class="form-control form-control-sm keyword-input" placeholder="e.g. price">
+                                    </div>
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="form-group mb-0">
+                                        <label class="small font-weight-700 text-muted uppercase">Reply Message</label>
+                                        <textarea class="form-control form-control-sm reply-input" rows="2" placeholder="Your automated response..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-center justify-content-end">
+                                    <button type="button" class="btn btn-sm btn-link text-danger remove-rule-btn" title="Remove Rule">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $('#rulesList').append(html);
+                });
+
+                $(document).on('click', '.remove-rule-btn', function() {
+                    $(this).closest('.rule-row').remove();
+                    if ($('#rulesList .rule-row').length === 0) {
+                        $('#rulesList').append('<div class="no-rules-msg text-center py-4 text-muted small border rounded-lg bg-light">No rules defined yet. Click "Add Rule" to begin.</div>');
+                    }
+                });
+
+                $('#saveAutoReplyBtn').click(function() {
+                    const btn = $(this);
+                    const rules = [];
+                    $('#rulesList .rule-row').each(function() {
+                        const keyword = $(this).find('.keyword-input').val();
+                        const reply = $(this).find('.reply-input').val();
+                        if (keyword && reply) {
+                            rules.push({ keyword, reply });
+                        }
+                    });
+
+                    const data = {
+                        enabled: $('#autoReplyEnabled').is(':checked'),
+                        rules: rules
+                    };
+
+                    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i> Saving...');
+
+                    $.ajax({
+                        url: 'save_auto_replies.php',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(data),
+                        success: function(res) {
+                            btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Changes');
+                            alert('Auto-reply settings saved successfully!');
+                            $('#autoReplyModal').modal('hide');
+                        },
+                        error: function(err) {
+                            btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Changes');
+                            alert('Error saving settings: ' + (err.responseJSON ? err.responseJSON.error : 'Network error'));
+                        }
+                    });
+                });
             });
         </script>
 
+
     </div>
+    <!-- Auto-Reply Modal -->
+    <div class="modal fade" id="autoReplyModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-white border-bottom-0">
+                    <div>
+                        <h5 class="modal-title font-weight-700">Auto-Reply Settings</h5>
+                        <p class="text-muted small mb-0">Automatically reply to messages containing specific keywords.</p>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="custom-control custom-switch mb-4">
+                        <input type="checkbox" class="custom-control-input" id="autoReplyEnabled" <?= ($autoReplySettings['enabled'] ?? false) ? 'checked' : '' ?>>
+                        <label class="custom-control-label font-weight-600" for="autoReplyEnabled">Enable Auto-Reply</label>
+                    </div>
+
+                    <div id="autoReplyRulesContainer">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="font-weight-700 text-uppercase small text-muted mb-0">Rules List</h6>
+                            <button type="button" id="addAutoReplyRule" class="btn btn-xs btn-outline-primary">
+                                <i class="fas fa-plus mr-1"></i> Add Rule
+                            </button>
+                        </div>
+                        <div id="rulesList" class="mb-3">
+                            <!-- Rule rows -->
+                            <?php if (empty($autoReplySettings['rules'])): ?>
+                                <div class="no-rules-msg text-center py-4 text-muted small border rounded-lg bg-light">
+                                    No rules defined yet. Click "Add Rule" to begin.
+                                </div>
+                            <?php else: ?>
+                                <?php foreach ($autoReplySettings['rules'] as $idx => $rule): ?>
+                                    <div class="rule-row mb-3 p-3 border rounded-lg position-relative bg-white shadow-sm">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="form-group mb-md-0">
+                                                    <label class="small font-weight-700 text-muted uppercase">Keyword (contains)</label>
+                                                    <input type="text" class="form-control form-control-sm keyword-input" value="<?= htmlspecialchars($rule['keyword']) ?>" placeholder="e.g. price">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-7">
+                                                <div class="form-group mb-0">
+                                                    <label class="small font-weight-700 text-muted uppercase">Reply Message</label>
+                                                    <textarea class="form-control form-control-sm reply-input" rows="2" placeholder="Your automated response..."><?= htmlspecialchars($rule['reply']) ?></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-1 d-flex align-items-center justify-content-end">
+                                                <button type="button" class="btn btn-sm btn-link text-danger remove-rule-btn" title="Remove Rule">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Cancel</button>
+                    <button type="button" id="saveAutoReplyBtn" class="btn btn-modern btn-primary-modern">
+                        <i class="fas fa-save mr-2"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Manage Filters Modal -->
     <div class="modal fade" id="filterSettingsModal" tabindex="-1" role="dialog" aria-hidden="true">
+
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-light">

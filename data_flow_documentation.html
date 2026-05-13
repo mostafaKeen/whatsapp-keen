@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Flow Architecture | Gupshup to Bitrix24</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --accent: #f59e0b;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card);
+            padding: 50px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--secondary);
+            font-size: 1.1rem;
+        }
+
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid var(--primary);
+            position: relative;
+        }
+
+        .step-number {
+            background: var(--primary);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .step-content strong {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+
+        .arrow {
+            text-align: center;
+            color: var(--secondary);
+            font-size: 1.5rem;
+            margin: -10px 0;
+        }
+
+        section {
+            margin-top: 40px;
+        }
+
+        h2 {
+            border-left: 4px solid var(--accent);
+            padding-left: 15px;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .footer {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--secondary);
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container { padding: 20px; }
+            h1 { font-size: 1.8rem; }
+        }
+
+        /* Print optimization */
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; border: none; width: 100%; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Data Integration Flow</h1>
+        <p class="subtitle">Keen Enterprise LLC | WhatsApp & Bitrix24 Synchronization</p>
+    </header>
+
+    <section>
+        <h2>Overview</h2>
+        <p>This document outlines the seamless movement of data between <strong>Gupshup</strong> (WhatsApp Provider) and <strong>Bitrix24</strong> (CRM), managed by a custom application hosted on <strong>Bluehost</strong>.</p>
+    </section>
+
+    <div class="flow-container">
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <strong>Source: WhatsApp Message</strong>
+                <p>A customer sends a message to the business WhatsApp number. Gupshup receives this message via the Meta infrastructure.</p>
+            </div>
+        </div>
+
+        <div class="arrow">↓</div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <strong>Bridge: Gupshup Webhook</strong>
+                <p>Gupshup triggers a <code>POST</code> request (Webhook) containing the message, sender's phone, and media links to the Keen Enterprise app hosted on Bluehost.</p>
+            </div>
+        </div>
+
+        <div class="arrow">↓</div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <strong>Processing: Keen Enterprise App</strong>
+                <p>The app (webhook.php) validates the data, identifies the sender, and checks if a Lead exists in Bitrix24 using the phone number.</p>
+            </div>
+        </div>
+
+        <div class="arrow">↓</div>
+
+        <!-- Step 4 -->
+        <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+                <strong>Destination: Bitrix24 CRM</strong>
+                <p>The app calls the Bitrix24 REST API to create/update a Lead and delivers the message directly to the <strong>Open Channel</strong> chat for the agent to reply.</p>
+            </div>
+        </div>
+    </div>
+
+    <section>
+        <h2>Key Data Mapping</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data Type</th>
+                    <th>Gupshup Field</th>
+                    <th>Bitrix24 Field</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Sender Identity</td>
+                    <td><code>from</code> (Phone)</td>
+                    <td><code>PHONE</code> / <code>LEAD TITLE</code></td>
+                </tr>
+                <tr>
+                    <td>Message Content</td>
+                    <td><code>text.body</code></td>
+                    <td><code>MESSAGE_TEXT</code> (Open Channel)</td>
+                </tr>
+                <tr>
+                    <td>Attachments</td>
+                    <td><code>image/video/file</code></td>
+                    <td><code>FILES</code> (Timeline/Chat)</td>
+                </tr>
+                <tr>
+                    <td>Delivery Status</td>
+                    <td><code>statuses</code></td>
+                    <td><code>MESSAGE_STATUS</code> (Delivered/Read)</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Technical Environment</h2>
+        <ul>
+            <li><strong>Hosting:</strong> Bluehost (Managed by Keen Enterprise LLC)</li>
+            <li><strong>Security:</strong> All transfers use HTTPS/SSL encryption.</li>
+            <li><strong>Automation:</strong> Automatic Lead creation for new inquiries.</li>
+        </ul>
+    </section>
+
+    <div class="footer">
+        <p>&copy; 2026 Keen Enterprise LLC. Internal Documentation.</p>
+        <p><span class="badge">Confidential</span></p>
+    </div>
+</div>
+
+</body>
+</html>

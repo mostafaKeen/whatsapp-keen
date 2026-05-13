@@ -358,6 +358,9 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                     ];
     
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+
+                    // ─── 2D. AUTO-REPLY LOGIC ────────────────────────────────
+                    processAutoReplies($phone, $text, $entity, $whatsappConfig, $MSG_DIR);
                 } else {
                     // Fallback to phone file
                     $filename = $MSG_DIR . '/phone_' . $phone . '.json';
@@ -377,7 +380,11 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                         'external_url' => $mediaUrl
                     ];
                     file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+
+                    // Auto-reply for fallback too
+                    processAutoReplies($phone, $text, ['type' => 'phone', 'id' => $phone], $whatsappConfig, $MSG_DIR);
                 }
+
             }
         }
     }
@@ -914,3 +921,87 @@ function updateMessageBillingInLogs(string $dir, string $gsId, ?string $category
         }
     }
 }
+
+/**
+ * Processes auto-replies for an incoming message.
+ */
+function processAutoReplies(string $phone, string $text, array $entity, array $config, string $msgDir): void {
+    $autoReplyFile = dirname($msgDir) . '/auto_replies.json';
+    if (!file_exists($autoReplyFile)) return;
+
+    $settings = json_decode(file_get_contents($autoReplyFile), true);
+    if (!$settings || empty($settings['enabled']) || empty($settings['rules'])) return;
+
+    $incomingText = mb_strtolower(trim($text));
+    $appId = $config['gupshup_app_id'] ?? '';
+    $apiToken = $config['gupshup_api_token'] ?? '';
+
+    if (!$appId || !$apiToken) return;
+
+    foreach ($settings['rules'] as $rule) {
+        $keyword = mb_strtolower(trim($rule['keyword'] ?? ''));
+        $replyText = $rule['reply'] ?? '';
+
+        if (!$keyword || !$replyText) continue;
+
+        // "Contains" logic
+        if (mb_strpos($incomingText, $keyword) !== false) {
+            // Send the reply
+            sendGupshupReply($phone, $replyText, $appId, $apiToken, $entity, $msgDir);
+            break; // Only send one auto-reply per message to avoid spam
+        }
+    }
+}
+
+/**
+ * Sends a text reply via Gupshup V3 API and logs it.
+ */
+function sendGupshupReply(string $phone, string $message, string $appId, string $apiToken, array $entity, string $msgDir): void {
+    $url = 'https://partner.gupshup.io/partner/app/' . $appId . '/v3/message';
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to' => $phone,
+        'type' => 'text',
+        'text' => ['body' => $message]
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'accept: application/json',
+        'Authorization: ' . $apiToken
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $decoded = json_decode((string)$response, true);
+    $msgId = $decoded['messageId'] ?? $decoded['id'] ?? null;
+
+    // Log the auto-reply to the history file
+    $filename = $msgDir . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
+    if ($entity['type'] === 'phone') {
+        $filename = $msgDir . '/phone_' . $entity['id'] . '.json';
+    }
+
+    if (file_exists($filename)) {
+        $history = json_decode(file_get_contents($filename), true) ?: [];
+        $history[] = [
+            'id'           => $msgId ?: ('ar_' . uniqid()),
+            'timestamp'    => date('Y-m-d H:i:s'),
+            'phone'        => '+' . $phone,
+            'message'      => $message,
+            'message_type' => 'text',
+            'status'       => $httpCode < 300 ? 'sent' : 'failed',
+            'direction'    => 'outbound',
+            'source'       => 'auto_reply'
+        ];
+        file_put_contents($filename, json_encode($history, JSON_PRETTY_PRINT));
+    }
+}
+
