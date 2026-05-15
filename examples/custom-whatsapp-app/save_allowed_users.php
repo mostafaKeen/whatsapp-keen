@@ -60,6 +60,7 @@ $batch = new Batch($core, $logger);
 $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
 $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
+try {
     // Enable error output for debugging (exactly as in usage_report.php)
     ini_set('display_errors', '1');
     ini_set('display_startup_errors', '1');
