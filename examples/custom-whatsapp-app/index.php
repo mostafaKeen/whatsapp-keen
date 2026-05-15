@@ -142,13 +142,36 @@ if ($hasValidAuth) {
         $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
         $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
-        // Fetch current user email for usage report visibility
-        $currentUserEmail = '';
+        // Fetch current user info
         try {
-            $currentUser = $b24Service->getUserScope()->user()->current()->user();
+            $currentUserResult = $b24Service->getUserScope()->user()->current();
+            $currentUser = $currentUserResult->user();
             $currentUserEmail = $currentUser->EMAIL ?? '';
+            $currentUserId = $currentUser->ID ?? null;
+            $currentUserName = ($currentUser->NAME ?? '') . ' ' . ($currentUser->LAST_NAME ?? '');
         } catch (\Exception $e) {
             // Silently fail if we can't get user info
+            $currentUserEmail = '';
+            $currentUserId = null;
+            $currentUserName = 'User';
+        }
+
+        // Access Control Logic
+        $isAccessAllowed = true;
+        $isSuperUser = false;
+        
+        $isAdmin = (bool)($currentUser->ADMIN ?? false);
+        $isKeen = str_ends_with(strtolower($currentUserEmail), '@keenenter.com');
+        $isSuperUser = $isAdmin || $isKeen;
+        
+        $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
+        $allowedUsersFile = $varDir . '/allowed_users.json';
+        
+        if (file_exists($allowedUsersFile)) {
+            $allowedUserIds = json_decode(file_get_contents($allowedUsersFile), true) ?: [];
+            if (!$isSuperUser && !in_array($currentUserId, $allowedUserIds)) {
+                $isAccessAllowed = false;
+            }
         }
     } catch (\Exception $e) {
         $errorMessage = 'Init failed: ' . $e->getMessage();
@@ -159,15 +182,14 @@ if ($hasValidAuth) {
     } else {
         // In setup mode, we don't try to load the full app logic
         $whatsappConfig = $configExists ? require $configFile : [];
+        $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     }
 
     // Load Auto-Reply Settings
-    $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     $autoReplyFile = $varDir . '/auto_replies.json';
     $autoReplySettings = file_exists($autoReplyFile) ? json_decode(file_get_contents($autoReplyFile), true) : ['enabled' => false, 'rules' => []];
 
 } catch (\Exception $e) {
-
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
 
@@ -591,12 +613,12 @@ if ($hasValidAuth) {
 <body>
     <div class="dashboard-container">
         <!-- Header Section -->
-        <div class="header-section">
+            <div class="header-section">
             <div class="app-logo">
                 <i class="fab fa-whatsapp"></i>
                 <span>KEEN Nexus</span>
             </div>
-            <?php if (!$errorMessage): ?>
+            <?php if (!$errorMessage && $isAccessAllowed): ?>
                 <div class="d-flex align-items-center gap-3">
                     <div id="currentUserGreet" class="mr-3 font-weight-600 text-primary" style="font-size: 1.1rem; letter-spacing: -0.01em;"></div>
                     <div class="badge-active">
@@ -734,23 +756,26 @@ if ($hasValidAuth) {
                     </div>
                 </div>
             </div>
-        <?php else: ?>
-            <div class="glass-card border-left border-success mb-4" style="border-left-width: 4px !important;">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center text-primary">
-                        <div class="bg-success text-white p-3 rounded-circle mr-3 shadow-sm">
-                            <i class="fas fa-check"></i>
-                        </div>
-                        <div>
-                            <h5 class="mb-0 font-weight-bold">System Online</h5>
-                            <p class="mb-0 text-muted small">WhatsApp Business API is connected and ready.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         <?php endif; ?>
 
-        <?php if ($isRegistered): ?>
+        <?php if (!$isAccessAllowed): ?>
+            <!-- Access Denied View -->
+            <div class="glass-card text-center py-5">
+                <div class="mb-4">
+                    <div class="bg-danger text-white p-4 rounded-circle d-inline-flex shadow-lg mb-3">
+                        <i class="fas fa-lock fa-3x"></i>
+                    </div>
+                    <h2 class="font-weight-700">Access Restricted</h2>
+                    <p class="text-muted">You do not have permission to access the KEEN Nexus application.</p>
+                </div>
+                <div class="p-4 border rounded-lg bg-light max-width-500 mx-auto">
+                    <p class="small text-muted mb-0">
+                        Please contact your administrator to request access. 
+                        Administrators can grant access through the User Management panel.
+                    </p>
+                </div>
+            </div>
+        <?php elseif ($isRegistered): ?>
             <!-- Main Content Section -->
             <div class="glass-card">
                 <div class="d-flex justify-content-between align-items-end mb-4">
@@ -772,6 +797,11 @@ if ($hasValidAuth) {
                         <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
                         </a>
+                        <?php endif; ?>
+                        <?php if ($isSuperUser): ?>
+                        <button id="userManagementBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#userManagementModal">
+                            <i class="fas fa-users-cog text-dark"></i> Users
+                        </button>
                         <?php endif; ?>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
@@ -3919,6 +3949,173 @@ if ($hasValidAuth) {
             </div>
         </div>
     </div>
+    <!-- User Management Modal -->
+    <div class="modal fade" id="userManagementModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-white border-bottom-0">
+                    <div>
+                        <h5 class="modal-title font-weight-700">User Access Management</h5>
+                        <p class="text-muted small mb-0">Select users who are authorized to use the application.</p>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="userManagementLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted small mt-2">Loading users...</p>
+                    </div>
+                    
+                    <div id="userManagementContent" style="display:none;">
+                        <div class="input-group mb-3">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text bg-light border-right-0"><i class="fas fa-search text-muted"></i></span>
+                            </div>
+                            <input type="text" id="userSearchInput" class="form-control form-control-modern border-left-0" placeholder="Search by name or email...">
+                        </div>
+                        
+                        <div class="user-selection-list" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-borderless">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th style="width: 40px;"></th>
+                                        <th>User</th>
+                                        <th>Email</th>
+                                        <th class="text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="userListBody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Cancel</button>
+                    <button type="button" id="saveAllowedUsersBtn" class="btn btn-modern btn-primary-modern">
+                        <i class="fas fa-save mr-2"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            let allUsers = [];
+            let allowedUserIds = [];
+
+            $('#userManagementModal').on('show.bs.modal', function() {
+                loadUsers();
+            });
+
+            function loadUsers() {
+                $('#userManagementLoading').show();
+                $('#userManagementContent').hide();
+                
+                $.getJSON('get_allowed_users.php', function(data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        $('#userManagementModal').modal('hide');
+                        return;
+                    }
+                    
+                    allUsers = data.all || [];
+                    allowedUserIds = data.allowed || [];
+                    renderUserList();
+                    
+                    $('#userManagementLoading').hide();
+                    $('#userManagementContent').show();
+                }).fail(function() {
+                    alert('Failed to load users list.');
+                    $('#userManagementModal').modal('hide');
+                });
+            }
+
+            function renderUserList(search = '') {
+                const body = $('#userListBody');
+                body.empty();
+                
+                const filtered = allUsers.filter(u => 
+                    u.NAME.toLowerCase().includes(search.toLowerCase()) || 
+                    u.EMAIL.toLowerCase().includes(search.toLowerCase())
+                );
+
+                if (filtered.length === 0) {
+                    body.append('<tr><td colspan="4" class="text-center py-4 text-muted">No users found</td></tr>');
+                    return;
+                }
+
+                filtered.forEach(user => {
+                    const isAllowed = allowedUserIds.includes(user.ID);
+                    const isKeen = user.EMAIL.toLowerCase().endsWith('@keenenter.com');
+                    const badge = isKeen ? '<span class="badge badge-success">Superuser</span>' : (isAllowed ? '<span class="badge badge-primary">Allowed</span>' : '<span class="badge badge-light">Restricted</span>');
+                    
+                    const row = $(`
+                        <tr class="${isKeen ? 'bg-light' : ''}">
+                            <td>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input user-check" id="user_${user.ID}" value="${user.ID}" 
+                                        ${isAllowed || isKeen ? 'checked' : ''} 
+                                        ${isKeen ? 'disabled' : ''}>
+                                    <label class="custom-control-label" for="user_${user.ID}"></label>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="mr-2" style="width: 32px; height: 32px; background: #e2e8f0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                        ${user.PHOTO ? `<img src="${user.PHOTO}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user text-muted small"></i>`}
+                                    </div>
+                                    <span class="font-weight-600">${user.NAME}</span>
+                                </div>
+                            </td>
+                            <td class="small text-muted">${user.EMAIL}</td>
+                            <td class="text-right">${badge}</td>
+                        </tr>
+                    `);
+                    body.append(row);
+                });
+            }
+
+            $('#userSearchInput').on('input', function() {
+                renderUserList($(this).val());
+            });
+
+            $('#saveAllowedUsersBtn').on('click', function() {
+                const selectedIds = [];
+                $('.user-check:checked:not(:disabled)').each(function() {
+                    selectedIds.push($(this).val());
+                });
+
+                const btn = $(this);
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i> Saving...');
+
+                $.ajax({
+                    url: 'save_allowed_users.php',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ user_ids: selectedIds }),
+                    success: function(res) {
+                        if (res.success) {
+                            alert('User permissions updated successfully!');
+                            $('#userManagementModal').modal('hide');
+                        } else {
+                            alert('Error: ' + (res.error || 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        alert('Network error while saving permissions.');
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Changes');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
 <?php
