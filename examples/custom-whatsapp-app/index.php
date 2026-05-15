@@ -393,6 +393,74 @@ if ($hasValidAuth) {
             }
         }
 
+        /* ===== Responsive Dashboard Layout ===== */
+        .action-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        @media (max-width: 992px) {
+            .header-section {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 12px;
+            }
+            .header-section .user-info {
+                align-self: flex-end;
+            }
+            .glass-card {
+                padding: 1.25rem;
+            }
+            .dashboard-top {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 12px;
+            }
+            .action-toolbar {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .btn-modern {
+                padding: 0.5rem 0.85rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 0.5rem 0; }
+            .container { padding-left: 10px; padding-right: 10px; }
+            .glass-card { padding: 1rem; border-radius: 14px; }
+            .app-logo { font-size: 1.5rem; }
+            .table-modern tbody td { padding: 0.75rem 0.75rem; font-size: 0.85rem; }
+            .table-modern thead th { padding: 0 0.75rem; font-size: 0.65rem; }
+            .modal-header { padding: 1rem 1.25rem; }
+            .modal-body { padding: 1rem 1.25rem; }
+            .modal-footer { padding: 1rem 1.25rem; }
+            .btn-modern {
+                padding: 0.45rem 0.7rem;
+                font-size: 0.75rem;
+                border-radius: 8px;
+            }
+            .action-toolbar {
+                gap: 6px;
+            }
+            h3 { font-size: 1.15rem; }
+        }
+
+        @media (max-width: 480px) {
+            .app-logo { font-size: 1.25rem; gap: 8px; }
+            .badge-active { font-size: 0.7rem; padding: 0.35rem 0.65rem; }
+            .header-section .user-info { font-size: 0.8rem; }
+            .btn-modern .btn-label-text {
+                display: none;
+            }
+            .action-toolbar .btn-modern {
+                padding: 0.5rem 0.6rem;
+            }
+        }
+
         .header-section {
             display: flex;
             justify-content: space-between;
@@ -827,12 +895,12 @@ if ($hasValidAuth) {
         <?php elseif ($isRegistered): ?>
             <!-- Main Content Section -->
             <div class="glass-card">
-                <div class="d-flex justify-content-between align-items-end mb-4">
+                <div class="dashboard-top d-flex justify-content-between align-items-end mb-4">
                     <div>
                         <h3 class="mb-1">Message Templates</h3>
                         <p class="text-muted small mb-0">Manage your WhatsApp approved message templates</p>
                     </div>
-                    <div class="d-flex gap-2" style="gap: 8px;">
+                    <div class="action-toolbar">
                         <button id="refreshTemplates" class="btn btn-modern btn-outline-modern" title="Refresh List">
                             <i class="fas fa-sync-alt"></i>
                         </button>
