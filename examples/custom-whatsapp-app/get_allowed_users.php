@@ -46,14 +46,10 @@ $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build()
 $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
 try {
-    // Enable error output for debugging (exactly as in usage_report.php)
-    ini_set('display_errors', '1');
-    ini_set('display_startup_errors', '1');
-    error_reporting(E_ALL);
-
     // 1. Verify access (@keenenter.com check exactly as in usage_report.php)
-    $currentUser = $b24Service->getUserScope()->user()->current()->user();
-    $userEmail = $currentUser->EMAIL ?? '';
+    $res = $core->call('user.current');
+    $currentUser = $res['result'] ?? null;
+    $userEmail = $currentUser['EMAIL'] ?? '';
     
     $isAuthorized = false;
     if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {
@@ -73,11 +69,6 @@ try {
 
     // 3. Fetch all active users for the selection list
     $allUsers = [];
-    $usersResult = $b24Service->getUserScope()->user()->get(['ACTIVE' => 'Y']);
-    
-    // The SDK's getUsers() might not be directly available on the result object depending on version
-    // Let's use the core call if needed, but usually it's there.
-    // Actually, I'll use raw core call for users to be safe and get exactly what I need.
     $rawUsers = $core->call('user.get', ['FILTER' => ['ACTIVE' => 'Y']]);
     
     if (isset($rawUsers['result'])) {
@@ -104,5 +95,5 @@ try {
 
 } catch (\Exception $e) {
     header('Content-Type: application/json');
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => 'Server Error: ' . $e->getMessage()]);
 }

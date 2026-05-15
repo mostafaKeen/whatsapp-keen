@@ -61,14 +61,10 @@ $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build()
 $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
 try {
-    // Enable error output for debugging (exactly as in usage_report.php)
-    ini_set('display_errors', '1');
-    ini_set('display_startup_errors', '1');
-    error_reporting(E_ALL);
-
     // 1. Verify access (@keenenter.com check exactly as in usage_report.php)
-    $currentUser = $b24Service->getUserScope()->user()->current()->user();
-    $userEmail = $currentUser->EMAIL ?? '';
+    $res = $core->call('user.current');
+    $currentUser = $res['result'] ?? null;
+    $userEmail = $currentUser['EMAIL'] ?? '';
     
     $isAuthorized = false;
     if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {

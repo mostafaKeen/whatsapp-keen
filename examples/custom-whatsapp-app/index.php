@@ -4030,8 +4030,19 @@ if ($hasValidAuth) {
                     
                     $('#userManagementLoading').hide();
                     $('#userManagementContent').show();
-                }).fail(function() {
-                    alert('Failed to load users list.');
+                }).fail(function(xhr) {
+                    console.error('User list load failed:', xhr);
+                    let msg = 'Failed to load users list.';
+                    if (xhr.status === 401 || xhr.status === 403) msg += ' (Unauthorized/Forbidden)';
+                    if (xhr.responseText) {
+                        try {
+                            const err = JSON.parse(xhr.responseText);
+                            if (err.error) msg += '\nServer Error: ' + err.error;
+                        } catch(e) { 
+                            msg += '\nDetails: ' + xhr.responseText.substring(0, 100);
+                        }
+                    }
+                    alert(msg);
                     $('#userManagementModal').modal('hide');
                 });
             }
