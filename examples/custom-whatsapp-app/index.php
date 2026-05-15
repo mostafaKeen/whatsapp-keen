@@ -4016,7 +4016,8 @@ if ($hasValidAuth) {
                 $('#userManagementLoading').show();
                 $('#userManagementContent').hide();
                 
-                $.getJSON('get_allowed_users.php', function(data) {
+                const b24Params = window.location.search;
+                $.getJSON('get_allowed_users.php' + b24Params, function(data) {
                     if (data.error) {
                         alert('Error: ' + data.error);
                         $('#userManagementModal').modal('hide');
@@ -4093,8 +4094,9 @@ if ($hasValidAuth) {
                 const btn = $(this);
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i> Saving...');
 
+                const b24Params = window.location.search;
                 $.ajax({
-                    url: 'save_allowed_users.php',
+                    url: 'save_allowed_users.php' + b24Params,
                     method: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({ user_ids: selectedIds }),

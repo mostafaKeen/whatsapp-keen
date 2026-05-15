@@ -45,18 +45,23 @@ $batch = new Batch($core, $logger);
 $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
 $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
-try {
-    // 1. Verify access (Admin or @keenenter.com)
-    $currentUserResult = $b24Service->getUserScope()->user()->current();
-    $currentUser = $currentUserResult->user();
-    
-    $isAdmin = (bool)($currentUser->ADMIN ?? false);
-    $email = $currentUser->EMAIL ?? '';
-    $isKeen = str_ends_with(strtolower($email), '@keenenter.com');
+    // Enable error output for debugging (exactly as in usage_report.php)
+    ini_set('display_errors', '1');
+    ini_set('display_startup_errors', '1');
+    error_reporting(E_ALL);
 
-    if (!$isAdmin && !$isKeen) {
+    // 1. Verify access (@keenenter.com check exactly as in usage_report.php)
+    $currentUser = $b24Service->getUserScope()->user()->current()->user();
+    $userEmail = $currentUser->EMAIL ?? '';
+    
+    $isAuthorized = false;
+    if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {
+        $isAuthorized = true;
+    }
+
+    if (!$isAuthorized) {
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Forbidden']);
+        echo json_encode(['error' => 'Access Restricted: This page is only available for @keenenter.com users. Current user: ' . ($userEmail ?: 'Unknown')]);
         exit;
     }
 
