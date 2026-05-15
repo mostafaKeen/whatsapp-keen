@@ -78,7 +78,7 @@ try {
     // The SDK's getUsers() might not be directly available on the result object depending on version
     // Let's use the core call if needed, but usually it's there.
     // Actually, I'll use raw core call for users to be safe and get exactly what I need.
-    $rawUsers = $core->call('user.get', ['filter' => ['ACTIVE' => 'Y']]);
+    $rawUsers = $core->call('user.get', ['FILTER' => ['ACTIVE' => 'Y']]);
     
     if (isset($rawUsers['result'])) {
         foreach ($rawUsers['result'] as $user) {
@@ -89,6 +89,11 @@ try {
                 'PHOTO' => $user['PERSONAL_PHOTO'] ?? ''
             ];
         }
+    }
+
+    // If file doesn't exist, treat everyone as allowed
+    if (!file_exists($allowedUsersFile)) {
+        $allowedUsers = array_column($allUsers, 'ID');
     }
 
     header('Content-Type: application/json');
