@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Suppress display errors to keep JSON output clean
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/SessionManager.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -14,82 +20,81 @@ use Bitrix24\SDK\Core\Batch;
 use Bitrix24\SDK\Core\BulkItemsReader\BulkItemsReaderBuilder;
 use Psr\Log\NullLogger;
 
-$sessionManager = new SessionManager();
-$storedAuth = $sessionManager->getAuth();
-$configFile = __DIR__ . '/../config.php';
-$whatsappConfig = file_exists($configFile) ? require $configFile : [];
-
-if (!$storedAuth) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
-}
-
-$input = json_decode(file_get_contents('php://input'), true);
-$userIds = $input['user_ids'] ?? [];
-
-if (!is_array($userIds)) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Invalid input']);
-    exit;
-}
-
-// Initialize SDK
-$appProfile = ApplicationProfile::initFromArray([
-    'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'] ?? '',
-    'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'] ?? '',
-    'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'] ?? '',
-]);
-
-$authToken = new AuthToken($storedAuth['AUTH_ID'], $storedAuth['REFRESH_ID'], (int)$storedAuth['AUTH_EXPIRES']);
-$domain = $storedAuth['DOMAIN'];
-if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
-    $domain = 'https://' . $domain;
-}
-$endpoints = new Endpoints($domain, $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/');
-$credentials = new Credentials(null, $authToken, $appProfile, $endpoints);
-$logger = new NullLogger();
-$core = (new CoreBuilder())->withCredentials($credentials)->withLogger($logger)->build();
-$batch = new Batch($core, $logger);
-$bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
-$b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
-
 try {
-    // 1. Verify access (@keenenter.com check exactly as in usage_report.php)
-    $res = $core->call('user.current');
-    $currentUser = $res['result'] ?? null;
-    $userEmail = $currentUser['EMAIL'] ?? '';
-    
-    $isAuthorized = false;
-    if (str_ends_with(strtolower($userEmail), '@keenenter.com')) {
-        $isAuthorized = true;
+    $sessionManager = new SessionManager();
+    $storedAuth = $sessionManager->getAuth();
+    $configFile = __DIR__ . '/../config.php';
+    $whatsappConfig = file_exists($configFile) ? require $configFile : [];
+
+    if (!$storedAuth) {
+        echo json_encode(['error' => 'Unauthorized - no session found']);
+        exit;
     }
 
-    if (!$isAuthorized) {
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Access Restricted: This page is only available for @keenenter.com users. Current user: ' . ($userEmail ?: 'Unknown')]);
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['error' => 'Method not allowed']);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $userIds = $input['user_ids'] ?? [];
+
+    if (!is_array($userIds)) {
+        echo json_encode(['error' => 'Invalid input']);
+        exit;
+    }
+
+    // Initialize SDK (same pattern as usage_report.php)
+    $appProfile = ApplicationProfile::initFromArray([
+        'BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_ID'] ?? '',
+        'BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_CLIENT_SECRET'] ?? '',
+        'BITRIX24_PHP_SDK_APPLICATION_SCOPE' => $whatsappConfig['BITRIX24_PHP_SDK_APPLICATION_SCOPE'] ?? '',
+    ]);
+
+    $authToken = new AuthToken(
+        $storedAuth['AUTH_ID'],
+        $storedAuth['REFRESH_ID'],
+        (int)$storedAuth['AUTH_EXPIRES']
+    );
+
+    $domain = $storedAuth['DOMAIN'];
+    if (strpos($domain, 'https://') !== 0 && strpos($domain, 'http://') !== 0) {
+        $domain = 'https://' . $domain;
+    }
+
+    $endpoints = new Endpoints($domain, $storedAuth['SERVER_ENDPOINT'] ?? 'https://oauth.bitrix.info/rest/');
+    $credentials = new Credentials(null, $authToken, $appProfile, $endpoints);
+    $logger = new NullLogger();
+    $core = (new CoreBuilder())->withCredentials($credentials)->withLogger($logger)->build();
+    $batch = new Batch($core, $logger);
+    $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
+    $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
+
+    // 1. Verify access - exactly as in usage_report.php
+    $currentUser = $b24Service->getUserScope()->user()->current()->user();
+    $userEmail = $currentUser->EMAIL ?? '';
+
+    if (!str_ends_with(strtolower($userEmail), '@keenenter.com')) {
+        echo json_encode(['error' => 'Access Restricted: Only @keenenter.com users. Current: ' . ($userEmail ?: 'Unknown')]);
         exit;
     }
 
     // 2. Save allowed users
     $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
-    $allowedUsersFile = $varDir . '/allowed_users.json';
     
-    if (file_put_contents($allowedUsersFile, json_encode($userIds, JSON_PRETTY_PRINT))) {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => true]);
-    } else {
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Failed to write to file']);
+    // Ensure directory exists
+    if (!is_dir($varDir)) {
+        @mkdir($varDir, 0775, true);
     }
 
-} catch (\Exception $e) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => $e->getMessage()]);
+    $allowedUsersFile = $varDir . '/allowed_users.json';
+
+    if (file_put_contents($allowedUsersFile, json_encode($userIds, JSON_PRETTY_PRINT))) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['error' => 'Failed to write to file: ' . $allowedUsersFile]);
+    }
+
+} catch (\Throwable $e) {
+    echo json_encode(['error' => 'Server Error: ' . $e->getMessage()]);
 }
