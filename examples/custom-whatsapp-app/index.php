@@ -142,85 +142,13 @@ if ($hasValidAuth) {
         $bulkItemsReader = (new BulkItemsReaderBuilder($core, $batch, $logger))->build();
         $b24Service = new ServiceBuilder($core, $batch, $bulkItemsReader, $logger);
 
-        // Fetch current user info
+        // Fetch current user email for usage report visibility
+        $currentUserEmail = '';
         try {
-            $currentUserResult = $b24Service->getUserScope()->user()->current();
-            $currentUser = $currentUserResult->user();
+            $currentUser = $b24Service->getUserScope()->user()->current()->user();
             $currentUserEmail = $currentUser->EMAIL ?? '';
-            $currentUserId = $currentUser->ID ?? null;
-            $currentUserName = ($currentUser->NAME ?? '') . ' ' . ($currentUser->LAST_NAME ?? '');
         } catch (\Exception $e) {
             // Silently fail if we can't get user info
-            $currentUserEmail = '';
-            $currentUserId = null;
-            $currentUserName = 'User';
-        }
-
-        // Access Control Logic
-        $isAccessAllowed = true;
-        $isSuperUser = false;
-        
-        $isAdmin = (bool)($currentUser->ADMIN ?? false);
-        $isKeen = str_ends_with(strtolower($currentUserEmail), '@keenenter.com');
-        $isSuperUser = $isAdmin || $isKeen;
-        
-        $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
-        $allowedUsersFile = $varDir . '/allowed_users.json';
-        
-        if (file_exists($allowedUsersFile)) {
-            $rawAccess = json_decode(file_get_contents($allowedUsersFile), true) ?: [];
-            
-            // Support new format: { mode, user_ids, department_ids }
-            // Backward compat: plain array = old user mode
-            if (isset($rawAccess['mode'])) {
-                $accessMode = $rawAccess['mode'];
-                $allowedUserIds = $rawAccess['user_ids'] ?? [];
-                $allowedDeptIds = $rawAccess['department_ids'] ?? [];
-            } else {
-                $accessMode = 'user';
-                $allowedUserIds = $rawAccess;
-                $allowedDeptIds = [];
-            }
-            
-            if (!$isSuperUser) {
-                if ($accessMode === 'department') {
-                    // Check if user belongs to any allowed department
-                    $userDepts = [];
-                    try {
-                        $rawU = $core->call('user.current');
-                        // Not needed - we already have currentUser, but need UF_DEPARTMENT
-                        // Fetch via cURL for reliability
-                        $domain2 = $storedAuth['DOMAIN'];
-                        if (strpos($domain2, 'https://') !== 0 && strpos($domain2, 'http://') !== 0) {
-                            $domain2 = 'https://' . $domain2;
-                        }
-                        $ch = curl_init(rtrim($domain2, '/') . '/rest/user.current.json');
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['auth' => $storedAuth['AUTH_ID']]));
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                        $uResp = curl_exec($ch);
-                        curl_close($ch);
-                        $uData = json_decode($uResp, true);
-                        $userDepts = $uData['result']['UF_DEPARTMENT'] ?? [];
-                    } catch (\Exception $e) {
-                        $userDepts = [];
-                    }
-                    
-                    // Convert to strings for comparison
-                    $userDeptStrs = array_map('strval', $userDepts);
-                    $allowedDeptStrs = array_map('strval', $allowedDeptIds);
-                    
-                    if (empty(array_intersect($userDeptStrs, $allowedDeptStrs))) {
-                        $isAccessAllowed = false;
-                    }
-                } else {
-                    // User mode
-                    if (!in_array($currentUserId, $allowedUserIds)) {
-                        $isAccessAllowed = false;
-                    }
-                }
-            }
         }
     } catch (\Exception $e) {
         $errorMessage = 'Init failed: ' . $e->getMessage();
@@ -231,14 +159,15 @@ if ($hasValidAuth) {
     } else {
         // In setup mode, we don't try to load the full app logic
         $whatsappConfig = $configExists ? require $configFile : [];
-        $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     }
 
     // Load Auto-Reply Settings
+    $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     $autoReplyFile = $varDir . '/auto_replies.json';
     $autoReplySettings = file_exists($autoReplyFile) ? json_decode(file_get_contents($autoReplyFile), true) : ['enabled' => false, 'rules' => []];
 
 } catch (\Exception $e) {
+
     $errorMessage = 'FATAL ERROR: ' . $e->getMessage();
 }
 
@@ -390,74 +319,6 @@ if ($hasValidAuth) {
             .modal-dialog.modal-lg { max-width: 98%; margin: 10px auto; }
             #campaignModal .modal-body {
                 max-height: calc(100vh - 120px);
-            }
-        }
-
-        /* ===== Responsive Dashboard Layout ===== */
-        .action-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-        }
-
-        @media (max-width: 992px) {
-            .header-section {
-                flex-direction: column;
-                align-items: flex-start !important;
-                gap: 12px;
-            }
-            .header-section .user-info {
-                align-self: flex-end;
-            }
-            .glass-card {
-                padding: 1.25rem;
-            }
-            .dashboard-top {
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 12px;
-            }
-            .action-toolbar {
-                width: 100%;
-                justify-content: flex-start;
-            }
-            .btn-modern {
-                padding: 0.5rem 0.85rem;
-                font-size: 0.8rem;
-            }
-        }
-
-        @media (max-width: 768px) {
-            body { padding: 0.5rem 0; }
-            .container { padding-left: 10px; padding-right: 10px; }
-            .glass-card { padding: 1rem; border-radius: 14px; }
-            .app-logo { font-size: 1.5rem; }
-            .table-modern tbody td { padding: 0.75rem 0.75rem; font-size: 0.85rem; }
-            .table-modern thead th { padding: 0 0.75rem; font-size: 0.65rem; }
-            .modal-header { padding: 1rem 1.25rem; }
-            .modal-body { padding: 1rem 1.25rem; }
-            .modal-footer { padding: 1rem 1.25rem; }
-            .btn-modern {
-                padding: 0.45rem 0.7rem;
-                font-size: 0.75rem;
-                border-radius: 8px;
-            }
-            .action-toolbar {
-                gap: 6px;
-            }
-            h3 { font-size: 1.15rem; }
-        }
-
-        @media (max-width: 480px) {
-            .app-logo { font-size: 1.25rem; gap: 8px; }
-            .badge-active { font-size: 0.7rem; padding: 0.35rem 0.65rem; }
-            .header-section .user-info { font-size: 0.8rem; }
-            .btn-modern .btn-label-text {
-                display: none;
-            }
-            .action-toolbar .btn-modern {
-                padding: 0.5rem 0.6rem;
             }
         }
 
@@ -730,12 +591,12 @@ if ($hasValidAuth) {
 <body>
     <div class="dashboard-container">
         <!-- Header Section -->
-            <div class="header-section">
+        <div class="header-section">
             <div class="app-logo">
                 <i class="fab fa-whatsapp"></i>
                 <span>KEEN Nexus</span>
             </div>
-            <?php if (!$errorMessage && $isAccessAllowed): ?>
+            <?php if (!$errorMessage): ?>
                 <div class="d-flex align-items-center gap-3">
                     <div id="currentUserGreet" class="mr-3 font-weight-600 text-primary" style="font-size: 1.1rem; letter-spacing: -0.01em;"></div>
                     <div class="badge-active">
@@ -873,34 +734,31 @@ if ($hasValidAuth) {
                     </div>
                 </div>
             </div>
-        <?php endif; ?>
-
-        <?php if (!$isAccessAllowed): ?>
-            <!-- Access Denied View -->
-            <div class="glass-card text-center py-5">
-                <div class="mb-4">
-                    <div class="bg-danger text-white p-4 rounded-circle d-inline-flex shadow-lg mb-3">
-                        <i class="fas fa-lock fa-3x"></i>
+        <?php else: ?>
+            <div class="glass-card border-left border-success mb-4" style="border-left-width: 4px !important;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center text-primary">
+                        <div class="bg-success text-white p-3 rounded-circle mr-3 shadow-sm">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 font-weight-bold">System Online</h5>
+                            <p class="mb-0 text-muted small">WhatsApp Business API is connected and ready.</p>
+                        </div>
                     </div>
-                    <h2 class="font-weight-700">Access Restricted</h2>
-                    <p class="text-muted">You do not have permission to access the KEEN Nexus application.</p>
-                </div>
-                <div class="p-4 border rounded-lg bg-light max-width-500 mx-auto">
-                    <p class="small text-muted mb-0">
-                        Please contact your administrator to request access. 
-                        Administrators can grant access through the User Management panel.
-                    </p>
                 </div>
             </div>
-        <?php elseif ($isRegistered): ?>
+        <?php endif; ?>
+
+        <?php if ($isRegistered): ?>
             <!-- Main Content Section -->
             <div class="glass-card">
-                <div class="dashboard-top d-flex justify-content-between align-items-end mb-4">
+                <div class="d-flex justify-content-between align-items-end mb-4">
                     <div>
                         <h3 class="mb-1">Message Templates</h3>
                         <p class="text-muted small mb-0">Manage your WhatsApp approved message templates</p>
                     </div>
-                    <div class="action-toolbar">
+                    <div class="d-flex gap-2" style="gap: 8px;">
                         <button id="refreshTemplates" class="btn btn-modern btn-outline-modern" title="Refresh List">
                             <i class="fas fa-sync-alt"></i>
                         </button>
@@ -914,11 +772,6 @@ if ($hasValidAuth) {
                         <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
                         </a>
-                        <?php endif; ?>
-                        <?php if ($isSuperUser): ?>
-                        <button id="userManagementBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#userManagementModal">
-                            <i class="fas fa-users-cog text-dark"></i> Users
-                        </button>
                         <?php endif; ?>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
@@ -4066,305 +3919,6 @@ if ($hasValidAuth) {
             </div>
         </div>
     </div>
-    <!-- User Management Modal -->
-    <div class="modal fade" id="userManagementModal" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-white border-bottom-0">
-                    <div>
-                        <h5 class="modal-title font-weight-700"><i class="fas fa-shield-alt text-primary mr-2"></i>Access Management</h5>
-                        <p class="text-muted small mb-0">Control who can access the application by user or department.</p>
-                    </div>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div id="userManagementLoading" class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="text-muted small mt-2">Loading access data...</p>
-                    </div>
-                    
-                    <div id="userManagementContent" style="display:none;">
-                        <!-- Mode Toggle -->
-                        <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-lg border">
-                            <span class="font-weight-600 small text-uppercase text-muted mr-3">Grant access by:</span>
-                            <div class="btn-group btn-group-toggle" data-toggle="buttons">
-                                <label class="btn btn-sm btn-outline-primary active" id="modeUserLabel">
-                                    <input type="radio" name="accessMode" id="accessModeUser" value="user" checked> <i class="fas fa-user mr-1"></i> Per User
-                                </label>
-                                <label class="btn btn-sm btn-outline-primary" id="modeDeptLabel">
-                                    <input type="radio" name="accessMode" id="accessModeDept" value="department"> <i class="fas fa-building mr-1"></i> Per Department
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Search bar -->
-                        <div class="input-group mb-3">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text bg-light border-right-0"><i class="fas fa-search text-muted"></i></span>
-                            </div>
-                            <input type="text" id="accessSearchInput" class="form-control form-control-modern border-left-0" placeholder="Search...">
-                        </div>
-                        
-                        <!-- User List (shown in user mode) -->
-                        <div id="userListPanel" class="selection-list" style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-hover table-borderless">
-                                <thead class="bg-light sticky-top">
-                                    <tr>
-                                        <th style="width: 40px;"></th>
-                                        <th>User</th>
-                                        <th>Email</th>
-                                        <th class="text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="userListBody"></tbody>
-                            </table>
-                        </div>
-
-                        <!-- Department List (shown in department mode) -->
-                        <div id="deptListPanel" class="selection-list" style="max-height: 400px; overflow-y: auto; display:none;">
-                            <table class="table table-hover table-borderless">
-                                <thead class="bg-light sticky-top">
-                                    <tr>
-                                        <th style="width: 40px;"></th>
-                                        <th>Department</th>
-                                        <th class="text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="deptListBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-modern btn-outline-modern" data-dismiss="modal">Cancel</button>
-                    <button type="button" id="saveAllowedUsersBtn" class="btn btn-modern btn-primary-modern">
-                        <i class="fas fa-save mr-2"></i> Save Changes
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        $(document).ready(function() {
-            let allUsers = [];
-            let allDepartments = [];
-            let currentMode = 'user';
-            let savedUserIds = [];
-            let savedDeptIds = [];
-
-            $('#userManagementModal').on('show.bs.modal', function() {
-                loadAccessData();
-            });
-
-            // Mode Toggle
-            $('input[name="accessMode"]').on('change', function() {
-                currentMode = $(this).val();
-                if (currentMode === 'department') {
-                    $('#userListPanel').hide();
-                    $('#deptListPanel').show();
-                    $('#accessSearchInput').attr('placeholder', 'Search departments...');
-                    renderDeptList($('#accessSearchInput').val());
-                } else {
-                    $('#deptListPanel').hide();
-                    $('#userListPanel').show();
-                    $('#accessSearchInput').attr('placeholder', 'Search by name or email...');
-                    renderUserList($('#accessSearchInput').val());
-                }
-            });
-
-            function loadAccessData() {
-                $('#userManagementLoading').show();
-                $('#userManagementContent').hide();
-                
-                const b24Params = window.location.search;
-                $.getJSON('get_allowed_users.php' + b24Params, function(data) {
-                    if (data.error) {
-                        alert('Error: ' + data.error);
-                        $('#userManagementModal').modal('hide');
-                        return;
-                    }
-                    
-                    allUsers = data.all_users || [];
-                    allDepartments = data.all_departments || [];
-                    currentMode = data.mode || 'user';
-                    savedUserIds = data.user_ids || [];
-                    savedDeptIds = data.department_ids || [];
-
-                    // Set radio button to current mode
-                    if (currentMode === 'department') {
-                        $('#accessModeDept').prop('checked', true).parent().addClass('active');
-                        $('#accessModeUser').prop('checked', false).parent().removeClass('active');
-                        $('#userListPanel').hide();
-                        $('#deptListPanel').show();
-                        $('#accessSearchInput').attr('placeholder', 'Search departments...');
-                    } else {
-                        $('#accessModeUser').prop('checked', true).parent().addClass('active');
-                        $('#accessModeDept').prop('checked', false).parent().removeClass('active');
-                        $('#deptListPanel').hide();
-                        $('#userListPanel').show();
-                        $('#accessSearchInput').attr('placeholder', 'Search by name or email...');
-                    }
-
-                    renderUserList();
-                    renderDeptList();
-                    
-                    $('#userManagementLoading').hide();
-                    $('#userManagementContent').show();
-                }).fail(function(xhr) {
-                    console.error('Access data load failed:', xhr);
-                    let msg = 'Failed to load access data.';
-                    if (xhr.responseText) {
-                        try {
-                            const err = JSON.parse(xhr.responseText);
-                            if (err.error) msg += '\n' + err.error;
-                        } catch(e) { 
-                            msg += '\n' + xhr.responseText.substring(0, 200);
-                        }
-                    }
-                    alert(msg);
-                    $('#userManagementModal').modal('hide');
-                });
-            }
-
-            function renderUserList(search) {
-                search = search || '';
-                const body = $('#userListBody');
-                body.empty();
-                
-                const filtered = allUsers.filter(u => 
-                    u.NAME.toLowerCase().includes(search.toLowerCase()) || 
-                    u.EMAIL.toLowerCase().includes(search.toLowerCase())
-                );
-
-                if (filtered.length === 0) {
-                    body.append('<tr><td colspan="4" class="text-center py-4 text-muted">No users found</td></tr>');
-                    return;
-                }
-
-                filtered.forEach(user => {
-                    const isAllowed = savedUserIds.includes(user.ID);
-                    const isKeen = user.EMAIL.toLowerCase().endsWith('@keenenter.com');
-                    const badge = isKeen ? '<span class="badge badge-success">Superuser</span>' : (isAllowed ? '<span class="badge badge-primary">Allowed</span>' : '<span class="badge badge-light">Restricted</span>');
-                    
-                    body.append($(`
-                        <tr class="${isKeen ? 'bg-light' : ''}">
-                            <td>
-                                <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input user-check" id="user_${user.ID}" value="${user.ID}" 
-                                        ${isAllowed || isKeen ? 'checked' : ''} 
-                                        ${isKeen ? 'disabled' : ''}>
-                                    <label class="custom-control-label" for="user_${user.ID}"></label>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="mr-2" style="width: 32px; height: 32px; background: #e2e8f0; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                                        ${user.PHOTO ? `<img src="${user.PHOTO}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user text-muted small"></i>`}
-                                    </div>
-                                    <span class="font-weight-600">${user.NAME}</span>
-                                </div>
-                            </td>
-                            <td class="small text-muted">${user.EMAIL}</td>
-                            <td class="text-right">${badge}</td>
-                        </tr>
-                    `));
-                });
-            }
-
-            function renderDeptList(search) {
-                search = search || '';
-                const body = $('#deptListBody');
-                body.empty();
-
-                const filtered = allDepartments.filter(d =>
-                    d.NAME.toLowerCase().includes(search.toLowerCase())
-                );
-
-                if (filtered.length === 0) {
-                    body.append('<tr><td colspan="3" class="text-center py-4 text-muted">No departments found</td></tr>');
-                    return;
-                }
-
-                filtered.forEach(dept => {
-                    const isAllowed = savedDeptIds.includes(dept.ID);
-                    const badge = isAllowed ? '<span class="badge badge-primary">Allowed</span>' : '<span class="badge badge-light">Blocked</span>';
-                    
-                    body.append($(`
-                        <tr>
-                            <td>
-                                <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input dept-check" id="dept_${dept.ID}" value="${dept.ID}" ${isAllowed ? 'checked' : ''}>
-                                    <label class="custom-control-label" for="dept_${dept.ID}"></label>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="mr-2" style="width: 32px; height: 32px; background: #e8f0fe; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                        <i class="fas fa-building text-primary small"></i>
-                                    </div>
-                                    <span class="font-weight-600">${dept.NAME}</span>
-                                </div>
-                            </td>
-                            <td class="text-right">${badge}</td>
-                        </tr>
-                    `));
-                });
-            }
-
-            $('#accessSearchInput').on('input', function() {
-                const val = $(this).val();
-                if (currentMode === 'department') {
-                    renderDeptList(val);
-                } else {
-                    renderUserList(val);
-                }
-            });
-
-            $('#saveAllowedUsersBtn').on('click', function() {
-                const selectedUserIds = [];
-                $('.user-check:checked:not(:disabled)').each(function() {
-                    selectedUserIds.push($(this).val());
-                });
-
-                const selectedDeptIds = [];
-                $('.dept-check:checked').each(function() {
-                    selectedDeptIds.push($(this).val());
-                });
-
-                const btn = $(this);
-                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i> Saving...');
-
-                const b24Params = window.location.search;
-                $.ajax({
-                    url: 'save_allowed_users.php' + b24Params,
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ 
-                        mode: currentMode,
-                        user_ids: selectedUserIds,
-                        department_ids: selectedDeptIds
-                    }),
-                    success: function(res) {
-                        if (res.success) {
-                            alert('Access permissions updated successfully!');
-                            $('#userManagementModal').modal('hide');
-                        } else {
-                            alert('Error: ' + (res.error || 'Unknown error'));
-                        }
-                    },
-                    error: function() {
-                        alert('Network error while saving permissions.');
-                    },
-                    complete: function() {
-                        btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Changes');
-                    }
-                });
-            });
-        });
-    </script>
 </body>
 </html>
 <?php
