@@ -168,9 +168,58 @@ if ($hasValidAuth) {
         $allowedUsersFile = $varDir . '/allowed_users.json';
         
         if (file_exists($allowedUsersFile)) {
-            $allowedUserIds = json_decode(file_get_contents($allowedUsersFile), true) ?: [];
-            if (!$isSuperUser && !in_array($currentUserId, $allowedUserIds)) {
-                $isAccessAllowed = false;
+            $rawAccess = json_decode(file_get_contents($allowedUsersFile), true) ?: [];
+            
+            // Support new format: { mode, user_ids, department_ids }
+            // Backward compat: plain array = old user mode
+            if (isset($rawAccess['mode'])) {
+                $accessMode = $rawAccess['mode'];
+                $allowedUserIds = $rawAccess['user_ids'] ?? [];
+                $allowedDeptIds = $rawAccess['department_ids'] ?? [];
+            } else {
+                $accessMode = 'user';
+                $allowedUserIds = $rawAccess;
+                $allowedDeptIds = [];
+            }
+            
+            if (!$isSuperUser) {
+                if ($accessMode === 'department') {
+                    // Check if user belongs to any allowed department
+                    $userDepts = [];
+                    try {
+                        $rawU = $core->call('user.current');
+                        // Not needed - we already have currentUser, but need UF_DEPARTMENT
+                        // Fetch via cURL for reliability
+                        $domain2 = $storedAuth['DOMAIN'];
+                        if (strpos($domain2, 'https://') !== 0 && strpos($domain2, 'http://') !== 0) {
+                            $domain2 = 'https://' . $domain2;
+                        }
+                        $ch = curl_init(rtrim($domain2, '/') . '/rest/user.current.json');
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['auth' => $storedAuth['AUTH_ID']]));
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        $uResp = curl_exec($ch);
+                        curl_close($ch);
+                        $uData = json_decode($uResp, true);
+                        $userDepts = $uData['result']['UF_DEPARTMENT'] ?? [];
+                    } catch (\Exception $e) {
+                        $userDepts = [];
+                    }
+                    
+                    // Convert to strings for comparison
+                    $userDeptStrs = array_map('strval', $userDepts);
+                    $allowedDeptStrs = array_map('strval', $allowedDeptIds);
+                    
+                    if (empty(array_intersect($userDeptStrs, $allowedDeptStrs))) {
+                        $isAccessAllowed = false;
+                    }
+                } else {
+                    // User mode
+                    if (!in_array($currentUserId, $allowedUserIds)) {
+                        $isAccessAllowed = false;
+                    }
+                }
             }
         }
     } catch (\Exception $e) {
@@ -3955,8 +4004,8 @@ if ($hasValidAuth) {
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-white border-bottom-0">
                     <div>
-                        <h5 class="modal-title font-weight-700">User Access Management</h5>
-                        <p class="text-muted small mb-0">Select users who are authorized to use the application.</p>
+                        <h5 class="modal-title font-weight-700"><i class="fas fa-shield-alt text-primary mr-2"></i>Access Management</h5>
+                        <p class="text-muted small mb-0">Control who can access the application by user or department.</p>
                     </div>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
@@ -3965,18 +4014,33 @@ if ($hasValidAuth) {
                 <div class="modal-body">
                     <div id="userManagementLoading" class="text-center py-4">
                         <div class="spinner-border text-primary" role="status"></div>
-                        <p class="text-muted small mt-2">Loading users...</p>
+                        <p class="text-muted small mt-2">Loading access data...</p>
                     </div>
                     
                     <div id="userManagementContent" style="display:none;">
+                        <!-- Mode Toggle -->
+                        <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-lg border">
+                            <span class="font-weight-600 small text-uppercase text-muted mr-3">Grant access by:</span>
+                            <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                <label class="btn btn-sm btn-outline-primary active" id="modeUserLabel">
+                                    <input type="radio" name="accessMode" id="accessModeUser" value="user" checked> <i class="fas fa-user mr-1"></i> Per User
+                                </label>
+                                <label class="btn btn-sm btn-outline-primary" id="modeDeptLabel">
+                                    <input type="radio" name="accessMode" id="accessModeDept" value="department"> <i class="fas fa-building mr-1"></i> Per Department
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Search bar -->
                         <div class="input-group mb-3">
                             <div class="input-group-prepend">
                                 <span class="input-group-text bg-light border-right-0"><i class="fas fa-search text-muted"></i></span>
                             </div>
-                            <input type="text" id="userSearchInput" class="form-control form-control-modern border-left-0" placeholder="Search by name or email...">
+                            <input type="text" id="accessSearchInput" class="form-control form-control-modern border-left-0" placeholder="Search...">
                         </div>
                         
-                        <div class="user-selection-list" style="max-height: 400px; overflow-y: auto;">
+                        <!-- User List (shown in user mode) -->
+                        <div id="userListPanel" class="selection-list" style="max-height: 400px; overflow-y: auto;">
                             <table class="table table-hover table-borderless">
                                 <thead class="bg-light sticky-top">
                                     <tr>
@@ -3986,9 +4050,21 @@ if ($hasValidAuth) {
                                         <th class="text-right">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody id="userListBody">
-                                    <!-- Populated by JS -->
-                                </tbody>
+                                <tbody id="userListBody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Department List (shown in department mode) -->
+                        <div id="deptListPanel" class="selection-list" style="max-height: 400px; overflow-y: auto; display:none;">
+                            <table class="table table-hover table-borderless">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th style="width: 40px;"></th>
+                                        <th>Department</th>
+                                        <th class="text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deptListBody"></tbody>
                             </table>
                         </div>
                     </div>
@@ -4006,13 +4082,32 @@ if ($hasValidAuth) {
     <script>
         $(document).ready(function() {
             let allUsers = [];
-            let allowedUserIds = [];
+            let allDepartments = [];
+            let currentMode = 'user';
+            let savedUserIds = [];
+            let savedDeptIds = [];
 
             $('#userManagementModal').on('show.bs.modal', function() {
-                loadUsers();
+                loadAccessData();
             });
 
-            function loadUsers() {
+            // Mode Toggle
+            $('input[name="accessMode"]').on('change', function() {
+                currentMode = $(this).val();
+                if (currentMode === 'department') {
+                    $('#userListPanel').hide();
+                    $('#deptListPanel').show();
+                    $('#accessSearchInput').attr('placeholder', 'Search departments...');
+                    renderDeptList($('#accessSearchInput').val());
+                } else {
+                    $('#deptListPanel').hide();
+                    $('#userListPanel').show();
+                    $('#accessSearchInput').attr('placeholder', 'Search by name or email...');
+                    renderUserList($('#accessSearchInput').val());
+                }
+            });
+
+            function loadAccessData() {
                 $('#userManagementLoading').show();
                 $('#userManagementContent').hide();
                 
@@ -4024,22 +4119,41 @@ if ($hasValidAuth) {
                         return;
                     }
                     
-                    allUsers = data.all || [];
-                    allowedUserIds = data.allowed || [];
+                    allUsers = data.all_users || [];
+                    allDepartments = data.all_departments || [];
+                    currentMode = data.mode || 'user';
+                    savedUserIds = data.user_ids || [];
+                    savedDeptIds = data.department_ids || [];
+
+                    // Set radio button to current mode
+                    if (currentMode === 'department') {
+                        $('#accessModeDept').prop('checked', true).parent().addClass('active');
+                        $('#accessModeUser').prop('checked', false).parent().removeClass('active');
+                        $('#userListPanel').hide();
+                        $('#deptListPanel').show();
+                        $('#accessSearchInput').attr('placeholder', 'Search departments...');
+                    } else {
+                        $('#accessModeUser').prop('checked', true).parent().addClass('active');
+                        $('#accessModeDept').prop('checked', false).parent().removeClass('active');
+                        $('#deptListPanel').hide();
+                        $('#userListPanel').show();
+                        $('#accessSearchInput').attr('placeholder', 'Search by name or email...');
+                    }
+
                     renderUserList();
+                    renderDeptList();
                     
                     $('#userManagementLoading').hide();
                     $('#userManagementContent').show();
                 }).fail(function(xhr) {
-                    console.error('User list load failed:', xhr);
-                    let msg = 'Failed to load users list.';
-                    if (xhr.status === 401 || xhr.status === 403) msg += ' (Unauthorized/Forbidden)';
+                    console.error('Access data load failed:', xhr);
+                    let msg = 'Failed to load access data.';
                     if (xhr.responseText) {
                         try {
                             const err = JSON.parse(xhr.responseText);
-                            if (err.error) msg += '\nServer Error: ' + err.error;
+                            if (err.error) msg += '\n' + err.error;
                         } catch(e) { 
-                            msg += '\nDetails: ' + xhr.responseText.substring(0, 100);
+                            msg += '\n' + xhr.responseText.substring(0, 200);
                         }
                     }
                     alert(msg);
@@ -4047,7 +4161,8 @@ if ($hasValidAuth) {
                 });
             }
 
-            function renderUserList(search = '') {
+            function renderUserList(search) {
+                search = search || '';
                 const body = $('#userListBody');
                 body.empty();
                 
@@ -4062,11 +4177,11 @@ if ($hasValidAuth) {
                 }
 
                 filtered.forEach(user => {
-                    const isAllowed = allowedUserIds.includes(user.ID);
+                    const isAllowed = savedUserIds.includes(user.ID);
                     const isKeen = user.EMAIL.toLowerCase().endsWith('@keenenter.com');
                     const badge = isKeen ? '<span class="badge badge-success">Superuser</span>' : (isAllowed ? '<span class="badge badge-primary">Allowed</span>' : '<span class="badge badge-light">Restricted</span>');
                     
-                    const row = $(`
+                    body.append($(`
                         <tr class="${isKeen ? 'bg-light' : ''}">
                             <td>
                                 <div class="custom-control custom-checkbox">
@@ -4087,19 +4202,68 @@ if ($hasValidAuth) {
                             <td class="small text-muted">${user.EMAIL}</td>
                             <td class="text-right">${badge}</td>
                         </tr>
-                    `);
-                    body.append(row);
+                    `));
                 });
             }
 
-            $('#userSearchInput').on('input', function() {
-                renderUserList($(this).val());
+            function renderDeptList(search) {
+                search = search || '';
+                const body = $('#deptListBody');
+                body.empty();
+
+                const filtered = allDepartments.filter(d =>
+                    d.NAME.toLowerCase().includes(search.toLowerCase())
+                );
+
+                if (filtered.length === 0) {
+                    body.append('<tr><td colspan="3" class="text-center py-4 text-muted">No departments found</td></tr>');
+                    return;
+                }
+
+                filtered.forEach(dept => {
+                    const isAllowed = savedDeptIds.includes(dept.ID);
+                    const badge = isAllowed ? '<span class="badge badge-primary">Allowed</span>' : '<span class="badge badge-light">Blocked</span>';
+                    
+                    body.append($(`
+                        <tr>
+                            <td>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input dept-check" id="dept_${dept.ID}" value="${dept.ID}" ${isAllowed ? 'checked' : ''}>
+                                    <label class="custom-control-label" for="dept_${dept.ID}"></label>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="mr-2" style="width: 32px; height: 32px; background: #e8f0fe; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-building text-primary small"></i>
+                                    </div>
+                                    <span class="font-weight-600">${dept.NAME}</span>
+                                </div>
+                            </td>
+                            <td class="text-right">${badge}</td>
+                        </tr>
+                    `));
+                });
+            }
+
+            $('#accessSearchInput').on('input', function() {
+                const val = $(this).val();
+                if (currentMode === 'department') {
+                    renderDeptList(val);
+                } else {
+                    renderUserList(val);
+                }
             });
 
             $('#saveAllowedUsersBtn').on('click', function() {
-                const selectedIds = [];
+                const selectedUserIds = [];
                 $('.user-check:checked:not(:disabled)').each(function() {
-                    selectedIds.push($(this).val());
+                    selectedUserIds.push($(this).val());
+                });
+
+                const selectedDeptIds = [];
+                $('.dept-check:checked').each(function() {
+                    selectedDeptIds.push($(this).val());
                 });
 
                 const btn = $(this);
@@ -4110,10 +4274,14 @@ if ($hasValidAuth) {
                     url: 'save_allowed_users.php' + b24Params,
                     method: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ user_ids: selectedIds }),
+                    data: JSON.stringify({ 
+                        mode: currentMode,
+                        user_ids: selectedUserIds,
+                        department_ids: selectedDeptIds
+                    }),
                     success: function(res) {
                         if (res.success) {
-                            alert('User permissions updated successfully!');
+                            alert('Access permissions updated successfully!');
                             $('#userManagementModal').modal('hide');
                         } else {
                             alert('Error: ' + (res.error || 'Unknown error'));

@@ -37,10 +37,14 @@ try {
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
+    
+    // Accept new format: { mode, user_ids, department_ids }
+    $mode = $input['mode'] ?? 'user';
     $userIds = $input['user_ids'] ?? [];
+    $departmentIds = $input['department_ids'] ?? [];
 
-    if (!is_array($userIds)) {
-        echo json_encode(['error' => 'Invalid input']);
+    if (!in_array($mode, ['user', 'department'])) {
+        echo json_encode(['error' => 'Invalid mode. Must be "user" or "department"']);
         exit;
     }
 
@@ -79,7 +83,7 @@ try {
         exit;
     }
 
-    // 2. Save allowed users
+    // 2. Save access config
     $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     
     // Ensure directory exists
@@ -89,7 +93,13 @@ try {
 
     $allowedUsersFile = $varDir . '/allowed_users.json';
 
-    if (file_put_contents($allowedUsersFile, json_encode($userIds, JSON_PRETTY_PRINT))) {
+    $configData = [
+        'mode' => $mode,
+        'user_ids' => is_array($userIds) ? $userIds : [],
+        'department_ids' => is_array($departmentIds) ? $departmentIds : [],
+    ];
+
+    if (file_put_contents($allowedUsersFile, json_encode($configData, JSON_PRETTY_PRINT))) {
         echo json_encode(['success' => true]);
     } else {
         echo json_encode(['error' => 'Failed to write to file: ' . $allowedUsersFile]);

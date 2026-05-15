@@ -66,16 +66,31 @@ try {
         exit;
     }
 
-    // 2. Load allowed users from file
+    // 2. Load saved access config from file
     $varDir = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
     $allowedUsersFile = $varDir . '/allowed_users.json';
     $fileExists = file_exists($allowedUsersFile);
-    $allowedUsers = $fileExists ? (json_decode(file_get_contents($allowedUsersFile), true) ?: []) : [];
-
-    // 3. Fetch all active users via cURL (most reliable, avoids SDK abstraction issues)
-    $accessToken = $storedAuth['AUTH_ID'];
-    $apiUrl = rtrim($domain, '/') . '/rest/user.get.json';
     
+    // New format: { "mode": "user"|"department", "user_ids": [...], "department_ids": [...] }
+    // Backward compatible: if file contains a plain array, treat as user mode
+    $accessConfig = ['mode' => 'user', 'user_ids' => [], 'department_ids' => []];
+    if ($fileExists) {
+        $raw = json_decode(file_get_contents($allowedUsersFile), true);
+        if (is_array($raw)) {
+            if (isset($raw['mode'])) {
+                // New format
+                $accessConfig = $raw;
+            } else {
+                // Old format (plain array of user IDs)
+                $accessConfig['user_ids'] = $raw;
+            }
+        }
+    }
+
+    $accessToken = $storedAuth['AUTH_ID'];
+
+    // 3. Fetch all active users via cURL
+    $apiUrl = rtrim($domain, '/') . '/rest/user.get.json';
     $ch = curl_init($apiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
@@ -84,7 +99,6 @@ try {
         'FILTER' => ['ACTIVE' => true],
     ]));
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
     $response = curl_exec($ch);
     $curlError = curl_error($ch);
     curl_close($ch);
@@ -96,26 +110,59 @@ try {
 
     $decoded = json_decode($response, true);
     $allUsers = [];
-
     if (isset($decoded['result']) && is_array($decoded['result'])) {
         foreach ($decoded['result'] as $user) {
             $allUsers[] = [
                 'ID' => $user['ID'],
                 'NAME' => trim(($user['NAME'] ?? '') . ' ' . ($user['LAST_NAME'] ?? '')),
                 'EMAIL' => $user['EMAIL'] ?? '',
-                'PHOTO' => $user['PERSONAL_PHOTO'] ?? ''
+                'PHOTO' => $user['PERSONAL_PHOTO'] ?? '',
+                'UF_DEPARTMENT' => $user['UF_DEPARTMENT'] ?? []
             ];
         }
     }
 
-    // If file doesn't exist, treat everyone as allowed
+    // 4. Fetch all departments via cURL
+    $deptUrl = rtrim($domain, '/') . '/rest/department.get.json';
+    $ch = curl_init($deptUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'auth' => $accessToken,
+        'sort' => 'NAME',
+        'order' => 'ASC',
+    ]));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $deptResponse = curl_exec($ch);
+    $deptCurlError = curl_error($ch);
+    curl_close($ch);
+
+    $allDepartments = [];
+    if (!$deptCurlError) {
+        $deptDecoded = json_decode($deptResponse, true);
+        if (isset($deptDecoded['result']) && is_array($deptDecoded['result'])) {
+            foreach ($deptDecoded['result'] as $dept) {
+                $allDepartments[] = [
+                    'ID' => $dept['ID'],
+                    'NAME' => $dept['NAME'] ?? '',
+                    'PARENT' => $dept['PARENT'] ?? null,
+                    'UF_HEAD' => $dept['UF_HEAD'] ?? null,
+                ];
+            }
+        }
+    }
+
+    // If file doesn't exist, treat everyone as allowed (all user IDs)
     if (!$fileExists) {
-        $allowedUsers = array_column($allUsers, 'ID');
+        $accessConfig['user_ids'] = array_column($allUsers, 'ID');
     }
 
     echo json_encode([
-        'allowed' => $allowedUsers,
-        'all' => $allUsers
+        'mode' => $accessConfig['mode'],
+        'user_ids' => $accessConfig['user_ids'],
+        'department_ids' => $accessConfig['department_ids'],
+        'all_users' => $allUsers,
+        'all_departments' => $allDepartments
     ]);
 
 } catch (\Throwable $e) {
