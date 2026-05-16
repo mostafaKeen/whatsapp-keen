@@ -1297,7 +1297,11 @@ if ($hasValidAuth) {
                                 <div id="scheduleFormContainer" style="display:none;" class="mb-5 p-4 border rounded-lg bg-light shadow-sm">
                                     <h6 class="font-weight-bold text-primary mb-3" id="scheduleFormTitle">Create New Schedule</h6>
                                     <form id="scheduleForm">
-                                        <input type="hidden" name="id" id="scheduleId">
+                                         <input type="hidden" name="id" id="scheduleId">
+                                         <input type="hidden" name="templateName" id="scheduleTemplateName">
+                                         <input type="hidden" name="templateType" id="scheduleTemplateType">
+                                         <input type="hidden" name="language" id="scheduleLanguage">
+                                         <input type="hidden" name="templateContent" id="scheduleTemplateContent">
                                         <div class="row">
                                             <div class="col-md-6 form-group">
                                                 <label class="small font-weight-700 text-muted uppercase">Task Name *</label>
@@ -1339,7 +1343,7 @@ if ($hasValidAuth) {
                                         </div>
                                         <div class="text-right">
                                             <button type="button" class="btn btn-modern btn-outline-modern btn-sm mr-2" id="cancelScheduleBtn">Cancel</button>
-                                            <button type="submit" class="btn btn-modern btn-primary-modern btn-sm">Save Schedule</button>
+                                            <button type="submit" id="saveScheduleBtn" class="btn btn-modern btn-primary-modern btn-sm">Save Schedule</button>
                                         </div>
                                     </form>
                                 </div>
@@ -3610,8 +3614,8 @@ if ($hasValidAuth) {
                             $('#scheduleTemplateContent').val(selectedTemplate.data || selectedTemplate.content || '');
                             $('#scheduleLanguage').val(selectedTemplate.languageCode || 'en_US');
                             
-                            if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(selectedTemplate.templateType) !== -1) {
-                                $('#scheduleMediaGroup').slideDown();
+                            if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF', 'FILE'].indexOf(selectedTemplate.templateType) !== -1) {
+                                $('#scheduleMediaUrlGroup').slideDown();
                                 // Try to auto-populate media URL from template meta if available
                                 try {
                                     var meta = typeof selectedTemplate.containerMeta === 'string' ? JSON.parse(selectedTemplate.containerMeta) : selectedTemplate.containerMeta;
@@ -3620,7 +3624,7 @@ if ($hasValidAuth) {
                                     }
                                 } catch(e) {}
                             } else {
-                                $('#scheduleMediaGroup').slideUp();
+                                $('#scheduleMediaUrlGroup').slideUp();
                             }
                         }
                     });
@@ -3639,8 +3643,8 @@ if ($hasValidAuth) {
                                 if (res.status === 'success') {
                                     showToast('Task saved successfully!', 'success');
                                     $('#scheduleForm')[0].reset();
-                                    $('#scheduleTaskId').val('');
-                                    $('#scheduleMediaGroup').hide();
+                                    $('#scheduleId').val('');
+                                    $('#scheduleFormContainer').slideUp();
                                     loadScheduledTasks();
                                 } else {
                                     alert('Error: ' + res.message);
@@ -3651,6 +3655,17 @@ if ($hasValidAuth) {
                                 alert('Failed to save task.');
                             }
                         });
+                    });
+
+                    $('#addNewScheduleBtn').click(function() {
+                        $('#scheduleForm')[0].reset();
+                        $('#scheduleId').val('');
+                        $('#scheduleFormTitle').text('Create New Schedule');
+                        $('#scheduleFormContainer').slideDown();
+                    });
+
+                    $('#cancelScheduleBtn').click(function() {
+                        $('#scheduleFormContainer').slideUp();
                     });
 
                     $(document).on('click', '.delete-schedule-btn', function() {
@@ -3671,14 +3686,16 @@ if ($hasValidAuth) {
 
                     $(document).on('click', '.edit-schedule-btn', function() {
                         var task = $(this).data('task');
-                        $('#scheduleTaskId').val(task.id);
-                        $('#scheduleTaskName').val(task.name);
+                        $('#scheduleFormTitle').text('Edit Schedule: ' + task.name);
+                        $('#scheduleId').val(task.id);
+                        $('#scheduleName').val(task.name);
                         $('#scheduleTemplateSelect').val(task.template_id).trigger('change');
                         $('#scheduleTime').val(task.time);
                         $('#scheduleStatus').val(task.status);
                         $('#scheduleNumbers').val(task.numbers ? task.numbers.join('\n') : '');
                         $('#scheduleMediaUrl').val(task.media_url || '');
-                        $('#scheduleResponsibleId').val(task.responsible_id || '');
+                        $('#scheduleResponsibleSelect').val(task.responsible_id || '');
+                        $('#scheduleFormContainer').slideDown();
                     });
                 });
             </script>
