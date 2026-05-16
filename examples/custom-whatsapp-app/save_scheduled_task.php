@@ -14,6 +14,11 @@ $scheduledFile = $varDir . '/scheduled_tasks.json';
 $action = $_POST['action'] ?? 'save';
 $tasks = file_exists($scheduledFile) ? (json_decode(file_get_contents($scheduledFile), true) ?: []) : [];
 
+// Cleanup any empty-key tasks that were accidentally created due to the previous bug
+if (isset($tasks[''])) {
+    unset($tasks['']);
+}
+
 if ($action === 'delete') {
     $id = $_POST['id'] ?? '';
     if (isset($tasks[$id])) {
@@ -27,7 +32,8 @@ if ($action === 'delete') {
 }
 
 // Save or Update
-$id = $_POST['id'] ?? ('task_' . time() . '_' . bin2hex(random_bytes(4)));
+// Save or Update
+$id = !empty($_POST['id']) ? $_POST['id'] : ('task_' . time() . '_' . bin2hex(random_bytes(4)));
 $name = $_POST['name'] ?? 'Untitled Task';
 $templateId = $_POST['templateId'] ?? '';
 $templateName = $_POST['templateName'] ?? '';
@@ -47,6 +53,12 @@ if (empty($templateId) || empty($numbersRaw)) {
 
 $numbers = array_values(array_unique(array_filter(array_map('trim', explode("\n", $numbersRaw)))));
 
+$lastRun = $tasks[$id]['last_run'] ?? null;
+// If the time is changed, we want to allow it to run again today at the new time
+if (isset($tasks[$id]) && $tasks[$id]['time'] !== $time) {
+    $lastRun = null;
+}
+
 $tasks[$id] = [
     'id' => $id,
     'name' => $name,
@@ -60,7 +72,7 @@ $tasks[$id] = [
     'time' => $time,
     'status' => $status,
     'responsible_id' => $responsibleId,
-    'last_run' => $tasks[$id]['last_run'] ?? null,
+    'last_run' => $lastRun,
     'created_at' => $tasks[$id]['created_at'] ?? date('Y-m-d H:i:s'),
     'updated_at' => date('Y-m-d H:i:s')
 ];

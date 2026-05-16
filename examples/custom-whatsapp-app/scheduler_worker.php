@@ -80,7 +80,8 @@ foreach ($tasks as $id => &$task) {
         
         // Spawn worker
         $workerPath = __DIR__ . '/worker.php';
-        $cmd = "php \"$workerPath\" \"$jobId\"";
+        $phpBin = PHP_BINARY ?: 'php';
+        $cmd = "\"$phpBin\" \"$workerPath\" \"$jobId\"";
         echo "Executing: $cmd\n";
         
         if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
