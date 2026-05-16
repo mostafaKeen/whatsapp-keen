@@ -240,8 +240,8 @@ foreach ($jobData['targets'] as $index => &$target) {
     
     echo "Processed: " . $target['phone'] . " | Status: " . $target['status'] . "\n";
 
-    // Rate limiting: Delay between 200ms and 500ms to avoid spam flagging
-    usleep(rand(200000, 500000)); 
+    // Rate limiting: Delay 60 seconds to avoid media server rate limiting
+    sleep(60);
 }
 
 $jobData['status'] = 'completed';
