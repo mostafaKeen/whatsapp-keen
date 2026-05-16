@@ -780,8 +780,10 @@ if ($hasValidAuth) {
                             <i class="fas fa-robot text-primary"></i> Auto-Reply
                         </button>
                         <button id="createTemplateBtn" class="btn btn-modern btn-primary-modern" data-toggle="modal" data-target="#createTemplateModal">
-
                             <i class="fas fa-plus"></i> Create Template
+                        </button>
+                        <button id="openSchedulesBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#scheduledMessagesModal">
+                            <i class="fas fa-clock text-warning"></i> Scheduled
                         </button>
                     </div>
                 </div>
@@ -1272,6 +1274,95 @@ if ($hasValidAuth) {
                         </div>
                     </div>
                 </div>
+
+                <!-- Scheduled Messages Modal -->
+                <div class="modal fade" id="scheduledMessagesModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title text-warning"><i class="fas fa-calendar-alt mr-2"></i> Daily Scheduled Messages</h5>
+                                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <p class="text-muted small mb-0">Manage templates that are sent automatically every day.</p>
+                                    <button type="button" class="btn btn-modern btn-primary-modern btn-sm" id="addNewScheduleBtn">
+                                        <i class="fas fa-plus mr-1"></i> New Schedule
+                                    </button>
+                                </div>
+
+                                <div id="scheduleFormContainer" style="display:none;" class="mb-5 p-4 border rounded-lg bg-light shadow-sm">
+                                    <h6 class="font-weight-bold text-primary mb-3" id="scheduleFormTitle">Create New Schedule</h6>
+                                    <form id="scheduleForm">
+                                        <input type="hidden" name="id" id="scheduleId">
+                                        <div class="row">
+                                            <div class="col-md-6 form-group">
+                                                <label class="small font-weight-700 text-muted uppercase">Task Name *</label>
+                                                <input type="text" name="name" id="scheduleName" class="form-control form-control-modern" placeholder="e.g. Daily Morning Greeting" required>
+                                            </div>
+                                            <div class="col-md-6 form-group">
+                                                <label class="small font-weight-700 text-muted uppercase">Select Template *</label>
+                                                <select name="templateId" id="scheduleTemplateSelect" class="form-control form-control-modern" required>
+                                                    <option value="">-- Choose Approved Template --</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4 form-group">
+                                                <label class="small font-weight-700 text-muted uppercase">Execution Time (Daily) *</label>
+                                                <input type="time" name="time" id="scheduleTime" class="form-control form-control-modern" required>
+                                            </div>
+                                            <div class="col-md-4 form-group">
+                                                <label class="small font-weight-700 text-muted uppercase">Status</label>
+                                                <select name="status" id="scheduleStatus" class="form-control form-control-modern">
+                                                    <option value="active">Active</option>
+                                                    <option value="inactive">Inactive</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 form-group">
+                                                <label class="small font-weight-700 text-muted uppercase">Responsible Person</label>
+                                                <select name="responsibleId" id="scheduleResponsibleSelect" class="form-control form-control-modern">
+                                                    <option value="">-- Default --</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-group mb-4" id="scheduleMediaUrlGroup" style="display:none;">
+                                            <label class="small font-weight-700 text-muted uppercase">Media URL (For Media Templates)</label>
+                                            <input type="text" name="mediaUrl" id="scheduleMediaUrl" class="form-control form-control-modern" placeholder="https://...">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="small font-weight-700 text-muted uppercase">Target Numbers (One per line) *</label>
+                                            <textarea name="numbers" id="scheduleNumbers" class="form-control form-control-modern" rows="4" placeholder="97150XXXXXXX" required></textarea>
+                                        </div>
+                                        <div class="text-right">
+                                            <button type="button" class="btn btn-modern btn-outline-modern btn-sm mr-2" id="cancelScheduleBtn">Cancel</button>
+                                            <button type="submit" class="btn btn-modern btn-primary-modern btn-sm">Save Schedule</button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table-modern">
+                                        <thead>
+                                            <tr>
+                                                <th>Task Name</th>
+                                                <th>Template</th>
+                                                <th>Time</th>
+                                                <th>Numbers</th>
+                                                <th>Status</th>
+                                                <th class="text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="schedulesList">
+                                            <tr><td colspan="6" class="text-center py-5 text-muted small">Loading schedules...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
 
                 <!-- Edit Template Modal -->
                 <div class="modal fade" id="editTemplateModal" tabindex="-1">
@@ -3436,6 +3527,155 @@ if ($hasValidAuth) {
 
                     $('#refreshAnalysisBtn').off('click').on('click', function() {
                         loadCampaignAnalysis();
+                    });
+
+                    // --- Scheduled Messages Logic ---
+                    function loadScheduledTasks() {
+                        $('#schedulesList').html('<tr><td colspan="7" class="text-center"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading...</td></tr>');
+                        $.ajax({
+                            url: 'get_scheduled_tasks.php?' + new Date().getTime(),
+                            method: 'GET',
+                            success: function(res) {
+                                if (res.status === 'success' && res.data && res.data.length > 0) {
+                                    var html = '';
+                                    res.data.forEach(function(task) {
+                                        var statusPill = task.status === 'active' ? 'status-pill approved' : 'status-pill rejected';
+                                        var taskData = JSON.stringify(task).replace(/'/g, "&apos;");
+                                        html += '<tr>' +
+                                                '<td><strong>' + task.name + '</strong><br><small class="text-muted">' + task.id + '</small></td>' +
+                                                '<td><div class="font-weight-bold text-primary">' + task.template_name + '</div><div class="small text-muted">' + task.template_type + '</div></td>' +
+                                                '<td>' + (task.numbers ? task.numbers.length : 0) + '</td>' +
+                                                '<td><span class="badge badge-info">' + task.time + '</span></td>' +
+                                                '<td><span class="' + statusPill + '">' + task.status.toUpperCase() + '</span></td>' +
+                                                '<td><small>' + (task.last_run || 'Never') + '</small></td>' +
+                                                '<td class="text-right">' +
+                                                    '<div class="btn-group">' +
+                                                        '<button class="btn btn-sm btn-outline-primary rounded-circle mr-2 edit-schedule-btn" data-task=\'' + taskData + '\'><i class="fas fa-edit"></i></button>' +
+                                                        '<button class="btn btn-sm btn-outline-danger rounded-circle delete-schedule-btn" data-id="' + task.id + '"><i class="fas fa-trash"></i></button>' +
+                                                    '</div>' +
+                                                '</td>' +
+                                                '</tr>';
+                                    });
+                                    $('#schedulesList').html(html);
+                                } else {
+                                    $('#schedulesList').html('<tr><td colspan="7" class="text-center text-muted">No scheduled tasks found. Create one to begin.</td></tr>');
+                                }
+                            },
+                            error: function() {
+                                $('#schedulesList').html('<tr><td colspan="7" class="text-center text-danger">Failed to load scheduled tasks.</td></tr>');
+                            }
+                        });
+                    }
+
+                    $('#scheduledMessagesModal').on('show.bs.modal', function() {
+                        var $sel = $('#scheduleTemplateSelect');
+                        $sel.empty().append('<option value="">-- Select an approved template --</option>');
+                        if (window.allTemplatesData && window.allTemplatesData.length > 0) {
+                            window.allTemplatesData.forEach(function(t) {
+                                if (t.status === 'APPROVED') {
+                                    $sel.append('<option value="'+(t.id || t.templateId || t.externalId)+'">'+t.elementName+' ('+t.templateType+')</option>');
+                                }
+                            });
+                        }
+
+                        // Populate responsible select if empty
+                        var $respSel = $('#scheduleResponsibleId');
+                        if ($respSel.children('option').length <= 1) {
+                            $respSel.empty().append('<option value="">Loading users...</option>');
+                            BX24.callMethod('user.get', { FILTER: { ACTIVE: true } }, function(res) {
+                                $respSel.empty().append('<option value="">-- Lead will be unassigned (default) --</option>');
+                                if (!res.error()) {
+                                    res.data().forEach(function(user) {
+                                        var nameStr = (user.NAME || '') + (user.NAME && user.LAST_NAME ? ' ' : '') + (user.LAST_NAME || '');
+                                        $respSel.append('<option value="' + user.ID + '">' + nameStr + '</option>');
+                                    });
+                                }
+                            });
+                        }
+
+                        loadScheduledTasks();
+                    });
+
+                    $('#scheduleTemplateSelect').on('change', function() {
+                        var templateId = $(this).val();
+                        var selectedTemplate = (window.allTemplatesData || []).find(function(t) {
+                            return (t.id || t.templateId || t.externalId) === templateId;
+                        });
+                        if (selectedTemplate) {
+                            $('#scheduleTemplateName').val(selectedTemplate.elementName);
+                            $('#scheduleTemplateType').val(selectedTemplate.templateType);
+                            $('#scheduleTemplateContent').val(selectedTemplate.data || selectedTemplate.content || '');
+                            $('#scheduleLanguage').val(selectedTemplate.languageCode || 'en_US');
+                            
+                            if (['IMAGE', 'VIDEO', 'DOCUMENT', 'GIF'].indexOf(selectedTemplate.templateType) !== -1) {
+                                $('#scheduleMediaGroup').slideDown();
+                                // Try to auto-populate media URL from template meta if available
+                                try {
+                                    var meta = typeof selectedTemplate.containerMeta === 'string' ? JSON.parse(selectedTemplate.containerMeta) : selectedTemplate.containerMeta;
+                                    if (meta && (meta.mediaUrl || meta.sampleMedia)) {
+                                        $('#scheduleMediaUrl').val(meta.mediaUrl || meta.sampleMedia);
+                                    }
+                                } catch(e) {}
+                            } else {
+                                $('#scheduleMediaGroup').slideUp();
+                            }
+                        }
+                    });
+
+                    $('#scheduleForm').on('submit', function(e) {
+                        e.preventDefault();
+                        var btn = $('#saveScheduleBtn');
+                        btn.prop('disabled', true).text('Saving...');
+                        
+                        $.ajax({
+                            url: 'save_scheduled_task.php',
+                            method: 'POST',
+                            data: $(this).serialize(),
+                            success: function(res) {
+                                btn.prop('disabled', false).text('Save Task');
+                                if (res.status === 'success') {
+                                    showToast('Task saved successfully!', 'success');
+                                    $('#scheduleForm')[0].reset();
+                                    $('#scheduleTaskId').val('');
+                                    $('#scheduleMediaGroup').hide();
+                                    loadScheduledTasks();
+                                } else {
+                                    alert('Error: ' + res.message);
+                                }
+                            },
+                            error: function() {
+                                btn.prop('disabled', false).text('Save Task');
+                                alert('Failed to save task.');
+                            }
+                        });
+                    });
+
+                    $(document).on('click', '.delete-schedule-btn', function() {
+                        var id = $(this).data('id');
+                        if (!confirm('Delete this scheduled task?')) return;
+                        $.ajax({
+                            url: 'save_scheduled_task.php',
+                            method: 'POST',
+                            data: { action: 'delete', id: id },
+                            success: function(res) {
+                                if (res.status === 'success') {
+                                    showToast('Task deleted', 'info');
+                                    loadScheduledTasks();
+                                }
+                            }
+                        });
+                    });
+
+                    $(document).on('click', '.edit-schedule-btn', function() {
+                        var task = $(this).data('task');
+                        $('#scheduleTaskId').val(task.id);
+                        $('#scheduleTaskName').val(task.name);
+                        $('#scheduleTemplateSelect').val(task.template_id).trigger('change');
+                        $('#scheduleTime').val(task.time);
+                        $('#scheduleStatus').val(task.status);
+                        $('#scheduleNumbers').val(task.numbers ? task.numbers.join('\n') : '');
+                        $('#scheduleMediaUrl').val(task.media_url || '');
+                        $('#scheduleResponsibleId').val(task.responsible_id || '');
                     });
                 });
             </script>

@@ -148,8 +148,33 @@ foreach ($batch as $i => &$t) {
 
     $templateObj = [
         'id' => $jobData['template_id'], 
-        'params' => array_values($params) // Ensure indexed array — top-level body variables only
+        'params' => array_values($params)
     ];
+
+    if (!empty($jobData['language'])) {
+        $templateObj['language'] = [
+            'policy' => 'deterministic',
+            'code' => $jobData['language']
+        ];
+    }
+
+    if ($tempType !== 'TEXT' && $tempType !== 'CAROUSEL' && !empty($mediaUrl)) {
+        $mType = strtolower($tempType === 'FILE' ? 'file' : $tempType);
+        $msgObj = [
+            'type' => $mType,
+            $mType => [
+                (strpos(strtolower($mediaUrl), 'http') === 0) ? 'link' : 'id' => $mediaUrl
+            ]
+        ];
+        if (($tempType === 'DOCUMENT' || $tempType === 'FILE') && (strpos(strtolower($mediaUrl), 'http') === 0)) {
+            $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
+            $filename = end($pathParts);
+            if ($filename) {
+                $msgObj[$mType]['filename'] = $filename;
+            }
+        }
+        $messageData = $msgObj;
+    }
 
     // ================================================================
     // CAROUSEL Handling (Steps 1-7)

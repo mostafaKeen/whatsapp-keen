@@ -100,6 +100,7 @@ foreach ($jobData['targets'] as $index => &$target) {
         }
     }
 
+    $messageData = null;
     if ($tempType === 'CAROUSEL') {
         $meta = json_decode($jobData['template_meta'] ?? '{}', true);
         if ($meta && !empty($meta['cards'])) {
@@ -134,21 +135,44 @@ foreach ($jobData['targets'] as $index => &$target) {
                     }
                 }
                 
-                $cardComponents[] = ['type' => 'body', 'parameters' => []]; // Body vars mapping could go here
+                $cardComponents[] = ['type' => 'body', 'parameters' => []];
                 $carouselCards[] = ['card_index' => $cIdx, 'components' => $cardComponents];
             }
             $messageData = ['type' => 'carousel', 'cards' => $carouselCards];
         }
+    } elseif ($tempType !== 'TEXT' && !empty($mediaUrl)) {
+        $mType = strtolower($tempType === 'FILE' ? 'file' : $tempType);
+        $msgObj = [
+            'type' => $mType,
+            $mType => [
+                (strpos(strtolower($mediaUrl), 'http') === 0) ? 'link' : 'id' => $mediaUrl
+            ]
+        ];
+        if (($tempType === 'DOCUMENT' || $tempType === 'FILE') && (strpos(strtolower($mediaUrl), 'http') === 0)) {
+            $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
+            $filename = end($pathParts);
+            if ($filename) $msgObj[$mType]['filename'] = $filename;
+        }
+        $messageData = $msgObj;
+    }
+
+    $templateObj = [
+        'id' => $jobData['template_id'],
+        'params' => array_values($params)
+    ];
+
+    if (!empty($jobData['language'])) {
+        $templateObj['language'] = [
+            'policy' => 'deterministic',
+            'code' => $jobData['language']
+        ];
     }
 
     $postData = [
         'source' => $jobData['source'],
         'destination' => $target['phone'],
         'src.name' => $jobData['app_name'],
-        'template' => json_encode([
-            'id' => $jobData['template_id'],
-            'params' => array_values($params)
-        ]),
+        'template' => json_encode($templateObj),
         'channel' => 'whatsapp'
     ];
     
