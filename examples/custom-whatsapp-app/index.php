@@ -327,6 +327,8 @@ if ($hasValidAuth) {
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         h1, h2, h3, h4, .modal-title {
@@ -597,11 +599,12 @@ if ($hasValidAuth) {
                 <span>KEEN Nexus</span>
             </div>
             <?php if (!$errorMessage): ?>
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center flex-wrap gap-2">
                     <div id="currentUserGreet" class="mr-3 font-weight-600 text-primary" style="font-size: 1.1rem; letter-spacing: -0.01em;"></div>
                     <div class="badge-active">
                         <span class="d-inline-block" style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;"></span>
-                        Integration Active
+                        <span class="d-none d-sm-inline">Integration Active</span>
+                        <span class="d-inline d-sm-none">Active</span>
                     </div>
                 </div>
             <?php endif; ?>
@@ -753,37 +756,37 @@ if ($hasValidAuth) {
         <?php if ($isRegistered): ?>
             <!-- Main Content Section -->
             <div class="glass-card">
-                <div class="d-flex justify-content-between align-items-end mb-4">
-                    <div>
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-end mb-4">
+                    <div class="mb-3 mb-lg-0">
                         <h3 class="mb-1">Message Templates</h3>
                         <p class="text-muted small mb-0">Manage your WhatsApp approved message templates</p>
                     </div>
-                    <div class="d-flex gap-2" style="gap: 8px;">
+                    <div class="d-flex flex-wrap justify-content-start justify-content-lg-end" style="gap: 8px;">
                         <button id="refreshTemplates" class="btn btn-modern btn-outline-modern" title="Refresh List">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                         <button id="openConversationsBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#conversationsModal">
-                            <i class="fas fa-comments text-success"></i> Conversations
+                            <i class="fas fa-comments text-success"></i> <span class="d-none d-sm-inline">Conversations</span>
                         </button>
                         <button id="campaignAnalysisBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#campaignAnalysisModal">
-                            <i class="fas fa-chart-line"></i> Insights
+                            <i class="fas fa-chart-line"></i> <span class="d-none d-sm-inline">Insights</span>
                         </button>
                         <?php if (str_ends_with(strtolower($currentUserEmail ?? ''), '@keenenter.com')): ?>
                         <a href="usage_report.php?<?= http_build_query($_GET) ?>" class="btn btn-modern btn-outline-modern">
-                            <i class="fas fa-file-invoice-dollar text-primary"></i> Usage
+                            <i class="fas fa-file-invoice-dollar text-primary"></i> <span class="d-none d-sm-inline">Usage</span>
                         </a>
                         <?php endif; ?>
                         <button id="sendCampaignBtn" class="btn btn-modern btn-info-modern" data-toggle="modal" data-target="#campaignModal">
                             <i class="fas fa-paper-plane"></i> Send Bulk
                         </button>
                         <button id="autoReplySettingsBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#autoReplyModal">
-                            <i class="fas fa-robot text-primary"></i> Auto-Reply
+                            <i class="fas fa-robot text-primary"></i> <span class="d-none d-sm-inline">Auto-Reply</span>
                         </button>
                         <button id="createTemplateBtn" class="btn btn-modern btn-primary-modern" data-toggle="modal" data-target="#createTemplateModal">
-                            <i class="fas fa-plus"></i> Create Template
+                            <i class="fas fa-plus"></i> <span class="d-none d-sm-inline">Create Template</span>
                         </button>
                         <button id="openSchedulesBtn" class="btn btn-modern btn-outline-modern" data-toggle="modal" data-target="#scheduledMessagesModal">
-                            <i class="fas fa-clock text-warning"></i> Scheduled
+                            <i class="fas fa-clock text-warning"></i> <span class="d-none d-sm-inline">Scheduled</span>
                         </button>
                     </div>
                 </div>
