@@ -45,30 +45,30 @@ function updateJobFile(string $jobFile, array $jobData): void {
     file_put_contents($jobFile, json_encode($jobData, JSON_PRETTY_PRINT));
 }
 
-$jobData = json_decode(file_get_contents($jobFile), true);
-if (!$jobData) {
-    die("Invalid job data.\n");
-}
-
-$jobData['status'] = 'running';
-updateJobFile($jobFile, $jobData);
-
-$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/template/msg';
-
-foreach ($jobData['targets'] as $index => &$target) {
-    // Reload job data occasionally to check if user paused/cancelled
-    if ($index % 5 === 0) {
-        $checkData = json_decode(file_get_contents($jobFile), true);
-        if ($checkData && ($checkData['status'] === 'paused' || $checkData['status'] === 'cancelled')) {
-            echo "Job " . $checkData['status'] . ". Exiting worker.\n";
-            exit;
+function recalculateJobStats(array &$jobData): void {
+    $processed = 0;
+    $success = 0;
+    $failed = 0;
+    
+    foreach ($jobData['targets'] as $t) {
+        $status = $t['status'] ?? '';
+        if ($status !== 'pending' && $status !== 'rate_limited') {
+            $processed++;
+        }
+        if ($status === 'sent' || $status === 'delivered' || $status === 'read') {
+            $success++;
+        }
+        if ($status === 'failed' || $status === 'webhook_failed') {
+            $failed++;
         }
     }
+    
+    $jobData['processed'] = $processed;
+    $jobData['success'] = $success;
+    $jobData['failed'] = $failed;
+}
 
-    if ($target['status'] !== 'pending' && $target['status'] !== 'rate_limited') {
-        continue;
-    }
-
+function sendTargetMessage(array &$target, array &$jobData, string $jobFile, string $url, string $apiToken, string $jobId, array $whatsappConfig): bool {
     // Build Payload
     $params = $target['params'] ?? [];
     $mediaUrl = trim($jobData['media_url'] ?? '');
@@ -78,8 +78,6 @@ foreach ($jobData['targets'] as $index => &$target) {
     if (!empty($mediaUrl)) {
         if ($tempType === 'IMAGE' || $tempType === 'VIDEO' || $tempType === 'DOCUMENT' || $tempType === 'FILE') {
             $typeLower = ($tempType === 'FILE') ? 'file' : strtolower($tempType);
-            
-            // Intelligent detection: If it starts with http, use 'link', otherwise use 'id' (handle)
             $isUrl = (strpos(strtolower($mediaUrl), 'http') === 0);
             
             $messageData = [
@@ -89,7 +87,6 @@ foreach ($jobData['targets'] as $index => &$target) {
                 ]
             ];
             
-            // If it's a document/file and we have a link, try to add a filename
             if ($isUrl && ($typeLower === 'document' || $typeLower === 'file')) {
                 $pathParts = explode('/', parse_url($mediaUrl, PHP_URL_PATH) ?: '');
                 $filename = end($pathParts);
@@ -100,7 +97,6 @@ foreach ($jobData['targets'] as $index => &$target) {
         }
     }
 
-    $messageData = null;
     if ($tempType === 'CAROUSEL') {
         $meta = json_decode($jobData['template_meta'] ?? '{}', true);
         if ($meta && !empty($meta['cards'])) {
@@ -180,48 +176,70 @@ foreach ($jobData['targets'] as $index => &$target) {
         $postData['message'] = json_encode($messageData);
     }
 
-    // Call API
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: ' . $apiToken,
-        'accept: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
+    // Attempt sending with immediate retries on API failure (up to 3 attempts)
+    $maxApiAttempts = 3;
+    $success = false;
+    $httpCode = 0;
+    $response = '';
+    $error = '';
+    $decoded = null;
+    $respStatus = '';
+    $msgId = null;
 
-    $decoded = json_decode((string)$response, true);
-    $respStatus = strtolower($decoded['status'] ?? '');
-    $msgId = $decoded['messageId'] ?? null;
+    for ($apiAttempt = 1; $apiAttempt <= $maxApiAttempts; $apiAttempt++) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: ' . $apiToken,
+            'accept: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
 
-    if ($httpCode === 429) {
-        $target['status'] = 'rate_limited';
-        $target['error'] = 'Rate Limited (429)';
-        $jobData['status'] = 'paused';
-        updateJobFile($jobFile, $jobData);
-        echo "Rate limited. Pausing job.\n";
-        exit;
+        $decoded = json_decode((string)$response, true);
+        $respStatus = strtolower($decoded['status'] ?? '');
+        $msgId = $decoded['messageId'] ?? null;
+
+        if ($httpCode === 429) {
+            $target['status'] = 'rate_limited';
+            $target['error'] = 'Rate Limited (429)';
+            $jobData['status'] = 'paused';
+            updateJobFile($jobFile, $jobData);
+            echo "Rate limited. Pausing job.\n";
+            exit;
+        }
+
+        if ($httpCode >= 200 && $httpCode < 300 && in_array($respStatus, ['success', 'submitted'])) {
+            $success = true;
+            break;
+        }
+
+        if ($apiAttempt < $maxApiAttempts) {
+            echo "API send failed for {$target['phone']} (API Attempt $apiAttempt). Retrying in 1 second...\n";
+            sleep(1);
+        }
     }
 
-    $jobData['processed']++;
-    if ($httpCode >= 200 && $httpCode < 300 && in_array($respStatus, ['success', 'submitted'])) {
+    $target['attempts'] = ($target['attempts'] ?? 0) + 1;
+
+    if ($success) {
         $target['status'] = 'sent';
         $target['message_id'] = $msgId;
-        $jobData['success']++;
+        $target['error'] = null;
 
         // Compile the actual message text
         $compiledMsg = $jobData['template_content'] ?? ('Campaign: ' . $jobData['template_name']);
         if (!empty($params)) {
              $pVals = array_values($params);
              for ($i = 0; $i < count($pVals); $i++) {
-                 $idx = $i + 1;
-                 $compiledMsg = str_replace('{{' . $idx . '}}', (string)$pVals[$i], $compiledMsg);
+                  $idx = $i + 1;
+                  $compiledMsg = str_replace('{{' . $idx . '}}', (string)$pVals[$i], $compiledMsg);
              }
         }
 
@@ -231,21 +249,76 @@ foreach ($jobData['targets'] as $index => &$target) {
     } else {
         $target['status'] = 'failed';
         $target['error'] = $error ?: ($decoded['message'] ?? 'HTTP ' . $httpCode);
-        $jobData['failed']++;
         logDetailedError($jobId, $target, $postData, $response, $httpCode, $error, $whatsappConfig);
     }
 
-    // Save progress after each target for maximum reliability
+    recalculateJobStats($jobData);
     updateJobFile($jobFile, $jobData);
     
     echo "Processed: " . $target['phone'] . " | Status: " . $target['status'] . "\n";
-
-    // Rate limiting: Delay 60 seconds to avoid media server rate limiting
-    sleep(60);
+    return $success;
 }
 
-$jobData['status'] = 'completed';
+$jobData = json_decode(file_get_contents($jobFile), true);
+if (!$jobData) {
+    die("Invalid job data.\n");
+}
+
+$jobData['status'] = 'running';
 updateJobFile($jobFile, $jobData);
+
+$url = 'https://partner.gupshup.io/partner/app/' . $appId . '/template/msg';
+
+// First Pass: process pending / rate-limited messages
+foreach ($jobData['targets'] as $index => &$target) {
+    // Reload job data occasionally to check if user paused/cancelled
+    if ($index % 5 === 0) {
+        $checkData = json_decode(file_get_contents($jobFile), true);
+        if ($checkData && ($checkData['status'] === 'paused' || $checkData['status'] === 'cancelled')) {
+            echo "Job " . $checkData['status'] . ". Exiting worker.\n";
+            exit;
+        }
+    }
+
+    if ($target['status'] !== 'pending' && $target['status'] !== 'rate_limited') {
+        continue;
+    }
+
+    sendTargetMessage($target, $jobData, $jobFile, $url, $apiToken, $jobId, $whatsappConfig);
+    
+    // Rate limiting: Delay 1 second to avoid media server rate limiting (was 60 seconds)
+    sleep(1);
+}
+unset($target);
+
+// Wait 5 seconds to let webhook delivery statuses catch up
+echo "Waiting 5 seconds for webhook statuses...\n";
+sleep(5);
+
+// Post-loop Retry Pass: Retry any messages that are failed or webhook_failed, up to 3 total attempts
+$maxTotalAttempts = 3;
+$jobData = json_decode(file_get_contents($jobFile), true);
+
+if ($jobData && $jobData['status'] === 'running') {
+    foreach ($jobData['targets'] as $index => &$target) {
+        $status = $target['status'] ?? '';
+        $attempts = $target['attempts'] ?? 0;
+        
+        if (($status === 'failed' || $status === 'webhook_failed') && $attempts < $maxTotalAttempts) {
+            echo "Retrying failed/undelivered target: {$target['phone']} (Attempt " . ($attempts + 1) . ")...\n";
+            sendTargetMessage($target, $jobData, $jobFile, $url, $apiToken, $jobId, $whatsappConfig);
+            sleep(1);
+        }
+    }
+    unset($target);
+}
+
+// Final check and complete job
+$jobData = json_decode(file_get_contents($jobFile), true);
+if ($jobData && $jobData['status'] === 'running') {
+    $jobData['status'] = 'completed';
+    updateJobFile($jobFile, $jobData);
+}
 echo "Job completed.\n";
 
 /**
