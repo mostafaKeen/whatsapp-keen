@@ -23,8 +23,9 @@ require_once __DIR__ . '/crest.php';
 $BASE_VAR_DIR = $whatsappConfig['var_dir'] ?? (dirname(__DIR__, 2) . '/var');
 $MSG_DIR      = $BASE_VAR_DIR . '/messages';
 $LOG_DIR      = $BASE_VAR_DIR . '/webhook_events';
-$JOB_DIR      = $BASE_VAR_DIR . '/jobs';
-$WEBHOOK_URL  = $whatsappConfig['webhook_url']; // Bitrix24 direct webhook URL
+$JOB_DIR         = $BASE_VAR_DIR . '/jobs';
+$SCHEDULED_FILE  = $BASE_VAR_DIR . '/scheduled_tasks.json';
+$WEBHOOK_URL     = $whatsappConfig['webhook_url']; // Bitrix24 direct webhook URL
 
 if (!is_dir($MSG_DIR)) mkdir($MSG_DIR, 0755, true);
 if (!is_dir($LOG_DIR)) mkdir($LOG_DIR, 0755, true);
@@ -225,7 +226,8 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 $campaignPrefix = ($campaignInfo) ? "Reply to template: [" . $campaignInfo['template_name'] . "]. Message: " : "Gupshup Message: ";
 
                 // 2B. Look up Lead/Contact by phone (or create new Lead)
-                $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL, $campaignInfo);
+                $inScheduledTask = isPhoneInScheduledTask($phone, $SCHEDULED_FILE);
+                $entity = findOrCreateLeadByPhone($phone, $senderName, $WEBHOOK_URL, $campaignInfo, $inScheduledTask);
 
                 // 2C. Add the message to Open Channel and link to CRM Lead
                 $ocResult = sendToOpenChannel($WEBHOOK_URL, $phone, $senderName, $text, $mediaUrl, $timestamp, $messageId, $entity['id'] ?? null);
@@ -233,7 +235,9 @@ foreach ($decoded['entry'] ?? [] as $entry) {
                 // If a new session/chat was created, ensure it's linked to the lead
                 if (!empty($ocResult['DATA']['RESULT'][0]['session']['CHAT_ID'])) {
                     $chatId = $ocResult['DATA']['RESULT'][0]['session']['CHAT_ID'];
-                    CRest::call('imopenlines.crm.lead.create', ['CHAT_ID' => $chatId]);
+                    if ($entity || !$inScheduledTask) {
+                        CRest::call('imopenlines.crm.lead.create', ['CHAT_ID' => $chatId]);
+                    }
                 }
 
                 if ($entity) {
@@ -395,6 +399,32 @@ exit;
 
 
 /**
+ * Returns true if the phone number is listed in any scheduled task.
+ */
+function isPhoneInScheduledTask(string $phone, string $scheduledFile): bool {
+    if (!file_exists($scheduledFile)) {
+        return false;
+    }
+
+    $tasks = json_decode(file_get_contents($scheduledFile), true) ?: [];
+    $cleanP = ltrim(preg_replace('/[^0-9]/', '', (string)$phone), '0');
+
+    foreach ($tasks as $task) {
+        if (empty($task['numbers']) || !is_array($task['numbers'])) {
+            continue;
+        }
+        foreach ($task['numbers'] as $num) {
+            $cleanT = ltrim(preg_replace('/[^0-9]/', '', (string)$num), '0');
+            if ($cleanP === $cleanT || str_ends_with($cleanP, $cleanT) || str_ends_with($cleanT, $cleanP)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
  * Searches jobs directory for a match for the incoming phone number.
  */
 function matchCampaignJobByPhone(string $jobDir, string $phone): ?array {
@@ -489,7 +519,7 @@ function sendToOpenChannel(string $webhookUrl, string $phone, string $senderName
  * Creates a new Lead if not found.
  * Returns ['type' => 'lead', 'id' => 123, 'is_new' => true/false] or null.
  */
-function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl, ?array $campaign = null): ?array {
+function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl, ?array $campaign = null, bool $skipCreate = false): ?array {
 
     // Try multiple phone formats
     $variants = [
@@ -512,6 +542,11 @@ function findOrCreateLeadByPhone(string $phone, string $name, string $webhookUrl
         $resp = bitrix24Call($webhookUrl, 'crm.lead.get', ['id' => $leadId]);
         $responsibleId = $resp['result']['ASSIGNED_BY_ID'] ?? 1;
         return ['type' => 'lead', 'id' => $leadId, 'is_new' => false, 'responsible_id' => $responsibleId];
+    }
+
+    if ($skipCreate) {
+        error_log("Skipping Lead creation for +$phone — number is in a scheduled task");
+        return null;
     }
 
     // Not found — create new Lead
