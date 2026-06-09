@@ -242,8 +242,10 @@ foreach ($decoded['entry'] ?? [] as $entry) {
 
                 if ($entity) {
                     
-                    // We removed addMessageToBitrixEntity and sendAgentNotification 
-                    // because Open Channels handles agent notifications and timeline tracking natively.
+                    // Send system notification to the responsible agent
+if (!empty($entity['responsible_id']) && !empty($entity['id'])) {
+    sendAgentNotification($WEBHOOK_URL, $entity['responsible_id'], $entity['id'], $senderName, $text);
+}
 
                     $filename = $MSG_DIR . '/' . strtolower($entity['type']) . '_' . $entity['id'] . '.json';
                     $history = file_exists($filename) ? (json_decode(file_get_contents($filename), true) ?: []) : [];
